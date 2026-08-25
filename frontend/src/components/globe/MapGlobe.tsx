@@ -59,6 +59,8 @@ export default function MapGlobe({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const haloRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const readyRef = useRef(false)
   const mapRef = useRef<MapLibreMap | null>(null)
   const isInteractingRef = useRef(false)
   const suppressNextMapClickRef = useRef(false)
@@ -92,8 +94,29 @@ export default function MapGlobe({
       pitchWithRotate: false,
       touchPitch: false,
       attributionControl: false,
+      // 줌을 오갈 때 상위 줌 타일이 캐시에서 밀려나면 그 영역이 다시 빈 채로 그려진다.
+      // 캐시를 넉넉히 잡아 되돌아왔을 때 재요청 없이 즉시 표시되게 한다.
+      maxTileCacheSize: 500,
     })
     mapRef.current = map
+
+    // 로딩 중에는 부분적으로만 채워진 타일과 대기광이 그대로 노출된다. 스타일과 타일이
+    // 모두 준비된 뒤 한 번에 페이드인시킨다. 자동 자전이 매 프레임 setCenter를 호출해
+    // 'idle'이 발생하지 않으므로, 매 프레임 발생하는 'render'에서 직접 확인한다.
+    let revealTimeoutId: number | undefined
+    function reveal() {
+      if (readyRef.current) return
+      readyRef.current = true
+      map.off('render', tryReveal)
+      window.clearTimeout(revealTimeoutId)
+      rootRef.current?.classList.add('map-globe--ready')
+    }
+    function tryReveal() {
+      if (map.isStyleLoaded() && map.areTilesLoaded()) reveal()
+    }
+    map.on('render', tryReveal)
+    // 타일 하나가 끝내 도착하지 않아도 화면이 영원히 비어 있지 않도록 하는 안전장치.
+    revealTimeoutId = window.setTimeout(reveal, 5000)
     let nearbyCountryIntervalId: number | undefined
 
     const setInteractingTrue = () => {
@@ -110,8 +133,6 @@ export default function MapGlobe({
     map.on('zoomend', setInteractingFalse)
 
     map.on('load', () => {
-      map.setProjection({ type: 'globe' })
-
       const imageData = createStarFlareImageData()
       if (!map.hasImage(STAR_FLARE_IMAGE_ID)) {
         map.addImage(STAR_FLARE_IMAGE_ID, imageData, { sdf: true })
@@ -268,6 +289,11 @@ export default function MapGlobe({
     const updateHalo = () => {
       const haloEl = haloRef.current
       if (!haloEl) return
+      // 준비 전에는 대기광 원이 아직 구형이 아닌 지도 위에 겹쳐 보인다.
+      if (!readyRef.current) {
+        haloEl.style.opacity = '0'
+        return
+      }
       const zoom = map.getZoom()
       const fadeOutZoom = 6
       // pitch/bearing이 0이 아니면(지도가 기울어지면) 화면 중심 대칭 원이라는 계산 전제가
@@ -305,6 +331,9 @@ export default function MapGlobe({
 
     return () => {
       cancelAnimationFrame(rafId)
+      window.clearTimeout(revealTimeoutId)
+      readyRef.current = false
+      appliedInitialFocusRef.current = false
       window.clearInterval(nearbyCountryIntervalId)
       map.remove()
       mapRef.current = null
@@ -349,9 +378,13 @@ export default function MapGlobe({
   useEffect(() => {
     const map = mapRef.current
     if (!map || !initialFocusLatLng || appliedInitialFocusRef.current) return
-    appliedInitialFocusRef.current = true
 
     const apply = () => {
+      // 플래그는 실제로 이동을 실행하는 순간에만 세운다. 진입 시점에 세워버리면
+      // apply가 끝내 호출되지 않았을 때 재시도 경로까지 영구히 막힌다.
+      if (appliedInitialFocusRef.current) return
+      appliedInitialFocusRef.current = true
+      map.off('render', tryApply)
       isInteractingRef.current = true
       map.flyTo({
         center: [initialFocusLatLng.longitude, initialFocusLatLng.latitude],
@@ -364,8 +397,21 @@ export default function MapGlobe({
         isInteractingRef.current = false
       }, 2500)
     }
-    if (map.loaded()) apply()
-    else map.once('load', apply)
+
+    function tryApply() {
+      if (map!.isStyleLoaded()) apply()
+    }
+
+    // 'load'는 딱 한 번만 발생하므로 이미 지나간 뒤 once('load')를 걸면 영영 실행되지
+    // 않는다. 게다가 map.loaded()는 타일 로딩 상태까지 보기 때문에 load가 끝난 뒤에도
+    // false가 될 수 있어, 그 순간에 걸리면 이동이 통째로 유실된다.
+    // 매 프레임 발생하는 'render'에서 스타일 준비 여부를 직접 확인한다.
+    if (map.isStyleLoaded()) apply()
+    else map.on('render', tryApply)
+
+    return () => {
+      map.off('render', tryApply)
+    }
   }, [initialFocusLatLng])
 
   // 배치(이벤트 등록) 모드일 때 커서를 십자선으로
@@ -377,7 +423,7 @@ export default function MapGlobe({
   }, [placing])
 
   return (
-    <div className="map-globe">
+    <div className="map-globe" ref={rootRef}>
       <Starfield />
       <div ref={containerRef} className="map-globe__container" />
       <div ref={haloRef} className="globe-halo" />

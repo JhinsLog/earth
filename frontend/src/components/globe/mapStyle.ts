@@ -29,6 +29,9 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
 
   return {
     version: 8,
+    // 첫 프레임부터 globe로 그린다. setProjection을 on('load')에서 호출하면
+    // 그 전에 기본값인 mercator(평면 지도)로 최소 한 프레임이 렌더링된다.
+    projection: { type: 'globe' },
     glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
     sources: {
       'nasa-blue-marble': {
@@ -66,33 +69,43 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
       },
     },
     layers: [
+      // 타일이 아직 로딩되지 않은 영역이 우주(검정)로 비쳐 보이는 것을 막는다.
+      // 지구본 표면 전체를 덮는 바닥색이므로 반드시 첫 번째 레이어여야 한다.
+      {
+        id: 'globe-background',
+        type: 'background',
+        paint: { 'background-color': '#0a2038' },
+      },
       {
         id: 'nasa-blue-marble-base',
         type: 'raster',
         source: 'nasa-blue-marble',
         minzoom: 0,
-        maxzoom: 24,
+        maxzoom: 4.5,
         paint: {
-          'raster-opacity': ['interpolate', ['linear'], ['zoom'], 3.0, 1.0, 6.0, 0.0],
+          'raster-fade-duration': 0,
+          'raster-opacity': ['interpolate', ['linear'], ['zoom'], 3.0, 1.0, 4.5, 0.0],
         },
       },
       {
         id: 'satellite-base',
         type: 'raster',
         source: 'esri-satellite',
-        minzoom: 0,
-        maxzoom: 24,
+        minzoom: 2.5,
+        maxzoom: 11,
         paint: {
-          'raster-opacity': ['interpolate', ['linear'], ['zoom'], 3.0, 0.0, 6.0, 1.0],
+          'raster-fade-duration': 0,
+          'raster-opacity': ['interpolate', ['linear'], ['zoom'], 3.0, 0.0, 4.5, 1.0],
         },
       },
       {
         id: 'carto-dark-base',
         type: 'raster',
         source: 'carto-dark',
-        minzoom: 0,
+        minzoom: 7.5,
         maxzoom: 24,
         paint: {
+          'raster-fade-duration': 0,
           'raster-opacity': ['interpolate', ['linear'], ['zoom'], 8.0, 0.0, 10.5, 1.0],
         },
       },

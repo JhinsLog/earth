@@ -1,5 +1,7 @@
 .globe-halo {
   position: absolute;
+  /* 준비 완료 후 updateHalo가 인라인 스타일로 덮어쓴다. */
+  opacity: 0;
   top: 0;
   left: 0;
   z-index: 2;

@@ -9,7 +9,16 @@
   inset: 0;
   z-index: 1;
   background: transparent;
+  /* 로딩 과정(부분적으로 채워진 타일)이 노출되지 않도록 준비 전까지 감춘다.
+     Starfield는 계속 보이므로 화면이 비어 보이지 않는다. */
+  opacity: 0;
 }
+
+.map-globe--ready .map-globe__container {
+  opacity: 1;
+  transition: opacity 0.6s ease;
+}
+
 
 .map-globe .maplibregl-ctrl-bottom-left,
 .map-globe .maplibregl-ctrl-bottom-right,
