@@ -31,14 +31,55 @@ import './MapGlobe.css'
 const STAR_LAYER_IDS = ['events-aura-layer', 'events-white-core'] as const
 const EVENTS_SOURCE_ID = 'earth-events-source'
 const STAR_FLARE_IMAGE_ID = 'earth-star-flare-sdf'
+/** 우클릭으로 찍었지만 아직 내용을 입력하지 않은 "임시 별". 확정 전까지는 본인 화면에만 보인다. */
+const PENDING_SOURCE_ID = 'earth-pending-star-source'
 
 interface Props {
   events: EarthEvent[]
+  /** 우클릭으로 찍은 임시 별의 위치. 확정 또는 취소되면 null이 된다. */
+  pendingLocation?: { lat: number; lng: number } | null
   selectedEventId: number | null
   onSelect: (id: number | null) => void
   placing: boolean
   onPlaceLocation: (latitude: number, longitude: number) => void
   initialFocusLatLng?: GeoPoint | null
+}
+
+/**
+ * 스타일이 준비된 뒤 콜백을 실행하고, 정리 함수를 돌려준다.
+ *
+ * map.once('load', ...)를 쓰면 안 된다. 'load'는 딱 한 번만 발생하는데
+ * isStyleLoaded()는 소스를 갱신하는 순간 일시적으로 false가 되므로, 이미 load가
+ * 지나간 뒤 false를 만나면 콜백이 영영 실행되지 않는다(임시 별이 지워지지 않던 원인).
+ * 매 프레임 발생하는 'render'에서 준비 여부를 직접 확인한다.
+ */
+function whenStyleReady(map: MapLibreMap, run: () => void): () => void {
+  if (map.isStyleLoaded()) {
+    run()
+    return () => {}
+  }
+  const handler = () => {
+    if (!map.isStyleLoaded()) return
+    map.off('render', handler)
+    run()
+  }
+  map.on('render', handler)
+  return () => map.off('render', handler)
+}
+
+function toPendingGeoJson(point: { lat: number; lng: number } | null | undefined) {
+  return {
+    type: 'FeatureCollection' as const,
+    features: point
+      ? [
+          {
+            type: 'Feature' as const,
+            geometry: { type: 'Point' as const, coordinates: [point.lng, point.lat] },
+            properties: {},
+          },
+        ]
+      : [],
+  }
 }
 
 function toGeoJson(events: EarthEvent[]) {
@@ -57,6 +98,7 @@ function toGeoJson(events: EarthEvent[]) {
 
 export default function MapGlobe({
   events,
+  pendingLocation,
   selectedEventId,
   onSelect,
   placing,
@@ -237,6 +279,41 @@ export default function MapGlobe({
         },
       })
 
+      // 임시 별. 아직 저장되지 않았음을 드러내기 위해 무채색으로, 확정된 별보다 크고
+      // 옅게 그린다. 확정된 별 위에 올라오도록 마지막에 추가한다.
+      map.addSource(PENDING_SOURCE_ID, {
+        type: 'geojson',
+        data: toPendingGeoJson(null),
+      })
+
+      map.addLayer({
+        id: 'pending-star-aura',
+        type: 'circle',
+        source: PENDING_SOURCE_ID,
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 11, 10, 26],
+          'circle-color': '#cfe4ff',
+          'circle-opacity': 0.32,
+          'circle-blur': 0.9,
+        },
+      })
+
+      map.addLayer({
+        id: 'pending-star-flare',
+        type: 'symbol',
+        source: PENDING_SOURCE_ID,
+        layout: {
+          'icon-image': STAR_FLARE_IMAGE_ID,
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 1, 0.26, 10, 0.5],
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+        },
+        paint: {
+          'icon-color': '#ffffff',
+          'icon-opacity': 0.9,
+        },
+      })
+
       STAR_LAYER_IDS.forEach((layerId) => {
         map.on('click', layerId, (e: MapLayerMouseEvent) => {
           suppressNextMapClickRef.current = true
@@ -283,6 +360,12 @@ export default function MapGlobe({
       updateNearbyCountryFilter()
       map.on('moveend', updateNearbyCountryFilter)
       nearbyCountryIntervalId = window.setInterval(updateNearbyCountryFilter, 400)
+    })
+
+    // 우클릭으로 그 지점에 임시 별을 찍는다. 브라우저 기본 컨텍스트 메뉴는 막는다.
+    map.on('contextmenu', (e: MapMouseEvent) => {
+      e.originalEvent.preventDefault()
+      onPlaceLocationRef.current(e.lngLat.lat, e.lngLat.lng)
     })
 
     map.on('click', (e: MapMouseEvent) => {
@@ -382,13 +465,21 @@ export default function MapGlobe({
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    const apply = () => {
+    return whenStyleReady(map, () => {
       const source = map.getSource(EVENTS_SOURCE_ID) as GeoJSONSource | undefined
       source?.setData(toGeoJson(events))
-    }
-    if (map.isStyleLoaded()) apply()
-    else map.once('load', apply)
+    })
   }, [events])
+
+  // 우클릭으로 찍은 임시 별을 지도에 반영
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    return whenStyleReady(map, () => {
+      const source = map.getSource(PENDING_SOURCE_ID) as GeoJSONSource | undefined
+      source?.setData(toPendingGeoJson(pendingLocation))
+    })
+  }, [pendingLocation])
 
   // 이벤트를 선택하면 해당 좌표로 확대 이동
   useEffect(() => {

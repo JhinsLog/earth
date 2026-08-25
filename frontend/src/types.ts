@@ -1,5 +1,5 @@
 export type EventCategory = 'FIRE' | 'ACCIDENT' | 'WEATHER' | 'CROWD' | 'ETC'
-export type EventStatus = 'ACTIVE' | 'CLOSED'
+export type EventStatus = 'ACTIVE' | 'CLOSED' | 'EXPIRED' | 'DELETED'
 
 export interface EarthEvent {
   id: number
@@ -12,6 +12,10 @@ export interface EarthEvent {
   authorId: number
   authorNickname: string
   createdAt: string
+  /** 수정된 적이 없으면 null. */
+  updatedAt: string | null
+  /** 이 시각이 지나면 별은 지구본에서 사라진다(현재 TTL 30분, 임시 정책). */
+  expiresAt: string
 }
 
 export interface EarthUser {

@@ -16,7 +16,9 @@ public record EventResponse(
         double longitude,
         Long authorId,
         String authorNickname,
-        Instant createdAt
+        Instant createdAt,
+        Instant updatedAt,
+        Instant expiresAt
 ) {
     public static EventResponse from(Event event) {
         return new EventResponse(
@@ -29,7 +31,9 @@ public record EventResponse(
                 event.getLongitude(),
                 event.getAuthor().getId(),
                 event.getAuthor().getNickname(),
-                event.getCreatedAt()
+                event.getCreatedAt(),
+                event.getUpdatedAt(),
+                event.getExpiresAt()
         );
     }
 }

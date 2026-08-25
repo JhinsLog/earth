@@ -18,8 +18,9 @@ export default function CreateEventModal({ latitude, longitude, onClose, onCreat
   const [error, setError] = useState<string | null>(null)
 
   const submit = async () => {
-    if (!title.trim()) {
-      setError('제목을 입력해 주세요.')
+    // 내용을 입력해야 별이 확정된다. 그 전까지는 본인 화면의 임시 별로만 존재한다.
+    if (!title.trim() || !content.trim()) {
+      setError('제목과 내용을 모두 입력해야 별이 만들어집니다.')
       return
     }
     setSubmitting(true)
@@ -27,7 +28,7 @@ export default function CreateEventModal({ latitude, longitude, onClose, onCreat
     try {
       const { data } = await api.post<EarthEvent>('/api/events', {
         title: title.trim(),
-        content: content.trim() || null,
+        content: content.trim(),
         category,
         latitude,
         longitude,
@@ -67,7 +68,7 @@ export default function CreateEventModal({ latitude, longitude, onClose, onCreat
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="상세 내용 (선택)"
+          placeholder="내용 (필수 — 입력해야 별이 만들어집니다)"
           maxLength={1000}
           rows={4}
         />

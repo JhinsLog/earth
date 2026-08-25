@@ -3,6 +3,7 @@ package com.earth.controller;
 import com.earth.domain.user.User;
 import com.earth.dto.EventCreateRequest;
 import com.earth.dto.EventResponse;
+import com.earth.dto.EventUpdateRequest;
 import com.earth.service.EventService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -21,14 +22,14 @@ public class EventController {
         this.eventService = eventService;
     }
 
-    /** 지구본 뷰포트(bounding box)를 넘기면 그 안의 활성 이벤트만, 없으면 전체 최신 이벤트를 반환한다. */
+    /** 지구본 뷰포트(bounding box)를 넘기면 그 안의 별만, 없으면 전체 최신 별을 반환한다. */
     @GetMapping
     public List<EventResponse> list(
             @RequestParam(required = false) Double southLat,
             @RequestParam(required = false) Double northLat,
             @RequestParam(required = false) Double westLng,
             @RequestParam(required = false) Double eastLng) {
-        return eventService.findActive(southLat, northLat, westLng, eastLng);
+        return eventService.findVisible(southLat, northLat, westLng, eastLng);
     }
 
     @GetMapping("/{eventId}")
@@ -41,5 +42,19 @@ public class EventController {
     public EventResponse create(@AuthenticationPrincipal User author,
                                  @Valid @RequestBody EventCreateRequest request) {
         return eventService.create(author, request);
+    }
+
+    /** 별 수정. 작성자 본인만 가능하며 위치는 바꿀 수 없다. */
+    @PutMapping("/{eventId}")
+    public EventResponse update(@AuthenticationPrincipal User actor,
+                                 @PathVariable Long eventId,
+                                 @Valid @RequestBody EventUpdateRequest request) {
+        return eventService.update(actor, eventId, request);
+    }
+
+    /** 별 삭제. 작성자 본인만 가능하다. 채팅 이력이 이 별을 참조하므로 소프트 삭제한다. */
+    @DeleteMapping("/{eventId}")
+    public EventResponse delete(@AuthenticationPrincipal User actor, @PathVariable Long eventId) {
+        return eventService.delete(actor, eventId);
     }
 }
