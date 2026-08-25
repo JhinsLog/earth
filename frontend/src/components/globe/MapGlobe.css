@@ -1,0 +1,19 @@
+.map-globe {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.map-globe__container {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: transparent;
+}
+
+.map-globe .maplibregl-ctrl-bottom-left,
+.map-globe .maplibregl-ctrl-bottom-right,
+.map-globe .maplibregl-ctrl-top-left,
+.map-globe .maplibregl-ctrl-top-right {
+  display: none;
+}

@@ -1,0 +1,14 @@
+.globe-halo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  border-radius: 50%;
+  pointer-events: none;
+  background: transparent;
+  transform: translate(-50%, -50%);
+  box-shadow:
+    0 0 40px 14px rgba(120, 190, 255, 0.55),
+    0 0 90px 40px rgba(80, 150, 255, 0.32),
+    0 0 170px 80px rgba(50, 110, 230, 0.16);
+}
