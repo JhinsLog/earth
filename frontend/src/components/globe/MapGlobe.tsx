@@ -4,6 +4,7 @@ import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, MapMouseEve
 import 'maplibre-gl/dist/maplibre-gl.css'
 import {
   CARTO_DARK_OPACITY,
+  CARTO_GATE_MAX_ZOOM,
   ESRI_GATE_MAX_ZOOM,
   ESRI_OPACITY,
   createEarthMapStyle,
@@ -141,7 +142,8 @@ export default function MapGlobe({
         map.setPaintProperty('satellite-base', 'raster-opacity', gated ? 0 : ESRI_OPACITY)
       }
       if (map.getLayer('carto-dark-base')) {
-        const gated = !map.isSourceLoaded('carto-dark')
+        const gated =
+          map.getZoom() < CARTO_GATE_MAX_ZOOM && !map.isSourceLoaded('carto-dark')
         map.setPaintProperty('carto-dark-base', 'raster-opacity', gated ? 0 : CARTO_DARK_OPACITY)
       }
     }

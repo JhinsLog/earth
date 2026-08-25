@@ -50,6 +50,15 @@ export const ESRI_OPACITY: ExpressionSpecification = [
  */
 export const ESRI_GATE_MAX_ZOOM = 5.0
 
+/**
+ * CARTO를 타일 준비 상태로 게이팅할 최대 줌.
+ *
+ * 게이팅은 "가려도 아래 레이어가 화면을 온전히 덮어줄 때"만 안전하다. CARTO가
+ * 불투명도 1에 도달하는 줌 10.5 위로는 Esri(maxzoom 11)도 사라져 CARTO가 화면을
+ * 혼자 책임지므로, 여기서 가리면 화면에 아무것도 남지 않는다.
+ */
+export const CARTO_GATE_MAX_ZOOM = 10.5
+
 export const CARTO_DARK_OPACITY: ExpressionSpecification = [
   'interpolate',
   ['linear'],
@@ -138,13 +147,15 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
         //
         // 항상 불투명도 1로 깔아두어도 위에 덮이는 Esri가 불투명하므로 합성 결과는
         // 동일하다(alpha 합성상 Esri*a + NASA*(1-a)로 기존 크로스페이드와 같은 값).
-        // 소스 maxzoom이 4라 고줌에서는 z4 타일 한 장을 늘려 쓰므로 비용도 거의 없고,
-        // 로컬 정적 파일이라 항상 즉시 그려진다.
+        //
+        // 다만 상한을 둔다. 소스 maxzoom이 4라 그 위에서는 z4 타일 한 장을 늘려 쓰는데,
+        // 줌 6이면 이미 4배 확대라 흐릿하고 그 이상은 알아볼 수 없는 색 얼룩이 된다.
+        // 백필이 필요한 구간은 Esri 게이팅이 걸리는 줌 5 아래이므로 6이면 충분하다.
         id: 'nasa-blue-marble-base',
         type: 'raster',
         source: 'nasa-blue-marble',
         minzoom: 0,
-        maxzoom: 24,
+        maxzoom: 6,
         paint: {
           'raster-fade-duration': 0,
           'raster-opacity': 1,
