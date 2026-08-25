@@ -20,9 +20,30 @@
 }
 
 
+/* 우하단 출처 표기만 남기고 나머지 컨트롤은 감춘다. */
 .map-globe .maplibregl-ctrl-bottom-left,
-.map-globe .maplibregl-ctrl-bottom-right,
 .map-globe .maplibregl-ctrl-top-left,
 .map-globe .maplibregl-ctrl-top-right {
   display: none;
+}
+
+/* 어두운 우주 배경에 묻히도록 톤을 낮춘다. 접힌 상태에서는 ⓘ 버튼만 보인다. */
+.map-globe .maplibregl-ctrl-bottom-right {
+  z-index: 3;
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
+}
+
+.map-globe .maplibregl-ctrl-bottom-right:hover {
+  opacity: 1;
+}
+
+.map-globe .maplibregl-ctrl-attrib {
+  background: rgba(10, 32, 56, 0.72);
+  color: #cfe0f5;
+  font-size: 11px;
+}
+
+.map-globe .maplibregl-ctrl-attrib a {
+  color: #9dc4ef;
 }

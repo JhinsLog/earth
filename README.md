@@ -113,3 +113,7 @@ earth/
 **All Rights Reserved.** 이 저장소는 포트폴리오/데모 목적으로 소스를 공개한 것으로,
 무단 사용·복제·수정·배포·상업적 이용을 허용하지 않습니다. 자세한 내용은 [LICENSE](./LICENSE)를
 참고하세요.
+
+단, 지도 이미지·데이터는 제3자 저작물이며 각자의 라이선스를 따릅니다 — NASA GIBS(퍼블릭
+도메인), OpenStreetMap/OpenFreeMap(ODbL), Esri, CARTO. 위 권리 유보는 여기에 미치지
+않습니다. [LICENSE](./LICENSE)의 THIRD-PARTY ASSETS AND DATA 항목을 참고하세요.

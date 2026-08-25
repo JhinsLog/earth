@@ -43,7 +43,8 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
         // 정적 파일로 직접 서빙한다. NASA 자료는 퍼블릭 도메인.
         tiles: ['/tiles/bluemarble/{z}/{y}/{x}.jpg'],
         tileSize: 256,
-        attribution: 'Imagery &copy; NASA EOSDIS GIBS',
+        attribution:
+          'Imagery provided by NASA Global Imagery Browse Services (GIBS), part of NASA ESDIS',
         maxzoom: 4,
       },
       'esri-satellite': {
@@ -52,7 +53,7 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
           'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         ],
         tileSize: 256,
-        attribution: 'Tiles &copy; Esri',
+        attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community',
         maxzoom: 19,
       },
       'carto-dark': {
@@ -63,12 +64,16 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
           'https://b.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png',
         ],
         tileSize: 256,
-        attribution: '&copy; CARTO',
+        attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
         maxzoom: 19,
       },
       openmaptiles: {
         type: 'vector',
         url: 'https://tiles.openfreemap.org/planet',
+        // OpenStreetMap 파생 데이터라 ODbL에 따라 출처 표기가 의무 사항이다.
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &middot; ' +
+          '<a href="https://openfreemap.org/">OpenFreeMap</a>',
       },
     },
     layers: [

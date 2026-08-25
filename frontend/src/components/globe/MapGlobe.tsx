@@ -93,7 +93,9 @@ export default function MapGlobe({
       dragRotate: false,
       pitchWithRotate: false,
       touchPitch: false,
-      attributionControl: false,
+      // ⓘ 버튼 하나로 접히는 형태. 지구본 화면을 해치지 않으면서 출처 표기 의무를
+      // 충족한다 — 특히 OpenStreetMap 파생 데이터는 ODbL상 표기가 의무다.
+      attributionControl: { compact: true },
       // 줌을 오갈 때 상위 줌 타일이 캐시에서 밀려나면 그 영역이 다시 빈 채로 그려진다.
       // 캐시를 넉넉히 잡아 되돌아왔을 때 재요청 없이 즉시 표시되게 한다.
       maxTileCacheSize: 500,
@@ -109,6 +111,13 @@ export default function MapGlobe({
       readyRef.current = true
       map.off('render', tryReveal)
       window.clearTimeout(revealTimeoutId)
+      // compact 모드라도 MapLibre는 처음엔 펼친 상태(maplibregl-compact-show)로 시작한다.
+      // 지구본 화면을 가리므로 접어두고, 사용자가 ⓘ를 누르면 펼쳐지게 한다.
+      // 한 번의 클릭으로 전문을 볼 수 있으므로 ODbL 등의 표기 요건도 충족한다.
+      map
+        .getContainer()
+        .querySelector('.maplibregl-ctrl-attrib')
+        ?.classList.remove('maplibregl-compact-show')
       rootRef.current?.classList.add('map-globe--ready')
     }
     function tryReveal() {

@@ -13,6 +13,28 @@ Viewing the source code on a public hosting platform (e.g. GitHub) does not
 constitute a license or grant of rights beyond what that platform's terms of
 service provide for browsing and forking.
 
+THIRD-PARTY ASSETS AND DATA
+
+The rights reserved above apply only to material authored by the copyright
+holder. This repository also bundles or references third-party material that is
+governed by its own terms, and no claim of copyright or other rights is made
+over it:
+
+- frontend/public/tiles/bluemarble/ contains imagery from NASA's Blue Marble
+  Next Generation, obtained through NASA's Global Imagery Browse Services
+  (GIBS), part of NASA's Earth Science Data and Information System (ESDIS).
+  NASA material is generally not copyrighted. See NASA's data use policy at
+  https://www.earthdata.nasa.gov/engage/open-data-services-software-policies
+
+- Vector map data served at runtime by OpenFreeMap is derived from
+  OpenStreetMap and is licensed under the Open Database License (ODbL).
+  See https://www.openstreetmap.org/copyright
+
+- Raster map tiles served at runtime by Esri (World Imagery) and CARTO
+  (Dark Matter) remain subject to those providers' terms of use. They are
+  requested directly by the client and are not redistributed by this
+  repository.
+
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
