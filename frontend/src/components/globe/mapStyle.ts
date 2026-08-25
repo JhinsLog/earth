@@ -13,6 +13,25 @@ import type { ExpressionSpecification, StyleSpecification } from 'maplibre-gl'
  *   name:xx 필드를 갖고 있어 접속 언어에 맞춰 동적으로 라벨을 바꿀 수 있다.
  *   저줌에서는 국가명만, 줌이 깊어질수록 도/성 → 도시 → 마을 순으로 단계적으로 나타난다.
  */
+/**
+ * CARTO Dark 레이어의 줌별 불투명도 램프.
+ *
+ * 이 레이어는 Esri 위성 위에 부분 불투명도로 덮여 배경을 어둡게 만든다. 그런데 타일이
+ * 일부만 도착한 상태로 그려지면 도착한 타일 영역만 어두워져 사각형 경계가 그대로
+ * 드러난다(줌 8.6 기준 실효 불투명도 0.24). 그래서 MapGlobe에서 소스가 완전히
+ * 준비되기 전에는 0으로 눌러두고 준비된 뒤 이 램프를 되돌린다. 양쪽에서 같은 값을
+ * 써야 하므로 상수로 공유한다.
+ */
+export const CARTO_DARK_OPACITY: ExpressionSpecification = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  8.0,
+  0.0,
+  10.5,
+  1.0,
+]
+
 export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
   const nameField: ExpressionSpecification = [
     'coalesce',
@@ -110,11 +129,15 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
         id: 'carto-dark-base',
         type: 'raster',
         source: 'carto-dark',
-        minzoom: 7.5,
+        // 불투명도가 올라오기(줌 8) 전에 미리 타일을 받아두기 위해 레이어를 일찍 켠다.
+        // CARTO 타일은 평균 3.5KB에 180일 캐싱이라 선행 로딩 비용이 거의 없다.
+        minzoom: 6.5,
         maxzoom: 24,
         paint: {
           'raster-fade-duration': 0,
-          'raster-opacity': ['interpolate', ['linear'], ['zoom'], 8.0, 0.0, 10.5, 1.0],
+          // 소스가 준비되면 MapGlobe가 이 램프를 되돌려 준다. 급격히 튀지 않도록 전환을 준다.
+          'raster-opacity': 0,
+          'raster-opacity-transition': { duration: 400, delay: 0 },
         },
       },
       {

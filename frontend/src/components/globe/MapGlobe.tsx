@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { createEarthMapStyle } from './mapStyle'
+import { CARTO_DARK_OPACITY, createEarthMapStyle } from './mapStyle'
 import { createStarFlareImageData } from './starFlareTexture'
 import Starfield from './Starfield'
 import { detectLabelLanguage } from '../../lib/language'
@@ -124,6 +124,18 @@ export default function MapGlobe({
       if (map.isStyleLoaded() && map.areTilesLoaded()) reveal()
     }
     map.on('render', tryReveal)
+
+    // CARTO Dark는 Esri 위성 위에 부분 불투명도로 덮여 배경을 어둡게 만드는 레이어라,
+    // 타일이 일부만 도착한 상태로 그려지면 도착한 영역만 어두워져 사각형 경계가 그대로
+    // 드러난다. 소스 전체가 준비되기 전에는 0으로 눌러두고, 준비되면 램프를 되돌려
+    // 화면 전체가 한 번에 자연스럽게 어두워지도록 한다(전환 400ms는 스타일에 정의).
+    const syncCartoOpacity = () => {
+      if (!map.getLayer('carto-dark-base')) return
+      const ready = map.isSourceLoaded('carto-dark')
+      map.setPaintProperty('carto-dark-base', 'raster-opacity', ready ? CARTO_DARK_OPACITY : 0)
+    }
+    map.on('sourcedata', syncCartoOpacity)
+    map.on('moveend', syncCartoOpacity)
     // 타일 하나가 끝내 도착하지 않아도 화면이 영원히 비어 있지 않도록 하는 안전장치.
     revealTimeoutId = window.setTimeout(reveal, 5000)
     let nearbyCountryIntervalId: number | undefined
@@ -340,6 +352,8 @@ export default function MapGlobe({
 
     return () => {
       cancelAnimationFrame(rafId)
+      map.off('sourcedata', syncCartoOpacity)
+      map.off('moveend', syncCartoOpacity)
       window.clearTimeout(revealTimeoutId)
       readyRef.current = false
       appliedInitialFocusRef.current = false
