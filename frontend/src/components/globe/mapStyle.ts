@@ -104,14 +104,22 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
         paint: { 'background-color': '#0a2038' },
       },
       {
+        // 저줌에서는 실사 지구본 그 자체이고, 고줌에서는 Esri 타일이 아직 도착하지 않은
+        // 자리를 메우는 backfill 역할을 한다. 예전에는 줌 4.5에서 꺼버렸는데, 그러면
+        // Esri 타일이 비는 순간 배경색이 그대로 드러나 사각형 경계가 보였다.
+        //
+        // 항상 불투명도 1로 깔아두어도 위에 덮이는 Esri가 불투명하므로 합성 결과는
+        // 동일하다(alpha 합성상 Esri*a + NASA*(1-a)로 기존 크로스페이드와 같은 값).
+        // 소스 maxzoom이 4라 고줌에서는 z4 타일 한 장을 늘려 쓰므로 비용도 거의 없고,
+        // 로컬 정적 파일이라 항상 즉시 그려진다.
         id: 'nasa-blue-marble-base',
         type: 'raster',
         source: 'nasa-blue-marble',
         minzoom: 0,
-        maxzoom: 4.5,
+        maxzoom: 24,
         paint: {
           'raster-fade-duration': 0,
-          'raster-opacity': ['interpolate', ['linear'], ['zoom'], 3.0, 1.0, 4.5, 0.0],
+          'raster-opacity': 1,
         },
       },
       {
