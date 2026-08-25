@@ -1,4 +1,9 @@
 spring:
+  # `cp .env.example .env` 로 만든 파일을 실제로 읽어들인다.
+  # 없으면 무시되고 아래 기본값이 쓰인다(optional:).
+  config:
+    import: optional:file:.env[.properties]
+
   application:
     name: earth-backend
 
