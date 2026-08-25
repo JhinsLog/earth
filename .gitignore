@@ -1,0 +1,11 @@
+# IDE — 모노레포 루트에서 IntelliJ를 열면 여기에 생성된다
+.idea/
+*.iml
+.vscode/
+
+# Claude Code — 공유 설정(launch.json)은 커밋하고 개인 설정만 제외
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
