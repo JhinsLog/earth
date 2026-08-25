@@ -36,12 +36,15 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
     sources: {
       'nasa-blue-marble': {
         type: 'raster',
-        tiles: [
-          'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg',
-        ],
+        // GIBS는 'no-store, no-cache'로 응답해 브라우저가 타일을 캐싱할 수 없다.
+        // 줌/회전할 때마다 매번 300ms를 들여 다시 받아오느라 타일이 제각각 도착하고,
+        // 색감이 다른 Esri와 겹치는 구간에서 사각형 경계로 드러났다.
+        // 크로스페이드가 줌 4.5에서 끝나므로 z0~z4(341장 / 2.5MB)만 있으면 충분해
+        // 정적 파일로 직접 서빙한다. NASA 자료는 퍼블릭 도메인.
+        tiles: ['/tiles/bluemarble/{z}/{y}/{x}.jpg'],
         tileSize: 256,
         attribution: 'Imagery &copy; NASA EOSDIS GIBS',
-        maxzoom: 8,
+        maxzoom: 4,
       },
       'esri-satellite': {
         type: 'raster',
