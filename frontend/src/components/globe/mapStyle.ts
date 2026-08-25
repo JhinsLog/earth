@@ -22,6 +22,34 @@ import type { ExpressionSpecification, StyleSpecification } from 'maplibre-gl'
  * 준비되기 전에는 0으로 눌러두고 준비된 뒤 이 램프를 되돌린다. 양쪽에서 같은 값을
  * 써야 하므로 상수로 공유한다.
  */
+/**
+ * Esri 위성 레이어의 줌별 불투명도 램프.
+ *
+ * NASA(항상 불투명도 1)가 아래 깔려 있는 상태에서 이 값만큼 위에 덮인다.
+ */
+export const ESRI_OPACITY: ExpressionSpecification = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  3.0,
+  0.0,
+  4.5,
+  1.0,
+]
+
+/**
+ * Esri를 타일 준비 상태로 게이팅할 최대 줌.
+ *
+ * NASA와 Esri는 색보정이 완전히 달라, 크로스페이드 구간에서 Esri 타일이 하나씩
+ * 도착하면 도착한 타일만 색이 달라져 사각형 경계로 드러난다. 그 구간에서는 소스가
+ * 준비될 때까지 Esri를 아예 감춘다(아래 NASA만 보이므로 화면은 계속 온전하다).
+ *
+ * 반대로 이 줌 위에서는 게이팅하지 않는다. Esri가 주 이미지라 항상 게이팅하면 화면
+ * 전체가 흐려졌다 선명해지길 반복한다. 실측상 미준비 구간은 줌 4.5~5.7에 몰려 있고
+ * (연속 줌 중 9%), 그 구간은 Esri가 이미 불투명도 1이라 색 혼합 문제가 없다.
+ */
+export const ESRI_GATE_MAX_ZOOM = 5.0
+
 export const CARTO_DARK_OPACITY: ExpressionSpecification = [
   'interpolate',
   ['linear'],
@@ -130,7 +158,9 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
         maxzoom: 11,
         paint: {
           'raster-fade-duration': 0,
-          'raster-opacity': ['interpolate', ['linear'], ['zoom'], 3.0, 0.0, 4.5, 1.0],
+          // 소스가 준비되면 MapGlobe가 ESRI_OPACITY 램프를 되돌려 준다.
+          'raster-opacity': 0,
+          'raster-opacity-transition': { duration: 400, delay: 0 },
         },
       },
       {
