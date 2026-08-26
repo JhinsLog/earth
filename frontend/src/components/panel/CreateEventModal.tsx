@@ -8,12 +8,13 @@ interface Props {
   longitude: number
   onClose: () => void
   onCreated: (event: EarthEvent) => void
+  onDelete: () => void
 }
 
-export default function CreateEventModal({ latitude, longitude, onClose, onCreated }: Props) {
+export default function CreateEventModal({ latitude, longitude, onClose, onCreated, onDelete }: Props) {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  const [category, setCategory] = useState<EventCategory>('ETC')
+  const [category, setCategory] = useState<EventCategory>('FIRE')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -34,8 +35,14 @@ export default function CreateEventModal({ latitude, longitude, onClose, onCreat
       })
       onCreated(data)
       onClose()
-    } catch {
-      setError('이벤트 등록에 실패했습니다. 다시 시도해 주세요.')
+    } catch (e) {
+      // 서버가 1시간 등록 제한(429)을 걸었다면 그 사유를 그대로 보여준다.
+      const response = (e as { response?: { status?: number; data?: { message?: string } } }).response
+      if (response?.status === 429) {
+        setError(response.data?.message ?? '잠시 후 다시 시도해 주세요.')
+      } else {
+        setError('이벤트 등록에 실패했습니다. 다시 시도해 주세요.')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -75,12 +82,17 @@ export default function CreateEventModal({ latitude, longitude, onClose, onCreat
         {error && <p className="create-modal__error">{error}</p>}
 
         <div className="create-modal__actions">
-          <button className="create-modal__cancel" onClick={onClose}>
-            취소
+          <button className="create-modal__delete" onClick={onDelete} disabled={submitting}>
+            별 삭제
           </button>
-          <button className="create-modal__submit" onClick={submit} disabled={submitting}>
-            {submitting ? '등록 중...' : '등록'}
-          </button>
+          <div className="create-modal__actions-right">
+            <button className="create-modal__cancel" onClick={onClose}>
+              취소
+            </button>
+            <button className="create-modal__submit" onClick={submit} disabled={submitting}>
+              {submitting ? '등록 중...' : '등록'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

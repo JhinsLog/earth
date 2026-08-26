@@ -53,6 +53,8 @@ earth:
     redirect-url: ${OAUTH_REDIRECT_URL:http://localhost:5173/oauth2/redirect}
   chat:
     min-level-to-join: 1   # 상세 레벨 정책 확정 전까지는 로그인만 되어 있으면 입장 가능
+  event:
+    max-per-hour: 5        # 한 사용자가 1시간 안에 등록할 수 있는 별 개수
 
 springdoc:
   swagger-ui:

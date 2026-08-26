@@ -5,3 +5,40 @@
   overflow: hidden;
   background: #000103;
 }
+
+/* 지구본 아래쪽에 떠 있는 안내 배너. 지도 조작을 방해하지 않도록 클릭을 통과시킨다. */
+.home__hint {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(10, 16, 28, 0.72);
+  backdrop-filter: blur(8px);
+  color: #dbe4f0;
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.home__hint strong {
+  color: #9fd6ff;
+  font-weight: 600;
+}
+
+.home__hint--warn {
+  border-color: rgba(255, 184, 77, 0.5);
+  color: #ffe4b0;
+}
+
+.home__hint-timer {
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  color: #8fd3ff;
+}

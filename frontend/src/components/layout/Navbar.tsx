@@ -3,11 +3,11 @@ import { API_BASE_URL } from '../../lib/api'
 import './Navbar.css'
 
 interface Props {
-  placing: boolean
-  onTogglePlacing: () => void
+  /** 로고를 눌렀을 때 첫 화면(지구본 전체)으로 되돌리는 동작. */
+  onBrandClick?: () => void
 }
 
-export default function Navbar({ placing, onTogglePlacing }: Props) {
+export default function Navbar({ onBrandClick }: Props) {
   const { user, logout } = useAuthStore()
 
   const handleLogin = () => {
@@ -16,21 +16,12 @@ export default function Navbar({ placing, onTogglePlacing }: Props) {
 
   return (
     <header className="navbar">
-      <div className="navbar__brand">
+      <button className="navbar__brand" onClick={onBrandClick} title="처음 화면으로">
         <span className="navbar__dot" />
         EARTH
-      </div>
+      </button>
 
       <div className="navbar__actions">
-        {user && (
-          <button
-            className={`navbar__place-btn ${placing ? 'navbar__place-btn--active' : ''}`}
-            onClick={onTogglePlacing}
-          >
-            {placing ? '지구본을 클릭해 위치 지정' : '+ 이벤트 등록'}
-          </button>
-        )}
-
         {user ? (
           <div className="navbar__user">
             {user.profileImageUrl && <img src={user.profileImageUrl} alt="" className="navbar__avatar" />}

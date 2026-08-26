@@ -14,6 +14,17 @@ export interface EarthEvent {
   createdAt: string
 }
 
+/**
+ * 아직 서버에 등록되지 않은 임시 별. 우클릭으로 찍은 직후 상태이며,
+ * 생성자 본인 화면에만 보인다. 내용을 입력해 등록하지 않으면 일정 시간 뒤 사라진다.
+ */
+export interface DraftStar {
+  id: string
+  latitude: number
+  longitude: number
+  createdAt: number
+}
+
 export interface EarthUser {
   id: number
   email: string

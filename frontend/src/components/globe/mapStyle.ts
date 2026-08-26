@@ -6,9 +6,11 @@ import type { ExpressionSpecification, StyleSpecification } from 'maplibre-gl'
  * - 최저 줌(우주에서 보는 지구본): NASA GIBS의 Blue Marble Next Generation
  *   실사 이미지를 그대로 사용 — 대륙 전체가 선명하게 보이는 "지구본" 퀄리티를 위함.
  * - 줌 3~7: NASA 이미지 → Esri 위성 이미지로 크로스페이드 (더 높은 해상도로 자연스럽게 전환).
- * - 줌 8~10.5: Esri 위성 → CARTO Dark Matter(라벨 없는 버전)로 크로스페이드 — 확대할수록
- *   배경이 어두워져 이벤트(별) 마커가 도드라지게 하기 위함. 라벨은 아래 벡터 레이어만 쓰므로
- *   래스터 자체에 글자가 그려진 버전(dark_all)을 쓰면 우리 라벨과 중복 표시되어 dark_nolabels를 사용한다.
+ * - 줌 8~10.5: Esri 위성 → Esri Dark Gray Canvas로 크로스페이드 — 확대할수록 배경이
+ *   어두워져 이벤트(별) 마커가 도드라지게 하기 위함. 라벨이 없는 Base 레이어를 써서
+ *   아래 벡터 라벨과 중복되지 않게 한다.
+ *   (원래 CARTO Dark Matter를 썼으나 CARTO가 무인증 사용을 막으면서 타일에
+ *    "API KEY REQUIRED" 워터마크가 찍혀 나와 키가 필요 없는 Esri로 교체했다.)
  * - 국경선/지명 라벨은 OpenFreeMap(OpenMapTiles 스키마)의 벡터 타일을 사용 — 언어별
  *   name:xx 필드를 갖고 있어 접속 언어에 맞춰 동적으로 라벨을 바꿀 수 있다.
  *   저줌에서는 국가명만, 줌이 깊어질수록 도/성 → 도시 → 마을 순으로 단계적으로 나타난다.
@@ -56,16 +58,15 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
         attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community',
         maxzoom: 19,
       },
-      'carto-dark': {
+      'esri-dark-gray': {
         type: 'raster',
         tiles: [
-          'https://basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png',
-          'https://a.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png',
-          'https://b.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png',
+          'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
         ],
         tileSize: 256,
-        attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
-        maxzoom: 19,
+        attribution:
+          'Tiles &copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors, and the GIS user community',
+        maxzoom: 16,
       },
       openmaptiles: {
         type: 'vector',
@@ -107,14 +108,17 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
         },
       },
       {
-        id: 'carto-dark-base',
+        id: 'dark-base',
         type: 'raster',
-        source: 'carto-dark',
+        source: 'esri-dark-gray',
         minzoom: 7.5,
         maxzoom: 24,
         paint: {
           'raster-fade-duration': 0,
           'raster-opacity': ['interpolate', ['linear'], ['zoom'], 8.0, 0.0, 10.5, 1.0],
+          // Esri Dark Gray는 중간 회색이라 그대로 쓰면 별빛이 묻힌다.
+          // 밝기 상한을 눌러 밤하늘에 가깝게 만든다.
+          'raster-brightness-max': 0.4,
         },
       },
       {
