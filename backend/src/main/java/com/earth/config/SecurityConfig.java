@@ -5,12 +5,14 @@ import com.earth.security.oauth2.CustomOAuth2UserService;
 import com.earth.security.oauth2.OAuth2SuccessHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -57,6 +59,13 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/events", "/api/events/*").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()
+                )
+                // 인증이 없으면 Spring Security 기본값은 로그인 페이지로 302 리다이렉트하는 것이다.
+                // 이 앱은 프론트엔드가 분리된 REST API 서버라 그러면 안 된다 — axios가 리다이렉트를
+                // 따라가 구글 로그인 HTML을 받아버리고, 토큰 만료 시 동작해야 할 프론트엔드의
+                // 401 인터셉터(리프레시 토큰 재발급)도 영영 트리거되지 않는다. 401로 명확히 응답한다.
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
                 )
                 .oauth2Login(oauth2 -> oauth2
                         .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
