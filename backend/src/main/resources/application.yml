@@ -64,9 +64,14 @@ earth:
     max-per-hour: 5        # 한 사용자가 1시간 안에 등록할 수 있는 별 개수
 
 springdoc:
+  # 운영에서는 API 명세 전체가 외부에 공개되지 않도록 기본적으로 끈다.
+  # 엔드포인트 목록/파라미터/에러 코드는 공격자에게 그대로 지도가 된다.
+  # 로컬 개발에서는 application-local.yml이 다시 켠다.
   swagger-ui:
+    enabled: false
     path: /swagger-ui.html
   api-docs:
+    enabled: false
     path: /v3/api-docs
 
 management:
