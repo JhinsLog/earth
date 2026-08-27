@@ -8,9 +8,12 @@ spring:
     name: earth-backend
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/earth
-    username: earth
-    password: earth
+    # 기본값은 docker-compose로 띄우는 로컬 DB 기준이다. 운영에서는 환경변수로 덮어쓴다.
+    # 오버라이드 통로가 없으면 운영 접속 정보를 넣으려고 이 파일을 고치게 되고,
+    # 그 과정에서 실제 비밀번호가 저장소에 커밋된다.
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/earth}
+    username: ${DB_USERNAME:earth}
+    password: ${DB_PASSWORD:earth}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -46,7 +49,10 @@ earth:
   cors:
     allowed-origin: ${FRONTEND_ORIGIN:http://localhost:5173}
   jwt:
-    secret: ${JWT_SECRET:dev-only-secret-change-me-dev-only-secret-change-me}
+    # 폴백 기본값을 절대 두지 않는다. 공개 저장소에 올라간 문자열로 서명하게 되면
+    # 그 줄을 읽은 누구나 임의의 userId로 토큰을 위조할 수 있다.
+    # 값이 없으면 JwtTokenProvider가 기동 단계에서 즉시 실패시킨다.
+    secret: ${JWT_SECRET:}
     access-token-validity-ms: 3600000        # 1h
     refresh-token-validity-ms: 1209600000    # 14d
   oauth2:

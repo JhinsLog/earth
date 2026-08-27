@@ -2,9 +2,10 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: earth
-      POSTGRES_USER: earth
-      POSTGRES_PASSWORD: earth
+      POSTGRES_DB: ${DB_NAME:-earth}
+      POSTGRES_USER: ${DB_USERNAME:-earth}
+      # 로컬 개발용 기본값. 외부에 노출되는 DB라면 .env의 DB_PASSWORD로 반드시 덮어쓸 것.
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-earth}
     ports:
       - "5432:5432"
     volumes:
