@@ -17,6 +17,11 @@ public class JwtTokenProvider {
     /** HS256의 안전 요건. jjwt도 이보다 짧으면 거부하지만, 원인을 알려주는 메시지를 직접 낸다. */
     private static final int MIN_SECRET_BYTES = 32;
 
+    /** 토큰 용도 구분. 이게 없으면 refresh token이 access token으로 그대로 통용된다. */
+    private static final String CLAIM_TYPE = "typ";
+    private static final String TYPE_ACCESS = "access";
+    private static final String TYPE_REFRESH = "refresh";
+
     private final JwtProperties jwtProperties;
     private final SecretKey key;
 
@@ -52,17 +57,18 @@ public class JwtTokenProvider {
     }
 
     public String createAccessToken(Long userId) {
-        return createToken(userId, jwtProperties.accessTokenValidityMs());
+        return createToken(userId, TYPE_ACCESS, jwtProperties.accessTokenValidityMs());
     }
 
     public String createRefreshToken(Long userId) {
-        return createToken(userId, jwtProperties.refreshTokenValidityMs());
+        return createToken(userId, TYPE_REFRESH, jwtProperties.refreshTokenValidityMs());
     }
 
-    private String createToken(Long userId, long validityMs) {
+    private String createToken(Long userId, String type, long validityMs) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(String.valueOf(userId))
+                .claim(CLAIM_TYPE, type)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + validityMs))
                 .signWith(key)
@@ -73,10 +79,29 @@ public class JwtTokenProvider {
         return Long.valueOf(parseClaims(token).getSubject());
     }
 
-    public boolean isValid(String token) {
+    /** API 인증에 쓸 수 있는 토큰인지. 유효기간이 긴 refresh token이 여기로 들어오면 안 된다. */
+    public boolean isValidAccessToken(String token) {
+        return isValidOfType(token, TYPE_ACCESS);
+    }
+
+    /** 재발급에만 쓸 수 있는 토큰인지. */
+    public boolean isValidRefreshToken(String token) {
+        return isValidOfType(token, TYPE_REFRESH);
+    }
+
+    /**
+     * 서명·만료뿐 아니라 <b>토큰의 용도</b>까지 확인한다.
+     *
+     * <p>예전에는 두 토큰이 만료 시각 말고는 구조가 같아서, 14일짜리 refresh token을
+     * Authorization 헤더에 넣으면 그대로 API 인증이 통과됐다. 액세스 토큰을 1시간으로
+     * 짧게 잡아둔 의미가 사라지고, 토큰 하나가 새면 2주간 계정이 열린다.
+     *
+     * <p>type 클레임이 없는 토큰(이 변경 이전에 발급된 것)은 용도를 알 수 없으므로 거부한다.
+     * 사용자는 다시 로그인하면 된다.
+     */
+    private boolean isValidOfType(String token, String expectedType) {
         try {
-            parseClaims(token);
-            return true;
+            return expectedType.equals(parseClaims(token).get(CLAIM_TYPE, String.class));
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }

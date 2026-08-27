@@ -10,7 +10,8 @@ public enum ErrorCode {
     LOGIN_REQUIRED(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."),
     LEVEL_NOT_ENOUGH(HttpStatus.FORBIDDEN, "채팅방 입장에 필요한 레벨이 부족합니다."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "권한이 없습니다."),
-    EVENT_RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "1시간 안에 등록할 수 있는 별 개수를 초과했습니다.");
+    EVENT_RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "1시간 안에 등록할 수 있는 별 개수를 초과했습니다."),
+    CHAT_RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "메시지를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요.");
 
     private final HttpStatus status;
     private final String defaultMessage;

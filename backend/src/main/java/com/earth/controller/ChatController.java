@@ -8,13 +8,16 @@ import com.earth.exception.EarthApiException;
 import com.earth.exception.ErrorCode;
 import com.earth.exception.ErrorResponse;
 import com.earth.service.ChatService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.handler.annotation.support.MethodArgumentNotValidException;
 import org.springframework.messaging.simp.annotation.SendToUser;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/events/{eventId}/chat")
@@ -47,8 +51,10 @@ public class ChatController {
      * 클라이언트는 /app/chat.{eventId}.send 로 발행하고, 결과는 Redis를 거쳐
      * /topic/chat.{eventId} 를 구독 중인 모든 인스턴스의 클라이언트에게 전달된다.
      */
+    // @Valid가 없으면 DTO의 @NotBlank/@Size가 전혀 적용되지 않는다. 공백만 있는 메시지가
+    // 그대로 저장·전파되고, 상한을 넘긴 본문은 DB 컬럼 제약에 걸려 500 오류로 나간다.
     @MessageMapping("/chat.{eventId}.send")
-    public void send(@DestinationVariable Long eventId, @Payload ChatMessageRequest request, Principal principal) {
+    public void send(@DestinationVariable Long eventId, @Valid @Payload ChatMessageRequest request, Principal principal) {
         if (principal == null) {
             throw new EarthApiException(ErrorCode.LOGIN_REQUIRED);
         }
@@ -66,6 +72,18 @@ public class ChatController {
     @SendToUser(destinations = "/queue/errors", broadcast = false)
     public ErrorResponse handleEarthApiException(EarthApiException e) {
         return ErrorResponse.of(e.getErrorCode(), e.getMessage());
+    }
+
+    /** 입력 검증 실패는 사용자가 고칠 수 있는 문제이므로 어떤 항목이 왜 틀렸는지 알려준다. */
+    @MessageExceptionHandler(MethodArgumentNotValidException.class)
+    @SendToUser(destinations = "/queue/errors", broadcast = false)
+    public ErrorResponse handleValidationException(MethodArgumentNotValidException e) {
+        String message = Optional.ofNullable(e.getBindingResult())
+                .map(BindingResult::getFieldErrors)
+                .flatMap(errors -> errors.stream().findFirst())
+                .map(fieldError -> fieldError.getField() + ": " + fieldError.getDefaultMessage())
+                .orElse("잘못된 요청입니다.");
+        return new ErrorResponse("INVALID_REQUEST", message);
     }
 
     @MessageExceptionHandler(Exception.class)

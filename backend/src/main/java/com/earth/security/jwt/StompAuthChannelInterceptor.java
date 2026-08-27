@@ -43,7 +43,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         }
 
         String jwt = authorization.substring("Bearer ".length());
-        if (!jwtTokenProvider.isValid(jwt)) {
+        if (!jwtTokenProvider.isValidAccessToken(jwt)) {
             return message;
         }
 
