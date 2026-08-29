@@ -1,5 +1,6 @@
 package com.earth.domain.event;
 
+import com.earth.domain.user.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -40,4 +41,10 @@ public interface EventRepository extends JpaRepository<Event, Long> {
               and e.expiresAt <= :now
             """)
     List<Event> findDueForExpiration(@Param("now") Instant now);
+
+    /**
+     * 특정 시각 이후 이 사용자가 만든 이벤트 수. 등록 빈도 제한에 쓰인다.
+     * 매 요청마다 기준 시각을 지금으로부터 계산하므로 고정 구간이 아닌 슬라이딩 윈도우가 된다.
+     */
+    long countByAuthorAndCreatedAtAfter(User author, Instant threshold);
 }

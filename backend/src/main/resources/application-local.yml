@@ -6,3 +6,10 @@ spring:
       hibernate:
         show_sql: true
         format_sql: true
+
+# 로컬에서만 API 문서를 연다. 운영 기본값은 application.yml에서 꺼져 있다.
+springdoc:
+  swagger-ui:
+    enabled: true
+  api-docs:
+    enabled: true

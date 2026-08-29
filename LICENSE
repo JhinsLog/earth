@@ -30,10 +30,9 @@ over it:
   OpenStreetMap and is licensed under the Open Database License (ODbL).
   See https://www.openstreetmap.org/copyright
 
-- Raster map tiles served at runtime by Esri (World Imagery) and CARTO
-  (Dark Matter) remain subject to those providers' terms of use. They are
-  requested directly by the client and are not redistributed by this
-  repository.
+- Raster map tiles served at runtime by Esri (World Imagery and Dark Gray
+  Canvas) remain subject to Esri's terms of use. They are requested directly
+  by the client and are not redistributed by this repository.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,

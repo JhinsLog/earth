@@ -3,8 +3,8 @@ import * as maplibregl from 'maplibre-gl'
 import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import {
-  CARTO_DARK_OPACITY,
-  CARTO_GATE_MAX_ZOOM,
+  DARK_BASE_OPACITY,
+  DARK_GATE_MAX_ZOOM,
   ESRI_GATE_MAX_ZOOM,
   ESRI_OPACITY,
   createEarthMapStyle,
@@ -19,70 +19,39 @@ import {
   AUTO_ROTATE_MAX_ZOOM,
   COUNTRY_FOCUS_ZOOM,
   COUNTRY_LABEL_MAX_DISTANCE_KM,
+  DRAFT_STAR_COLOR,
   EVENT_FOCUS_ZOOM,
+  EVENT_PANEL_WIDTH_PX,
   INITIAL_ZOOM,
+  HOME_VIEW_MAX_ABS_LATITUDE,
   MAX_ZOOM,
   MIN_ZOOM,
 } from './constants'
-import type { GeoPoint } from '../../lib/geolocate'
-import { EVENT_CATEGORY_COLOR, type EarthEvent } from '../../types'
+import { approximateLongitudeFromTimezone, type GeoPoint } from '../../lib/geolocate'
+import { EVENT_CATEGORY_COLOR, type DraftStar, type EarthEvent } from '../../types'
 import './MapGlobe.css'
 
-const STAR_LAYER_IDS = ['events-aura-layer', 'events-white-core'] as const
 const EVENTS_SOURCE_ID = 'earth-events-source'
+const DRAFTS_SOURCE_ID = 'earth-drafts-source'
 const STAR_FLARE_IMAGE_ID = 'earth-star-flare-sdf'
-/** 우클릭으로 찍었지만 아직 내용을 입력하지 않은 "임시 별". 확정 전까지는 본인 화면에만 보인다. */
-const PENDING_SOURCE_ID = 'earth-pending-star-source'
+/** 클릭 판정을 받는 레이어 — 넓은 오라와 중앙 코어만으로 충분하다. */
+const EVENT_CLICK_LAYER_IDS = ['events-aura-layer', 'events-white-core'] as const
+const DRAFT_CLICK_LAYER_IDS = ['drafts-aura-layer', 'drafts-white-core'] as const
 
 interface Props {
   events: EarthEvent[]
-  /** 우클릭으로 찍은 임시 별의 위치. 확정 또는 취소되면 null이 된다. */
-  pendingLocation?: { lat: number; lng: number } | null
   selectedEventId: number | null
   onSelect: (id: number | null) => void
-  placing: boolean
-  onPlaceLocation: (latitude: number, longitude: number) => void
+  draftStars: DraftStar[]
+  onDraftCreate: (latitude: number, longitude: number) => void
+  onDraftSelect: (id: string) => void
+  onDraftRemove: (id: string) => void
   initialFocusLatLng?: GeoPoint | null
+  /** 값이 바뀔 때마다 첫 화면(지구본 전체)으로 되돌아간다. 로고 클릭용. */
+  resetViewToken?: number
 }
 
-/**
- * 스타일이 준비된 뒤 콜백을 실행하고, 정리 함수를 돌려준다.
- *
- * map.once('load', ...)를 쓰면 안 된다. 'load'는 딱 한 번만 발생하는데
- * isStyleLoaded()는 소스를 갱신하는 순간 일시적으로 false가 되므로, 이미 load가
- * 지나간 뒤 false를 만나면 콜백이 영영 실행되지 않는다(임시 별이 지워지지 않던 원인).
- * 매 프레임 발생하는 'render'에서 준비 여부를 직접 확인한다.
- */
-function whenStyleReady(map: MapLibreMap, run: () => void): () => void {
-  if (map.isStyleLoaded()) {
-    run()
-    return () => {}
-  }
-  const handler = () => {
-    if (!map.isStyleLoaded()) return
-    map.off('render', handler)
-    run()
-  }
-  map.on('render', handler)
-  return () => map.off('render', handler)
-}
-
-function toPendingGeoJson(point: { lat: number; lng: number } | null | undefined) {
-  return {
-    type: 'FeatureCollection' as const,
-    features: point
-      ? [
-          {
-            type: 'Feature' as const,
-            geometry: { type: 'Point' as const, coordinates: [point.lng, point.lat] },
-            properties: {},
-          },
-        ]
-      : [],
-  }
-}
-
-function toGeoJson(events: EarthEvent[]) {
+function toEventGeoJson(events: EarthEvent[]) {
   return {
     type: 'FeatureCollection' as const,
     features: events.map((event) => ({
@@ -96,14 +65,95 @@ function toGeoJson(events: EarthEvent[]) {
   }
 }
 
+function toDraftGeoJson(drafts: DraftStar[]) {
+  return {
+    type: 'FeatureCollection' as const,
+    features: drafts.map((draft) => ({
+      type: 'Feature' as const,
+      geometry: { type: 'Point' as const, coordinates: [draft.longitude, draft.latitude] },
+      properties: { id: draft.id },
+    })),
+  }
+}
+
+/**
+ * 별 하나를 이루는 4개 레이어(오라 → 헤일로 → 색 성광 → 백색 코어)를 한 번에 얹는다.
+ * 등록된 이벤트와 임시 별이 같은 생김새를 공유하되 색과 밝기만 달라지도록 공통화했다.
+ */
+function addStarLayers(
+  map: MapLibreMap,
+  sourceId: string,
+  prefix: string,
+  color: string | unknown[],
+  opacityScale: number,
+) {
+  map.addLayer({
+    id: `${prefix}-aura-layer`,
+    type: 'circle',
+    source: sourceId,
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 7, 10, 16],
+      'circle-color': color as string,
+      'circle-opacity': 0.4 * opacityScale,
+      'circle-blur': 0.85,
+    },
+  })
+
+  map.addLayer({
+    id: `${prefix}-halo-layer`,
+    type: 'circle',
+    source: sourceId,
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 3.5, 10, 8],
+      'circle-color': color as string,
+      'circle-opacity': 0.8 * opacityScale,
+      'circle-blur': 0.25,
+    },
+  })
+
+  map.addLayer({
+    id: `${prefix}-color-flare`,
+    type: 'symbol',
+    source: sourceId,
+    layout: {
+      'icon-image': STAR_FLARE_IMAGE_ID,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 1, 0.18, 10, 0.38],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+    },
+    paint: {
+      'icon-color': color as string,
+      'icon-opacity': 0.95 * opacityScale,
+    },
+  })
+
+  map.addLayer({
+    id: `${prefix}-white-core`,
+    type: 'symbol',
+    source: sourceId,
+    layout: {
+      'icon-image': STAR_FLARE_IMAGE_ID,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 1, 0.09, 10, 0.2],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+    },
+    paint: {
+      'icon-color': '#ffffff',
+      'icon-opacity': 1.0 * opacityScale,
+    },
+  })
+}
+
 export default function MapGlobe({
   events,
-  pendingLocation,
   selectedEventId,
   onSelect,
-  placing,
-  onPlaceLocation,
+  draftStars,
+  onDraftCreate,
+  onDraftSelect,
+  onDraftRemove,
   initialFocusLatLng,
+  resetViewToken = 0,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const haloRef = useRef<HTMLDivElement>(null)
@@ -112,18 +162,33 @@ export default function MapGlobe({
   const mapRef = useRef<MapLibreMap | null>(null)
   const isInteractingRef = useRef(false)
   const suppressNextMapClickRef = useRef(false)
+  /** 임시 별 위에서 우클릭한 경우, 전역 우클릭(=새 별 생성)까지 실행되지 않게 막는다. */
+  const suppressNextContextMenuRef = useRef(false)
   const appliedInitialFocusRef = useRef(false)
+  /**
+   * 첫 화면(지구본 전체)의 중심. 지도를 만드는 시점에는 네트워크 조회 결과를 기다릴 수
+   * 없으므로 표준시로 추정한 경도를 먼저 쓰고, IP/GPS 위치가 도착하면 실제 값으로 교체한다.
+   * 로고를 눌러 돌아올 때도 이 값을 쓰므로 항상 접속자의 대륙이 보인다.
+   */
+  const homeCenterRef = useRef<[number, number]>([approximateLongitudeFromTimezone(), 20])
 
   // 최신 콜백/props를 ref로 보관 — map 인스턴스 이벤트 리스너는 마운트 시 1회만 등록되므로
   // 클로저 안에서 항상 최신 값을 읽기 위함.
-  const placingRef = useRef(placing)
-  placingRef.current = placing
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
-  const onPlaceLocationRef = useRef(onPlaceLocation)
-  onPlaceLocationRef.current = onPlaceLocation
+  const onDraftCreateRef = useRef(onDraftCreate)
+  onDraftCreateRef.current = onDraftCreate
+  const onDraftSelectRef = useRef(onDraftSelect)
+  onDraftSelectRef.current = onDraftSelect
+  const onDraftRemoveRef = useRef(onDraftRemove)
+  onDraftRemoveRef.current = onDraftRemove
   const eventsRef = useRef(events)
   eventsRef.current = events
+  const draftStarsRef = useRef(draftStars)
+  draftStarsRef.current = draftStars
+  /** 임시 별이 있을 때만 명멸 애니메이션을 돌리기 위한 플래그. */
+  const hasDraftsRef = useRef(draftStars.length > 0)
+  hasDraftsRef.current = draftStars.length > 0
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -131,7 +196,7 @@ export default function MapGlobe({
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: createEarthMapStyle(detectLabelLanguage()),
-      center: [0, 20],
+      center: homeCenterRef.current,
       zoom: INITIAL_ZOOM,
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
@@ -183,10 +248,10 @@ export default function MapGlobe({
           map.getZoom() < ESRI_GATE_MAX_ZOOM && !map.isSourceLoaded('esri-satellite')
         map.setPaintProperty('satellite-base', 'raster-opacity', gated ? 0 : ESRI_OPACITY)
       }
-      if (map.getLayer('carto-dark-base')) {
+      if (map.getLayer('dark-base')) {
         const gated =
-          map.getZoom() < CARTO_GATE_MAX_ZOOM && !map.isSourceLoaded('carto-dark')
-        map.setPaintProperty('carto-dark-base', 'raster-opacity', gated ? 0 : CARTO_DARK_OPACITY)
+          map.getZoom() < DARK_GATE_MAX_ZOOM && !map.isSourceLoaded('esri-dark-gray')
+        map.setPaintProperty('dark-base', 'raster-opacity', gated ? 0 : DARK_BASE_OPACITY)
       }
     }
     map.on('sourcedata', syncRasterGates)
@@ -217,115 +282,51 @@ export default function MapGlobe({
 
       map.addSource(EVENTS_SOURCE_ID, {
         type: 'geojson',
-        data: toGeoJson(eventsRef.current),
+        data: toEventGeoJson(eventsRef.current),
       })
+      addStarLayers(map, EVENTS_SOURCE_ID, 'events', ['get', 'color'], 1)
 
-      // 넓게 퍼지는 은은한 오라
-      map.addLayer({
-        id: 'events-aura-layer',
-        type: 'circle',
-        source: EVENTS_SOURCE_ID,
-        paint: {
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 7, 10, 16],
-          'circle-color': ['get', 'color'],
-          'circle-opacity': 0.4,
-          'circle-blur': 0.85,
-        },
-      })
-
-      // 중간 헤일로
-      map.addLayer({
-        id: 'events-halo-layer',
-        type: 'circle',
-        source: EVENTS_SOURCE_ID,
-        paint: {
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 3.5, 10, 8],
-          'circle-color': ['get', 'color'],
-          'circle-opacity': 0.8,
-          'circle-blur': 0.25,
-        },
-      })
-
-      // 십자 성광 + 백색 코어
-      map.addLayer({
-        id: 'events-color-flare',
-        type: 'symbol',
-        source: EVENTS_SOURCE_ID,
-        layout: {
-          'icon-image': STAR_FLARE_IMAGE_ID,
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 1, 0.18, 10, 0.38],
-          'icon-allow-overlap': true,
-          'icon-ignore-placement': true,
-        },
-        paint: {
-          'icon-color': ['get', 'color'],
-          'icon-opacity': 0.95,
-        },
-      })
-
-      map.addLayer({
-        id: 'events-white-core',
-        type: 'symbol',
-        source: EVENTS_SOURCE_ID,
-        layout: {
-          'icon-image': STAR_FLARE_IMAGE_ID,
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 1, 0.09, 10, 0.2],
-          'icon-allow-overlap': true,
-          'icon-ignore-placement': true,
-        },
-        paint: {
-          'icon-color': '#ffffff',
-          'icon-opacity': 1.0,
-        },
-      })
-
-      // 임시 별. 아직 저장되지 않았음을 드러내기 위해 무채색으로, 확정된 별보다 크고
-      // 옅게 그린다. 확정된 별 위에 올라오도록 마지막에 추가한다.
-      map.addSource(PENDING_SOURCE_ID, {
+      // 임시 별은 나중에 얹어 등록된 별 위에 오게 한다 — 같은 자리에 겹쳤을 때
+      // 아직 처리해야 할 임시 별이 클릭에 먼저 잡히도록.
+      map.addSource(DRAFTS_SOURCE_ID, {
         type: 'geojson',
-        data: toPendingGeoJson(null),
+        data: toDraftGeoJson(draftStarsRef.current),
       })
+      addStarLayers(map, DRAFTS_SOURCE_ID, 'drafts', DRAFT_STAR_COLOR, 0.85)
 
-      map.addLayer({
-        id: 'pending-star-aura',
-        type: 'circle',
-        source: PENDING_SOURCE_ID,
-        paint: {
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 11, 10, 26],
-          'circle-color': '#cfe4ff',
-          'circle-opacity': 0.32,
-          'circle-blur': 0.9,
-        },
-      })
-
-      map.addLayer({
-        id: 'pending-star-flare',
-        type: 'symbol',
-        source: PENDING_SOURCE_ID,
-        layout: {
-          'icon-image': STAR_FLARE_IMAGE_ID,
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 1, 0.26, 10, 0.5],
-          'icon-allow-overlap': true,
-          'icon-ignore-placement': true,
-        },
-        paint: {
-          'icon-color': '#ffffff',
-          'icon-opacity': 0.9,
-        },
-      })
-
-      STAR_LAYER_IDS.forEach((layerId) => {
+      EVENT_CLICK_LAYER_IDS.forEach((layerId) => {
         map.on('click', layerId, (e: MapLayerMouseEvent) => {
           suppressNextMapClickRef.current = true
-          const feature = e.features?.[0]
-          const id = feature?.properties?.id
-          if (typeof id === 'number') onSelectRef.current(id)
+          // MapLibre는 GeoJSON 소스도 내부적으로 벡터 타일로 변환하므로 properties 값의
+          // 원래 타입이 그대로 유지된다는 보장이 없다. 숫자로 변환해 받는다.
+          const id = Number(e.features?.[0]?.properties?.id)
+          if (Number.isFinite(id)) onSelectRef.current(id)
         })
         map.on('mouseenter', layerId, () => {
           map.getCanvas().style.cursor = 'pointer'
         })
         map.on('mouseleave', layerId, () => {
-          map.getCanvas().style.cursor = placingRef.current ? 'crosshair' : ''
+          map.getCanvas().style.cursor = ''
+        })
+      })
+
+      DRAFT_CLICK_LAYER_IDS.forEach((layerId) => {
+        map.on('click', layerId, (e: MapLayerMouseEvent) => {
+          suppressNextMapClickRef.current = true
+          const rawId = e.features?.[0]?.properties?.id
+          if (rawId != null) onDraftSelectRef.current(String(rawId))
+        })
+        // 우클릭으로 찍었으니 우클릭으로 지운다.
+        map.on('contextmenu', layerId, (e: MapLayerMouseEvent) => {
+          suppressNextContextMenuRef.current = true
+          const rawId = e.features?.[0]?.properties?.id
+          if (rawId != null) onDraftRemoveRef.current(String(rawId))
+        })
+        map.on('mouseenter', layerId, () => {
+          map.getCanvas().style.cursor = 'pointer'
+        })
+        map.on('mouseleave', layerId, () => {
+          map.getCanvas().style.cursor = ''
         })
       })
 
@@ -362,22 +363,31 @@ export default function MapGlobe({
       nearbyCountryIntervalId = window.setInterval(updateNearbyCountryFilter, 400)
     })
 
-    // 우클릭으로 그 지점에 임시 별을 찍는다. 브라우저 기본 컨텍스트 메뉴는 막는다.
-    map.on('contextmenu', (e: MapMouseEvent) => {
-      e.originalEvent.preventDefault()
-      onPlaceLocationRef.current(e.lngLat.lat, e.lngLat.lng)
-    })
-
-    map.on('click', (e: MapMouseEvent) => {
+    // 빈 곳을 좌클릭하면 선택 해제. 별 레이어를 클릭한 경우에는 위쪽 레이어 핸들러가
+    // 먼저 처리하면서 suppress 플래그를 세워두므로 여기서 선택이 풀리지 않는다.
+    map.on('click', () => {
       if (suppressNextMapClickRef.current) {
         suppressNextMapClickRef.current = false
         return
       }
-      if (placingRef.current) {
-        onPlaceLocationRef.current(e.lngLat.lat, e.lngLat.lng)
-      } else {
-        onSelectRef.current(null)
+      onSelectRef.current(null)
+    })
+
+    // 우클릭한 지점에 임시 별을 찍는다. 브라우저 기본 컨텍스트 메뉴가 뜨면
+    // 별이 가려지므로 확실히 막는다.
+    map.on('contextmenu', (e: MapMouseEvent) => {
+      e.preventDefault()
+      e.originalEvent?.preventDefault()
+      // 임시 별 위에서 우클릭한 경우는 삭제로 처리됐으니 새로 만들지 않는다.
+      if (suppressNextContextMenuRef.current) {
+        suppressNextContextMenuRef.current = false
+        return
       }
+      const { lat, lng } = e.lngLat
+      // globe 투영에서 지구본 바깥(우주)을 클릭하면 좌표가 유효 범위를 벗어날 수 있다.
+      // 그대로 두면 백엔드 검증(-90~90 / -180~180)에서 걸리므로 여기서 걸러낸다.
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90) return
+      onDraftCreateRef.current(lat, lng)
     })
 
     // 지구본 가장자리 대기광 — MapLibre의 네이티브 Sky/atmosphere는 pitch가 있는 3D 지형용이라
@@ -435,14 +445,27 @@ export default function MapGlobe({
       haloEl.style.opacity = String(opacity)
     }
 
+    // 임시 별은 부드럽게 명멸시켜 "아직 등록되지 않은, 곧 사라질 상태"임을 드러낸다.
+    const updateDraftPulse = () => {
+      if (!hasDraftsRef.current || !map.getLayer('drafts-white-core')) return
+      const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 400)
+      map.setPaintProperty('drafts-white-core', 'icon-opacity', pulse)
+      map.setPaintProperty('drafts-color-flare', 'icon-opacity', pulse * 0.8)
+    }
+
     let rafId: number
     const rotate = () => {
-      if (!isInteractingRef.current && map.getZoom() < AUTO_ROTATE_MAX_ZOOM) {
+      // isEasing() 확인이 반드시 필요하다. flyTo는 곡선 궤적이라 초반에 줌이 오히려
+      // 낮아지는데, 그때 자전이 setCenter를 호출하면 진행 중이던 이동이 통째로 취소된다.
+      // (별을 클릭해도 확대되지 않던 원인이 이것이었다. 타이머로 자전을 멈추는 것만으로는
+      //  애니메이션이 타이머보다 오래 걸릴 때 막지 못한다.)
+      if (!isInteractingRef.current && !map.isEasing() && map.getZoom() < AUTO_ROTATE_MAX_ZOOM) {
         const center = map.getCenter()
         center.lng -= AUTO_ROTATE_DEGREES_PER_FRAME
         map.setCenter(center)
       }
       updateHalo()
+      updateDraftPulse()
       rafId = requestAnimationFrame(rotate)
     }
     rafId = requestAnimationFrame(rotate)
@@ -465,21 +488,25 @@ export default function MapGlobe({
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    return whenStyleReady(map, () => {
+    const apply = () => {
       const source = map.getSource(EVENTS_SOURCE_ID) as GeoJSONSource | undefined
-      source?.setData(toGeoJson(events))
-    })
+      source?.setData(toEventGeoJson(events))
+    }
+    if (map.isStyleLoaded()) apply()
+    else map.once('load', apply)
   }, [events])
 
-  // 우클릭으로 찍은 임시 별을 지도에 반영
+  // 임시 별 목록 갱신 (생성 / 등록 완료 / 수명 만료로 바뀐다)
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    return whenStyleReady(map, () => {
-      const source = map.getSource(PENDING_SOURCE_ID) as GeoJSONSource | undefined
-      source?.setData(toPendingGeoJson(pendingLocation))
-    })
-  }, [pendingLocation])
+    const apply = () => {
+      const source = map.getSource(DRAFTS_SOURCE_ID) as GeoJSONSource | undefined
+      source?.setData(toDraftGeoJson(draftStars))
+    }
+    if (map.isStyleLoaded()) apply()
+    else map.once('load', apply)
+  }, [draftStars])
 
   // 이벤트를 선택하면 해당 좌표로 확대 이동
   useEffect(() => {
@@ -492,14 +519,24 @@ export default function MapGlobe({
     map.flyTo({
       center: [event.longitude, event.latitude],
       zoom: EVENT_FOCUS_ZOOM,
+      // 우측 상세 패널이 덮는 만큼 시야를 왼쪽으로 밀어, 선택한 별이 패널에 가려지지 않게 한다.
+      padding: { top: 0, bottom: 0, left: 0, right: EVENT_PANEL_WIDTH_PX },
       speed: 1.2,
       curve: 1.4,
       essential: true,
     })
-    const timer = setTimeout(() => {
+    // 자전 재개는 애니메이션이 실제로 끝나는 시점(moveend)에 맞춘다. 고정 타이머로 풀면
+    // 이동이 아직 진행 중일 때 자전이 끼어들어 확대가 중간에 멈춘다.
+    // moveend가 끝내 오지 않는 경우(중간 취소 등)에 대비해 넉넉한 타이머도 함께 건다.
+    const releaseRotation = () => {
       isInteractingRef.current = false
-    }, 2000)
-    return () => clearTimeout(timer)
+    }
+    map.once('moveend', releaseRotation)
+    const timer = window.setTimeout(releaseRotation, 8000)
+    return () => {
+      map.off('moveend', releaseRotation)
+      window.clearTimeout(timer)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEventId])
 
@@ -514,6 +551,12 @@ export default function MapGlobe({
       if (appliedInitialFocusRef.current) return
       appliedInitialFocusRef.current = true
       map.off('render', tryApply)
+      // 실제 접속 위치를 알게 됐으니 '첫 화면'의 기준도 여기로 옮긴다.
+      // 위도는 극지방 접속자에게 지구본이 극만 크게 보이지 않도록 잘라 쓴다.
+      homeCenterRef.current = [
+        initialFocusLatLng.longitude,
+        Math.max(-HOME_VIEW_MAX_ABS_LATITUDE, Math.min(HOME_VIEW_MAX_ABS_LATITUDE, initialFocusLatLng.latitude)),
+      ]
       isInteractingRef.current = true
       map.flyTo({
         center: [initialFocusLatLng.longitude, initialFocusLatLng.latitude],
@@ -543,13 +586,36 @@ export default function MapGlobe({
     }
   }, [initialFocusLatLng])
 
-  // 배치(이벤트 등록) 모드일 때 커서를 십자선으로
+  // 로고 클릭 → 첫 화면(지구본 전체)으로 복귀
+  const appliedResetTokenRef = useRef(resetViewToken)
   useEffect(() => {
     const map = mapRef.current
-    if (!map) return
-    const canvas = map.getCanvas()
-    canvas.style.cursor = placing ? 'crosshair' : ''
-  }, [placing])
+    // 최초 마운트 시점은 이미 지구본 전체 화면이므로 아무것도 하지 않는다.
+    if (!map || appliedResetTokenRef.current === resetViewToken) return
+    appliedResetTokenRef.current = resetViewToken
+
+    isInteractingRef.current = true
+    map.flyTo({
+      center: homeCenterRef.current,
+      zoom: INITIAL_ZOOM,
+      // 별을 선택할 때 넣었던 우측 패널 여백이 지도에 그대로 남아 있다.
+      // 0으로 되돌리지 않으면 지구본이 화면 왼쪽으로 치우친 채 복귀한다.
+      padding: { top: 0, bottom: 0, left: 0, right: 0 },
+      speed: 1.2,
+      curve: 1.4,
+      essential: true,
+    })
+
+    const releaseRotation = () => {
+      isInteractingRef.current = false
+    }
+    map.once('moveend', releaseRotation)
+    const timer = window.setTimeout(releaseRotation, 8000)
+    return () => {
+      map.off('moveend', releaseRotation)
+      window.clearTimeout(timer)
+    }
+  }, [resetViewToken])
 
   return (
     <div className="map-globe" ref={rootRef}>

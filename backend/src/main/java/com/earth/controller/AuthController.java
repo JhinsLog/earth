@@ -25,7 +25,7 @@ public class AuthController {
     @PostMapping("/refresh")
     public TokenResponse refresh(@Valid @RequestBody TokenRefreshRequest request) {
         String refreshToken = request.refreshToken();
-        if (!jwtTokenProvider.isValid(refreshToken)) {
+        if (!jwtTokenProvider.isValidRefreshToken(refreshToken)) {
             throw new EarthApiException(ErrorCode.INVALID_TOKEN);
         }
         Long userId = jwtTokenProvider.getUserId(refreshToken);

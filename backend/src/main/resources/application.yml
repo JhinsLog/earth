@@ -8,9 +8,12 @@ spring:
     name: earth-backend
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/earth
-    username: earth
-    password: earth
+    # 기본값은 docker-compose로 띄우는 로컬 DB 기준이다. 운영에서는 환경변수로 덮어쓴다.
+    # 오버라이드 통로가 없으면 운영 접속 정보를 넣으려고 이 파일을 고치게 되고,
+    # 그 과정에서 실제 비밀번호가 저장소에 커밋된다.
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/earth}
+    username: ${DB_USERNAME:earth}
+    password: ${DB_PASSWORD:earth}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -46,25 +49,35 @@ earth:
   cors:
     allowed-origin: ${FRONTEND_ORIGIN:http://localhost:5173}
   jwt:
-    secret: ${JWT_SECRET:dev-only-secret-change-me-dev-only-secret-change-me}
+    # 폴백 기본값을 절대 두지 않는다. 공개 저장소에 올라간 문자열로 서명하게 되면
+    # 그 줄을 읽은 누구나 임의의 userId로 토큰을 위조할 수 있다.
+    # 값이 없으면 JwtTokenProvider가 기동 단계에서 즉시 실패시킨다.
+    secret: ${JWT_SECRET:}
     access-token-validity-ms: 3600000        # 1h
     refresh-token-validity-ms: 1209600000    # 14d
   oauth2:
     redirect-url: ${OAUTH_REDIRECT_URL:http://localhost:5173/oauth2/redirect}
   chat:
     min-level-to-join: 1   # 상세 레벨 정책 확정 전까지는 로그인만 되어 있으면 입장 가능
+    max-per-minute: 20     # 한 사용자가 1분 안에 보낼 수 있는 메시지 수 (도배 방지)
   event:
     # 별 수명. 현재 30분은 임시 정책이며, 레벨/EXP 정책이 확정되면 레벨별로
     # 달라질 수 있어 설정으로 분리해 둔다.
     ttl-minutes: 30
+    max-per-hour: 5        # 한 사용자가 1시간 안에 등록할 수 있는 별 개수
     # 만료된 별을 정리하고 실시간으로 알리는 주기. 조회는 이미 expires_at으로
     # 걸러지므로 이 값이 커도 만료된 별이 보이지는 않는다.
     expiration-scan-interval-ms: 30000
 
 springdoc:
+  # 운영에서는 API 명세 전체가 외부에 공개되지 않도록 기본적으로 끈다.
+  # 엔드포인트 목록/파라미터/에러 코드는 공격자에게 그대로 지도가 된다.
+  # 로컬 개발에서는 application-local.yml이 다시 켠다.
   swagger-ui:
+    enabled: false
     path: /swagger-ui.html
   api-docs:
+    enabled: false
     path: /v3/api-docs
 
 management:

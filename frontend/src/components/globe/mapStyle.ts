@@ -6,15 +6,17 @@ import type { ExpressionSpecification, StyleSpecification } from 'maplibre-gl'
  * - 최저 줌(우주에서 보는 지구본): NASA GIBS의 Blue Marble Next Generation
  *   실사 이미지를 그대로 사용 — 대륙 전체가 선명하게 보이는 "지구본" 퀄리티를 위함.
  * - 줌 3~7: NASA 이미지 → Esri 위성 이미지로 크로스페이드 (더 높은 해상도로 자연스럽게 전환).
- * - 줌 8~10.5: Esri 위성 → CARTO Dark Matter(라벨 없는 버전)로 크로스페이드 — 확대할수록
- *   배경이 어두워져 이벤트(별) 마커가 도드라지게 하기 위함. 라벨은 아래 벡터 레이어만 쓰므로
- *   래스터 자체에 글자가 그려진 버전(dark_all)을 쓰면 우리 라벨과 중복 표시되어 dark_nolabels를 사용한다.
+ * - 줌 8~10.5: Esri 위성 → Esri Dark Gray Canvas로 크로스페이드 — 확대할수록 배경이
+ *   어두워져 이벤트(별) 마커가 도드라지게 하기 위함. 라벨이 없는 Base 레이어를 써서
+ *   아래 벡터 라벨과 중복되지 않게 한다.
+ *   (원래 CARTO Dark Matter를 썼으나 CARTO가 무인증 사용을 막으면서 타일에
+ *    "API KEY REQUIRED" 워터마크가 찍혀 나와 키가 필요 없는 Esri로 교체했다.)
  * - 국경선/지명 라벨은 OpenFreeMap(OpenMapTiles 스키마)의 벡터 타일을 사용 — 언어별
  *   name:xx 필드를 갖고 있어 접속 언어에 맞춰 동적으로 라벨을 바꿀 수 있다.
  *   저줌에서는 국가명만, 줌이 깊어질수록 도/성 → 도시 → 마을 순으로 단계적으로 나타난다.
  */
 /**
- * CARTO Dark 레이어의 줌별 불투명도 램프.
+ * 어두운 배경(Esri Dark Gray) 레이어의 줌별 불투명도 램프.
  *
  * 이 레이어는 Esri 위성 위에 부분 불투명도로 덮여 배경을 어둡게 만든다. 그런데 타일이
  * 일부만 도착한 상태로 그려지면 도착한 타일 영역만 어두워져 사각형 경계가 그대로
@@ -51,15 +53,15 @@ export const ESRI_OPACITY: ExpressionSpecification = [
 export const ESRI_GATE_MAX_ZOOM = 5.0
 
 /**
- * CARTO를 타일 준비 상태로 게이팅할 최대 줌.
+ * 어두운 배경 레이어를 타일 준비 상태로 게이팅할 최대 줌.
  *
- * 게이팅은 "가려도 아래 레이어가 화면을 온전히 덮어줄 때"만 안전하다. CARTO가
- * 불투명도 1에 도달하는 줌 10.5 위로는 Esri(maxzoom 11)도 사라져 CARTO가 화면을
+ * 게이팅은 "가려도 아래 레이어가 화면을 온전히 덮어줄 때"만 안전하다. 이 레이어가
+ * 불투명도 1에 도달하는 줌 10.5 위로는 위성 레이어(maxzoom 11)도 사라져 이 레이어가 화면을
  * 혼자 책임지므로, 여기서 가리면 화면에 아무것도 남지 않는다.
  */
-export const CARTO_GATE_MAX_ZOOM = 10.5
+export const DARK_GATE_MAX_ZOOM = 10.5
 
-export const CARTO_DARK_OPACITY: ExpressionSpecification = [
+export const DARK_BASE_OPACITY: ExpressionSpecification = [
   'interpolate',
   ['linear'],
   ['zoom'],
@@ -112,16 +114,15 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
         attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community',
         maxzoom: 19,
       },
-      'carto-dark': {
+      'esri-dark-gray': {
         type: 'raster',
         tiles: [
-          'https://basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png',
-          'https://a.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png',
-          'https://b.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png',
+          'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
         ],
         tileSize: 256,
-        attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
-        maxzoom: 19,
+        attribution:
+          'Tiles &copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors, and the GIS user community',
+        maxzoom: 16,
       },
       openmaptiles: {
         type: 'vector',
@@ -175,11 +176,10 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
         },
       },
       {
-        id: 'carto-dark-base',
+        id: 'dark-base',
         type: 'raster',
-        source: 'carto-dark',
+        source: 'esri-dark-gray',
         // 불투명도가 올라오기(줌 8) 전에 미리 타일을 받아두기 위해 레이어를 일찍 켠다.
-        // CARTO 타일은 평균 3.5KB에 180일 캐싱이라 선행 로딩 비용이 거의 없다.
         minzoom: 6.5,
         maxzoom: 24,
         paint: {
@@ -187,6 +187,9 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
           // 소스가 준비되면 MapGlobe가 이 램프를 되돌려 준다. 급격히 튀지 않도록 전환을 준다.
           'raster-opacity': 0,
           'raster-opacity-transition': { duration: 400, delay: 0 },
+          // Esri Dark Gray는 중간 회색이라 그대로 쓰면 별빛이 묻힌다.
+          // 밝기 상한을 눌러 밤하늘에 가깝게 만든다.
+          'raster-brightness-max': 0.4,
         },
       },
       {

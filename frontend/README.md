@@ -4,7 +4,7 @@
 
 - React 19 + TypeScript + Vite
 - `maplibre-gl` — globe projection 기반 3D 지구본. 저줌은 NASA Blue Marble 실사 이미지,
-  줌인하면 Esri 위성 → CARTO Dark Matter로 크로스페이드, OpenFreeMap 벡터 타일로 접속 언어에
+  줌인하면 Esri 위성 → Esri Dark Gray로 크로스페이드, OpenFreeMap 벡터 타일로 접속 언어에
   맞춘 국경선/지명 라벨, 실측 기반 CSS 대기광(halo), 1시간에 1바퀴 자동 자전
 - `zustand` — 인증/이벤트 상태
 - `@stomp/stompjs` + `sockjs-client` — 실시간 이벤트 피드 & 이벤트별 채팅방
@@ -33,7 +33,7 @@ npm run dev
 
 - NASA GIBS `BlueMarble_NextGeneration` — 최저 줌 실사 이미지
 - Esri `World_Imagery` — 위성 사진
-- CARTO `dark_nolabels` — 확대 시 전환되는 다크 배경(자체 라벨 없음, 벡터 라벨과 중복 방지)
+- Esri `World_Dark_Gray_Base` — 확대 시 전환되는 다크 배경(라벨 없는 Base라 벡터 라벨과 중복되지 않음)
 - OpenFreeMap(`tiles.openfreemap.org`) — 국경선/지명 벡터 타일, 다국어 라벨
 
 ## 알려진 제약 (다음 단계)

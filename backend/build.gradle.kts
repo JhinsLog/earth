@@ -60,3 +60,9 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+// bootRun은 로컬 개발 전용 태스크다. 여기서만 local 프로파일을 켜서 개발용 로그인
+// (com.earth.dev)이 붙게 한다. 운영 배포는 java -jar로 뜨므로 이 설정의 영향을 받지 않는다.
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    args("--spring.profiles.active=local")
+}

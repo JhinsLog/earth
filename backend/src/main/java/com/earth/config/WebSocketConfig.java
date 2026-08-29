@@ -36,7 +36,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         // /topic/events            -> 전 지구 실시간 신규 이벤트 피드 (누구나 구독 가능)
         // /topic/chat.{eventId}    -> 이벤트별 채팅방 (로그인 + 레벨 조건 충족자만 실제 입장 처리는 서비스단에서 검증)
-        registry.enableSimpleBroker("/topic");
+        // /user/queue/errors    -> 메시지 처리 실패 사유를 보낸 사람에게만 되돌려주는 채널
+        registry.enableSimpleBroker("/topic", "/queue");
         registry.setApplicationDestinationPrefixes("/app");
     }
 }

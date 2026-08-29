@@ -1,7 +1,12 @@
+/*
+ * 패널의 남은 높이를 전부 차지해 입력창이 항상 패널 맨 아래에 오게 한다.
+ * (height 고정값을 쓰면 입력창이 패널 중간에 뜨고 아래가 텅 빈다.)
+ */
 .chat-room {
   display: flex;
   flex-direction: column;
-  height: 260px;
+  flex: 1;
+  min-height: 0; /* flex 자식이 내용에 밀려 넘치지 않도록 */
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   margin-top: 14px;
   padding-top: 12px;
@@ -9,21 +14,44 @@
 
 .chat-room__list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  padding-right: 4px;
+}
+
+/*
+ * 메시지를 아래쪽에 붙여 입력창 바로 위에서부터 쌓아 올린다.
+ * min-height: 100%로 목록 영역을 채워야 justify-content가 먹고,
+ * 내용이 넘치면 자연스럽게 위로 늘어나며 스크롤된다.
+ */
+.chat-room__messages {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-right: 4px;
+  justify-content: flex-end;
+  min-height: 100%;
+  gap: 8px;
 }
 
 .chat-room__empty {
   color: #7c8aa0;
   font-size: 13px;
+  margin: 0;
 }
 
 .chat-room__message {
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.45;
+  max-width: 90%;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  align-self: flex-start;
+}
+
+/* 내가 보낸 메시지는 오른쪽에 붙여 한눈에 구분되게 한다. */
+.chat-room__message--mine {
+  align-self: flex-end;
+  background: rgba(42, 123, 255, 0.18);
 }
 
 .chat-room__nickname {
@@ -32,8 +60,16 @@
   margin-right: 6px;
 }
 
+
 .chat-room__content {
   color: #dbe4f0;
+  overflow-wrap: anywhere;
+}
+
+.chat-room__error {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #ff8a8a;
 }
 
 .chat-room__composer {
@@ -44,6 +80,7 @@
 
 .chat-room__composer input {
   flex: 1;
+  min-width: 0;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 8px;
@@ -60,6 +97,11 @@
   color: white;
   font-size: 13px;
   cursor: pointer;
+}
+
+.chat-room__composer button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .chat-room__login-hint {
