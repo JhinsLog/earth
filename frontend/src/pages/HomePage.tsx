@@ -140,6 +140,8 @@ export default function HomePage() {
           latitude={selectedDraft.latitude}
           longitude={selectedDraft.longitude}
           myLocation={myLocation}
+          onRefineLocation={locate}
+          locating={locating}
           onClose={() => setSelectedDraftId(null)}
           onDelete={() => {
             removeDraft(selectedDraft.id)

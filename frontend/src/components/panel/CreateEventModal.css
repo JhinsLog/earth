@@ -132,3 +132,30 @@
   background: rgba(80, 50, 20, 0.35);
   color: #ffd9a8;
 }
+
+.create-modal__range-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: #e8c9a0;
+}
+
+/* IP 오차로 막힌 사용자가 GPS로 다시 확인하는 통로. 막다른 길을 만들지 않기 위한 것. */
+.create-modal__refine {
+  margin-top: 8px;
+  padding: 7px 12px;
+  border: 1px solid rgba(255, 190, 120, 0.5);
+  border-radius: 8px;
+  background: rgba(120, 80, 30, 0.5);
+  color: #ffe6c4;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.create-modal__refine:hover:not(:disabled) {
+  background: rgba(155, 105, 40, 0.7);
+}
+
+.create-modal__refine:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}

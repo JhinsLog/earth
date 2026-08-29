@@ -37,7 +37,7 @@ export function approximateLongitudeFromTimezone(): number {
  * 줌 4(국가 단위)에서는 IP 수준의 정확도로 충분하다.
  */
 export async function detectApproximateLocation(): Promise<GeoPoint | null> {
-  return firstResolved([tryBrowserGeolocation(), tryIpGeolocation()])
+  return firstResolved([tryBrowserGeolocation(), detectIpLocation()])
 }
 
 /**
@@ -54,7 +54,7 @@ export async function detectPreciseLocation(): Promise<LocatedPoint | null> {
   const gps = await tryBrowserGeolocation({ highAccuracy: true, timeoutMs: 10000 })
   if (gps) return gps
 
-  const ip = await tryIpGeolocation()
+  const ip = await detectIpLocation()
   return ip ? { ...ip, source: 'ip', accuracyMeters: null } : null
 }
 
@@ -131,6 +131,28 @@ function tryBrowserGeolocation(
       },
     )
   })
+}
+
+let sharedIpLookup: Promise<GeoPoint | null> | null = null
+
+/**
+ * IP 기반 대략 위치. <b>권한도 사용자 동작도 필요 없다</b>는 것이 핵심이다.
+ *
+ * <p>GPS는 권한 창을 띄워야 하고 사용자가 응답할 때까지 아무것도 알 수 없다. 반면 IP는
+ * 페이지가 열리자마자 조용히 받아둘 수 있어, 거리 규칙이 판정할 기준선을 항상 확보해 준다.
+ * GPS를 얻으면 그때 더 정확한 값으로 올린다.
+ *
+ * <p>초기 화면과 거리 규칙이 동시에 부르므로 요청을 공유한다. 실패는 캐시하지 않는다 —
+ * 일시적인 네트워크 문제일 수 있어 다음 호출에서 다시 시도해야 한다.
+ */
+export function detectIpLocation(): Promise<GeoPoint | null> {
+  if (!sharedIpLookup) {
+    sharedIpLookup = tryIpGeolocation().then((result) => {
+      if (!result) sharedIpLookup = null
+      return result
+    })
+  }
+  return sharedIpLookup
 }
 
 const IP_GEOLOCATION_ENDPOINTS = ['https://ipwho.is/', 'https://get.geojs.io/v1/ip/geo.json']

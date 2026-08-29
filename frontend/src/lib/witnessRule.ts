@@ -28,12 +28,18 @@ export const WITNESS_RADIUS_KM: Record<EventCategory, number> = {
 }
 
 /**
- * IP 기반 위치의 오차 반경(km) 가정.
+ * IP 기반 위치에 적용할 하한 반경(km).
  *
- * <p>IP 위치는 도시나 ISP 관문 단위라 실제와 수 km~수십 km 어긋난다. 브라우저가 오차를
- * 알려주지 않으므로 보수적인 값을 가정한다. 이 값보다 좁은 카테고리 반경은 의미가 없다.
+ * <p>IP 위치의 <b>실제</b> 오차는 도시·ISP 관문 단위라 수 km에서 수십 km에 이른다. 그 값을
+ * 그대로 하한으로 쓰면(25km) 서울 전역에서 아무 사건이나 등록할 수 있게 되어 "직접 보거나
+ * 겪은 사람이 올린다"는 전제가 무너진다.
+ *
+ * <p>그래서 실제 오차보다 <b>의도적으로 좁게</b> 잡았다. 대가로 현장에 있는데도 IP 중심점이
+ * 멀리 잡혀 막히는 사용자가 생긴다. 그 경우를 막다른 길로 두지 않기 위해, 차단 화면에서
+ * GPS로 다시 확인할 수 있는 길을 함께 제공한다(정확한 위치를 얻으면 오차가 수십 m로 줄어
+ * 카테고리 반경이 그대로 적용된다).
  */
-export const IP_ASSUMED_ACCURACY_KM = 25
+export const IP_ASSUMED_ACCURACY_KM = 5
 
 /** 가장 넓은 카테고리 반경. 아직 카테고리를 모르는 시점(우클릭)의 1차 판정에 쓴다. */
 export const MAX_WITNESS_RADIUS_KM = Math.max(...Object.values(WITNESS_RADIUS_KM))
