@@ -3,6 +3,15 @@ export interface GeoPoint {
   longitude: number
 }
 
+/** 위치를 어떻게 얻었는지. 정확도가 자릿수 단위로 다르므로 화면에서 구분해 다뤄야 한다. */
+export type LocationSource = 'gps' | 'ip'
+
+export interface LocatedPoint extends GeoPoint {
+  source: LocationSource
+  /** GPS가 보고한 오차 반경(m). IP 기반이면 알 수 없어 null. */
+  accuracyMeters: number | null
+}
+
 /**
  * 표준시 오프셋만으로 접속 지역의 대략적인 경도를 즉시 구한다.
  *
@@ -31,6 +40,24 @@ export async function detectApproximateLocation(): Promise<GeoPoint | null> {
   return firstResolved([tryBrowserGeolocation(), tryIpGeolocation()])
 }
 
+/**
+ * "내 위치로 이동" 버튼이 쓸 위치를 구한다. GPS를 먼저 기다리고, 실패하면 IP로 물러선다.
+ *
+ * <p>detectApproximateLocation()과 달리 <b>경쟁시키지 않는다</b>. 초기 화면(줌 4)은 대륙만
+ * 맞으면 되지만 이 버튼은 거리 수준까지 확대하므로, 먼저 도착했다는 이유로 IP 값을 쓰면
+ * 도시/ISP 단위 오차를 street level로 확대해 엉뚱한 골목을 "내 위치"라고 단언하게 된다.
+ * 정확도가 화면에 그대로 드러나는 자리이므로 GPS 응답을 끝까지 기다린다.
+ *
+ * <p>여기서 얻은 좌표는 카메라를 움직이는 데에만 쓰이며 서버로 전송되지 않는다.
+ */
+export async function detectPreciseLocation(): Promise<LocatedPoint | null> {
+  const gps = await tryBrowserGeolocation({ highAccuracy: true, timeoutMs: 10000 })
+  if (gps) return gps
+
+  const ip = await tryIpGeolocation()
+  return ip ? { ...ip, source: 'ip', accuracyMeters: null } : null
+}
+
 /** 여러 후보 중 가장 먼저 성공한 값을 반환한다. 전부 실패하면 null. */
 function firstResolved(candidates: Array<Promise<GeoPoint | null>>): Promise<GeoPoint | null> {
   return new Promise((resolve) => {
@@ -57,30 +84,51 @@ function firstResolved(candidates: Array<Promise<GeoPoint | null>>): Promise<Geo
   })
 }
 
-function tryBrowserGeolocation(): Promise<GeoPoint | null> {
+
+interface BrowserGeolocationOptions {
+  /** 기지국·와이파이 대신 GPS 하드웨어를 쓰게 한다. 느리지만 오차가 수십 m로 줄어든다. */
+  highAccuracy: boolean
+  timeoutMs: number
+}
+
+function tryBrowserGeolocation(
+  options: BrowserGeolocationOptions = { highAccuracy: false, timeoutMs: 4500 },
+): Promise<LocatedPoint | null> {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
       resolve(null)
       return
     }
     let settled = false
-    const finish = (result: GeoPoint | null) => {
+    const finish = (result: LocatedPoint | null) => {
       if (settled) return
       settled = true
       resolve(result)
     }
-    const timeoutId = setTimeout(() => finish(null), 5000)
+    // 콜백이 끝내 오지 않는 브라우저가 있어 바깥에서도 한 번 더 끊는다.
+    const timeoutId = setTimeout(() => finish(null), options.timeoutMs + 500)
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
         clearTimeout(timeoutId)
-        finish({ latitude: position.coords.latitude, longitude: position.coords.longitude })
+        finish({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          source: 'gps',
+          accuracyMeters: Number.isFinite(position.coords.accuracy)
+            ? position.coords.accuracy
+            : null,
+        })
       },
       () => {
         clearTimeout(timeoutId)
         finish(null)
       },
-      { timeout: 4500, maximumAge: 5 * 60 * 1000 },
+      {
+        enableHighAccuracy: options.highAccuracy,
+        timeout: options.timeoutMs,
+        maximumAge: 5 * 60 * 1000,
+      },
     )
   })
 }

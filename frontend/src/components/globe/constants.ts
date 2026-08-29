@@ -33,3 +33,23 @@ export const DRAFT_STAR_LIFETIME_MS = 5 * 60 * 1000
 
 /** 임시 별 색상 — 등록된 별(카테고리 색)과 구분되도록 중립적인 하늘색을 쓴다. */
 export const DRAFT_STAR_COLOR = '#9fd6ff'
+
+/**
+ * "내 위치" 버튼이 GPS 좌표로 이동할 때의 줌 — 도로와 건물이 구분되는 수준.
+ *
+ * 배경 래스터(Esri Dark Gray)가 z16까지만 존재하므로 그 아래인 15는 원본 타일이
+ * 그대로 그려지는 안전한 값이다. EVENT_FOCUS_ZOOM의 주석 참고.
+ */
+export const MY_LOCATION_ZOOM = 15.0
+
+/**
+ * GPS를 못 써서 IP로만 위치를 알아냈을 때의 줌.
+ *
+ * IP 위치는 도시나 ISP 관문 단위라 실제와 수 km 어긋나는 일이 흔하다. 그 값을 줌 15로
+ * 당기면 틀린 골목을 "내 위치"라고 단언하는 화면이 된다. 데이터의 실제 정확도에 맞춰
+ * 구/시 단위로만 보여주고, 화면에도 대략적인 위치임을 표시한다.
+ */
+export const MY_LOCATION_APPROX_ZOOM = 12.0
+
+/** 내 위치 표시 색 — 별(이벤트)과 혼동되지 않도록 채도가 다른 청록을 쓴다. */
+export const MY_LOCATION_COLOR = '#4dd2ff'

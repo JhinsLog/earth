@@ -47,3 +47,84 @@
 .map-globe .maplibregl-ctrl-attrib a {
   color: #9dc4ef;
 }
+
+/* ── 내 위치로 이동 ────────────────────────────────────────────────
+   지도 사이트의 GPS 버튼과 같은 자리(우하단)에 둔다. 출처 표기가 그 아래
+   깔려 있으므로 겹치지 않도록 띄운다. */
+.my-location-btn {
+  position: absolute;
+  right: 16px;
+  bottom: 44px;
+  z-index: 4;
+
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+
+  border: 1px solid rgba(150, 190, 240, 0.35);
+  border-radius: 50%;
+  background: rgba(12, 30, 52, 0.82);
+  color: #cfe4ff;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.my-location-btn:hover:not(:disabled) {
+  background: rgba(28, 60, 96, 0.92);
+  border-color: rgba(180, 215, 255, 0.65);
+  color: #ffffff;
+}
+
+.my-location-btn:focus-visible {
+  outline: 2px solid #7fc4ff;
+  outline-offset: 2px;
+}
+
+/* 위치를 찾는 동안 — GPS는 10초까지 걸릴 수 있어 진행 중임이 분명해야 한다. */
+.my-location-btn:disabled {
+  cursor: progress;
+  color: #7fc4ff;
+}
+
+.my-location-btn:disabled svg {
+  animation: my-location-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes my-location-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.86); }
+}
+
+.my-location-note {
+  position: absolute;
+  right: 16px;
+  bottom: 94px;
+  z-index: 4;
+
+  max-width: 260px;
+  padding: 8px 12px;
+  border: 1px solid rgba(150, 190, 240, 0.3);
+  border-radius: 8px;
+  background: rgba(12, 30, 52, 0.9);
+  color: #cfe4ff;
+  font-size: 12px;
+  line-height: 1.5;
+  backdrop-filter: blur(6px);
+}
+
+.my-location-note--error {
+  border-color: rgba(255, 140, 130, 0.45);
+  color: #ffc9c4;
+}
+
+/* 상세 패널이 열리면 그 폭만큼 왼쪽으로 비켜 가려지지 않게 한다.
+   360px은 EventDetailPanel.css의 `.event-panel { width }`와 맞춘 값이다. */
+@media (min-width: 900px) {
+  .home--panel-open .my-location-btn,
+  .home--panel-open .my-location-note {
+    right: 376px;
+  }
+}

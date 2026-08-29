@@ -73,7 +73,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="home">
+    <div className={`home${selectedEvent ? ' home--panel-open' : ''}`}>
       <Navbar
         onBrandClick={() => {
           // 열려 있던 상세/입력창을 모두 닫고 지구본 전체 화면으로 되돌린다.

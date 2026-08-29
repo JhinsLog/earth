@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -26,14 +26,24 @@ import {
   HOME_VIEW_MAX_ABS_LATITUDE,
   MAX_ZOOM,
   MIN_ZOOM,
+  MY_LOCATION_APPROX_ZOOM,
+  MY_LOCATION_COLOR,
+  MY_LOCATION_ZOOM,
 } from './constants'
-import { approximateLongitudeFromTimezone, type GeoPoint } from '../../lib/geolocate'
+import {
+  approximateLongitudeFromTimezone,
+  detectPreciseLocation,
+  type GeoPoint,
+  type LocatedPoint,
+} from '../../lib/geolocate'
 import { EVENT_CATEGORY_COLOR, type DraftStar, type EarthEvent } from '../../types'
 import './MapGlobe.css'
 
 const EVENTS_SOURCE_ID = 'earth-events-source'
 const DRAFTS_SOURCE_ID = 'earth-drafts-source'
 const STAR_FLARE_IMAGE_ID = 'earth-star-flare-sdf'
+/** 내 위치 표시. 이 좌표는 브라우저 안에만 머무르며 서버로 나가지 않는다. */
+const MY_LOCATION_SOURCE_ID = 'earth-my-location-source'
 /** 클릭 판정을 받는 레이어 — 넓은 오라와 중앙 코어만으로 충분하다. */
 const EVENT_CLICK_LAYER_IDS = ['events-aura-layer', 'events-white-core'] as const
 const DRAFT_CLICK_LAYER_IDS = ['drafts-aura-layer', 'drafts-white-core'] as const
@@ -74,6 +84,52 @@ function whenSourceReady(map: MapLibreMap, sourceId: string, run: () => void): (
   }
   map.on('load', handler)
   return () => map.off('load', handler)
+}
+
+/**
+ * 내 위치 점과 오차 원을 하나의 FeatureCollection으로 만든다.
+ *
+ * 오차 원을 폴리곤으로 그리는 이유는 circle-radius가 픽셀 단위라 줌을 바꾸면 실제
+ * 반경과 어긋나기 때문이다. 오차 100m는 어느 줌에서든 100m로 보여야 의미가 있다.
+ */
+function toMyLocationGeoJson(point: LocatedPoint | null) {
+  if (!point) return { type: 'FeatureCollection' as const, features: [] }
+
+  const dot = {
+    type: 'Feature' as const,
+    geometry: { type: 'Point' as const, coordinates: [point.longitude, point.latitude] },
+    properties: { kind: 'dot' },
+  }
+
+  // 오차 반경을 모르면(IP 기반) 원을 그리지 않는다. 임의의 반경을 그리면 실제로는
+  // 측정하지 않은 정확도를 화면이 주장하게 된다.
+  if (point.accuracyMeters == null || point.accuracyMeters <= 0) {
+    return { type: 'FeatureCollection' as const, features: [dot] }
+  }
+
+  const accuracy = {
+    type: 'Feature' as const,
+    geometry: {
+      type: 'Polygon' as const,
+      coordinates: [accuracyRing(point, point.accuracyMeters)],
+    },
+    properties: { kind: 'accuracy' },
+  }
+
+  // 오차 원을 먼저 넣어 점이 그 위에 오게 한다.
+  return { type: 'FeatureCollection' as const, features: [accuracy, dot] }
+}
+
+/** 중심에서 반경 radiusMeters 떨어진 대권 위의 점들로 원을 근사한다. */
+function accuracyRing(center: GeoPoint, radiusMeters: number, steps = 64): [number, number][] {
+  const EARTH_RADIUS_KM = 6371
+  const angularDeg = ((radiusMeters / 1000 / EARTH_RADIUS_KM) * 180) / Math.PI
+  const ring: [number, number][] = []
+  for (let i = 0; i <= steps; i++) {
+    const p = destinationPoint(center.latitude, center.longitude, (i / steps) * 360, angularDeg)
+    ring.push([p.lng, p.lat])
+  }
+  return ring
 }
 
 function toEventGeoJson(events: EarthEvent[]) {
@@ -183,6 +239,14 @@ export default function MapGlobe({
   const containerRef = useRef<HTMLDivElement>(null)
   const haloRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+
+  // 내 위치는 이 컴포넌트 안에만 둔다. 스토어에 올리면 다른 곳에서 서버로 실어 보낼
+  // 여지가 생기는데, 이 좌표는 카메라를 움직이는 용도 외에는 쓰지 않기로 한 값이다.
+  const [myLocation, setMyLocation] = useState<LocatedPoint | null>(null)
+  const [locating, setLocating] = useState(false)
+  const [locateError, setLocateError] = useState<string | null>(null)
+  const myLocationRef = useRef<LocatedPoint | null>(null)
+  myLocationRef.current = myLocation
   const readyRef = useRef(false)
   const mapRef = useRef<MapLibreMap | null>(null)
   const isInteractingRef = useRef(false)
@@ -318,6 +382,49 @@ export default function MapGlobe({
         data: toDraftGeoJson(draftStarsRef.current),
       })
       addStarLayers(map, DRAFTS_SOURCE_ID, 'drafts', DRAFT_STAR_COLOR, 0.85)
+
+      // 내 위치. 별과 달리 클릭 대상이 아니므로 판정 레이어를 두지 않는다.
+      map.addSource(MY_LOCATION_SOURCE_ID, {
+        type: 'geojson',
+        data: toMyLocationGeoJson(myLocationRef.current),
+      })
+
+      map.addLayer({
+        id: 'my-location-accuracy',
+        type: 'fill',
+        source: MY_LOCATION_SOURCE_ID,
+        filter: ['==', ['get', 'kind'], 'accuracy'],
+        paint: {
+          'fill-color': MY_LOCATION_COLOR,
+          'fill-opacity': 0.12,
+        },
+      })
+
+      map.addLayer({
+        id: 'my-location-accuracy-edge',
+        type: 'line',
+        source: MY_LOCATION_SOURCE_ID,
+        filter: ['==', ['get', 'kind'], 'accuracy'],
+        paint: {
+          'line-color': MY_LOCATION_COLOR,
+          'line-opacity': 0.35,
+          'line-width': 1,
+        },
+      })
+
+      map.addLayer({
+        id: 'my-location-dot',
+        type: 'circle',
+        source: MY_LOCATION_SOURCE_ID,
+        filter: ['==', ['get', 'kind'], 'dot'],
+        paint: {
+          'circle-radius': 6,
+          'circle-color': MY_LOCATION_COLOR,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-opacity': 0.9,
+        },
+      })
 
       EVENT_CLICK_LAYER_IDS.forEach((layerId) => {
         map.on('click', layerId, (e: MapLayerMouseEvent) => {
@@ -509,6 +616,47 @@ export default function MapGlobe({
     }
   }, [])
 
+  // 내 위치 표시 갱신
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    return whenSourceReady(map, MY_LOCATION_SOURCE_ID, () => {
+      const source = map.getSource(MY_LOCATION_SOURCE_ID) as GeoJSONSource | undefined
+      source?.setData(toMyLocationGeoJson(myLocation))
+    })
+  }, [myLocation])
+
+  const goToMyLocation = useCallback(async () => {
+    const map = mapRef.current
+    if (!map || locating) return
+
+    setLocating(true)
+    setLocateError(null)
+    try {
+      const point = await detectPreciseLocation()
+      if (!point) {
+        setLocateError('위치를 확인할 수 없습니다. 브라우저 위치 권한을 확인해 주세요.')
+        return
+      }
+      setMyLocation(point)
+
+      // 사용자가 명시적으로 누른 이동이므로 자전이 끼어들지 않게 막는다.
+      isInteractingRef.current = true
+      map.flyTo({
+        center: [point.longitude, point.latitude],
+        zoom: point.source === 'gps' ? MY_LOCATION_ZOOM : MY_LOCATION_APPROX_ZOOM,
+        duration: 2000,
+        curve: 1.4,
+        essential: true,
+      })
+      map.once('moveend', () => {
+        isInteractingRef.current = false
+      })
+    } finally {
+      setLocating(false)
+    }
+  }, [locating])
+
   // 이벤트 목록이 바뀔 때마다 지도 위 별 데이터 갱신
   useEffect(() => {
     const map = mapRef.current
@@ -643,6 +791,39 @@ export default function MapGlobe({
       <Starfield />
       <div ref={containerRef} className="map-globe__container" />
       <div ref={haloRef} className="globe-halo" />
+
+      <button
+        type="button"
+        className="my-location-btn"
+        onClick={goToMyLocation}
+        disabled={locating}
+        aria-label="내 위치로 이동"
+        aria-busy={locating}
+        title="내 위치로 이동"
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <circle cx="12" cy="12" r="3.2" fill="currentColor" />
+          <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          <path
+            d="M12 1.6v3.2M12 19.2v3.2M1.6 12h3.2M19.2 12h3.2"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
+
+      {myLocation?.source === 'ip' && (
+        <div className="my-location-note" role="status">
+          GPS를 쓸 수 없어 <strong>대략적인 위치</strong>를 보여줍니다
+        </div>
+      )}
+
+      {locateError && (
+        <div className="my-location-note my-location-note--error" role="alert">
+          {locateError}
+        </div>
+      )}
     </div>
   )
 }
