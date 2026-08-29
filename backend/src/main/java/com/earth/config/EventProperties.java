@@ -13,7 +13,14 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *                   별로 도배되는 것을 막기 위한 장치다.
  *                   설정값이 없을 때 int 기본값 0으로 떨어지면 아무도 등록할 수 없게 되므로
  *                   반드시 기본값을 명시한다.
+ * @param confirmExtensionMinutes 공감 1건이 별의 수명을 늘리는 시간(분).
+ * @param maxLifetimeHours 공감이 아무리 쌓여도 별이 살아있을 수 있는 최대 시간.
+ *                         생성 시각 기준이므로 공감이 계속 들어와도 영원히 남지 않는다.
  */
 @ConfigurationProperties(prefix = "earth.event")
-public record EventProperties(@DefaultValue("30") int ttlMinutes, @DefaultValue("5") int maxPerHour) {
+public record EventProperties(
+        @DefaultValue("30") int ttlMinutes,
+        @DefaultValue("5") int maxPerHour,
+        @DefaultValue("15") int confirmExtensionMinutes,
+        @DefaultValue("6") int maxLifetimeHours) {
 }

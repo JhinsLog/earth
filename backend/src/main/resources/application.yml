@@ -65,6 +65,8 @@ earth:
     # 달라질 수 있어 설정으로 분리해 둔다.
     ttl-minutes: 30
     max-per-hour: 5        # 한 사용자가 1시간 안에 등록할 수 있는 별 개수
+    confirm-extension-minutes: 15  # 공감 1건이 늘려주는 수명
+    max-lifetime-hours: 6          # 공감이 쌓여도 넘지 못하는 상한(생성 시각 기준)
     # 만료된 별을 정리하고 실시간으로 알리는 주기. 조회는 이미 expires_at으로
     # 걸러지므로 이 값이 커도 만료된 별이 보이지는 않는다.
     expiration-scan-interval-ms: 30000

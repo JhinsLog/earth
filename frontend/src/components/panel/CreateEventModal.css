@@ -116,3 +116,19 @@
   opacity: 0.6;
   cursor: default;
 }
+
+/* 내 위치에서의 거리. 등록 가능 여부를 카테고리 선택 즉시 알려준다. */
+.create-modal__range {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #9db4d4;
+  line-height: 1.5;
+}
+
+.create-modal__range--blocked {
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 170, 90, 0.4);
+  border-radius: 8px;
+  background: rgba(80, 50, 20, 0.35);
+  color: #ffd9a8;
+}

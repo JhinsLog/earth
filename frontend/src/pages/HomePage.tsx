@@ -6,6 +6,7 @@ import CreateEventModal from '../components/panel/CreateEventModal'
 import { useEventStore } from '../store/eventStore'
 import { useAuthStore } from '../store/authStore'
 import { useDraftStars } from '../hooks/useDraftStars'
+import { useMyLocation } from '../hooks/useMyLocation'
 import { api } from '../lib/api'
 import { detectApproximateLocation, type GeoPoint } from '../lib/geolocate'
 import type { EarthUser } from '../types'
@@ -25,6 +26,8 @@ export default function HomePage() {
     useEventStore()
   const { accessToken, user, setUser } = useAuthStore()
   const { drafts, addDraft, removeDraft, soonestRemainingMs } = useDraftStars()
+  // 내 위치는 여기서만 소유하고 필요한 두 곳에만 내려보낸다. 서버로는 나가지 않는다.
+  const { myLocation, locating, locateError, locate } = useMyLocation()
 
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
   const [initialFocusLatLng, setInitialFocusLatLng] = useState<GeoPoint | null>(null)
@@ -99,6 +102,10 @@ export default function HomePage() {
         }}
         initialFocusLatLng={initialFocusLatLng}
         resetViewToken={resetViewToken}
+        myLocation={myLocation}
+        locating={locating}
+        locateError={locateError}
+        onLocateRequest={locate}
       />
 
       {showLoginHint && (
@@ -118,12 +125,21 @@ export default function HomePage() {
         </div>
       )}
 
-      {selectedEvent && <EventDetailPanel event={selectedEvent} onClose={() => selectEvent(null)} />}
+      {selectedEvent && (
+        <EventDetailPanel
+          key={selectedEvent.id}
+          event={selectedEvent}
+          onClose={() => selectEvent(null)}
+          myLocation={myLocation}
+          onConfirmed={addOrUpdate}
+        />
+      )}
 
       {selectedDraft && (
         <CreateEventModal
           latitude={selectedDraft.latitude}
           longitude={selectedDraft.longitude}
+          myLocation={myLocation}
           onClose={() => setSelectedDraftId(null)}
           onDelete={() => {
             removeDraft(selectedDraft.id)

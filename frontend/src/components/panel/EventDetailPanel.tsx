@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react'
+import { api } from '../../lib/api'
+import { useAuthStore } from '../../store/authStore'
 import { EVENT_CATEGORY_LABEL, type EarthEvent } from '../../types'
+import type { LocatedPoint } from '../../lib/geolocate'
+import { checkWitnessRange, formatDistance } from '../../lib/witnessRule'
 import ChatRoom from './ChatRoom'
 import './EventDetailPanel.css'
 
 interface Props {
   event: EarthEvent
   onClose: () => void
+  /** 내 위치. 공감도 등록과 같은 거리 규칙을 따른다. */
+  myLocation: LocatedPoint | null
+  onConfirmed: (event: EarthEvent) => void
 }
 
 /**
@@ -36,7 +43,33 @@ function formatRemaining(expiresAt: string, now: number): string | null {
   return minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`
 }
 
-export default function EventDetailPanel({ event, onClose }: Props) {
+export default function EventDetailPanel({ event, onClose, myLocation, onConfirmed }: Props) {
+  const user = useAuthStore((s) => s.user)
+  const [confirming, setConfirming] = useState(false)
+  const [confirmError, setConfirmError] = useState<string | null>(null)
+
+  const isAuthor = user != null && user.id === event.authorId
+  // 공감도 등록과 같은 규범을 따른다 — 그 사건을 볼 수 있는 자리에 있었어야 한다.
+  const witness = myLocation
+    ? checkWitnessRange(myLocation, { latitude: event.latitude, longitude: event.longitude }, event.category)
+    : null
+  const outOfRange = witness != null && !witness.ok
+
+  const toggleConfirm = async () => {
+    setConfirming(true)
+    setConfirmError(null)
+    try {
+      const { data } = event.confirmedByMe
+        ? await api.delete<EarthEvent>(`/api/events/${event.id}/confirm`)
+        : await api.post<EarthEvent>(`/api/events/${event.id}/confirm`)
+      onConfirmed(data)
+    } catch {
+      setConfirmError('처리에 실패했습니다. 다시 시도해 주세요.')
+    } finally {
+      setConfirming(false)
+    }
+  }
+
   // 별은 수명이 다하면 예고 없이 지구본에서 사라진다. 남은 시간을 보여줘야
   // 사라진 것이 오류가 아니라 정책이라는 걸 알 수 있다.
   const [now, setNow] = useState(() => Date.now())
@@ -62,7 +95,27 @@ export default function EventDetailPanel({ event, onClose }: Props) {
 
       <p className="event-panel__expiry">
         {remaining ? `${remaining} 후 사라집니다` : '곧 사라집니다'}
+        {event.confirmCount > 0 && ` · 공감 ${event.confirmCount}`}
       </p>
+
+      {user && !isAuthor && (
+        <div className="event-panel__confirm">
+          <button
+            className={`event-panel__confirm-btn${event.confirmedByMe ? ' is-on' : ''}`}
+            onClick={toggleConfirm}
+            disabled={confirming || (outOfRange && !event.confirmedByMe)}
+          >
+            {event.confirmedByMe ? '✓ 나도 봤어요' : '나도 봤어요'}
+          </button>
+          {outOfRange && !event.confirmedByMe && witness && (
+            <p className="event-panel__confirm-note">
+              {formatDistance(witness.distanceKm)} 떨어져 있어 공감할 수 없습니다 — 직접 본
+              사람만 확인할 수 있어요
+            </p>
+          )}
+          {confirmError && <p className="event-panel__confirm-note">{confirmError}</p>}
+        </div>
+      )}
 
       <ChatRoom eventId={event.id} />
     </aside>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -32,7 +32,6 @@ import {
 } from './constants'
 import {
   approximateLongitudeFromTimezone,
-  detectPreciseLocation,
   type GeoPoint,
   type LocatedPoint,
 } from '../../lib/geolocate'
@@ -44,6 +43,8 @@ const DRAFTS_SOURCE_ID = 'earth-drafts-source'
 const STAR_FLARE_IMAGE_ID = 'earth-star-flare-sdf'
 /** 내 위치 표시. 이 좌표는 브라우저 안에만 머무르며 서버로 나가지 않는다. */
 const MY_LOCATION_SOURCE_ID = 'earth-my-location-source'
+/** 공감이 이 수를 넘어도 별이 더 커지지는 않는다. 하나가 화면을 뒤덮지 않도록. */
+const CONFIRM_BOOST_MAX = 10
 /** 클릭 판정을 받는 레이어 — 넓은 오라와 중앙 코어만으로 충분하다. */
 const EVENT_CLICK_LAYER_IDS = ['events-aura-layer', 'events-white-core'] as const
 const DRAFT_CLICK_LAYER_IDS = ['drafts-aura-layer', 'drafts-white-core'] as const
@@ -59,6 +60,12 @@ interface Props {
   initialFocusLatLng?: GeoPoint | null
   /** 값이 바뀔 때마다 첫 화면(지구본 전체)으로 되돌아간다. 로고 클릭용. */
   resetViewToken?: number
+  /** 내 위치. HomePage의 useMyLocation이 소유하며 여기서는 표시와 이동에만 쓴다. */
+  myLocation: LocatedPoint | null
+  locating: boolean
+  locateError: string | null
+  /** "내 위치" 버튼을 눌렀을 때. 위치를 구해 돌려주면 그 지점으로 날아간다. */
+  onLocateRequest: () => Promise<LocatedPoint | null>
 }
 
 /**
@@ -141,6 +148,9 @@ function toEventGeoJson(events: EarthEvent[]) {
       properties: {
         id: event.id,
         color: EVENT_CATEGORY_COLOR[event.category],
+        // 목격자가 많을수록 밝고 크게. 신뢰도를 지구본 위에서 바로 읽을 수 있게 한다.
+        // 상한을 두는 이유는 공감이 많은 별 하나가 화면을 뒤덮지 않게 하기 위함이다.
+        confirmBoost: Math.min(event.confirmCount, CONFIRM_BOOST_MAX),
       },
     })),
   }
@@ -161,19 +171,37 @@ function toDraftGeoJson(drafts: DraftStar[]) {
  * 별 하나를 이루는 4개 레이어(오라 → 헤일로 → 색 성광 → 백색 코어)를 한 번에 얹는다.
  * 등록된 이벤트와 임시 별이 같은 생김새를 공유하되 색과 밝기만 달라지도록 공통화했다.
  */
+/**
+ * 별 한 벌(오라 → 헤일로 → 성광 → 백색 코어)을 얹는다.
+ *
+ * @param boostByConfirm 공감 수만큼 크기를 키울지. 등록된 별에만 적용하고 임시 별에는
+ *                       쓰지 않는다 — 임시 별은 아직 아무도 확인하지 않은 상태이므로.
+ */
 function addStarLayers(
   map: MapLibreMap,
   sourceId: string,
   prefix: string,
   color: string | unknown[],
   opacityScale: number,
+  boostByConfirm = false,
 ) {
+  /** 공감 수에 비례해 크기를 더한다. 공감이 없으면 0이라 기존 크기와 같다. */
+  const boost = (perConfirm: number): unknown =>
+    boostByConfirm
+      ? ['*', ['coalesce', ['get', 'confirmBoost'], 0], perConfirm]
+      : 0
+  const withBoost = (base: unknown, perConfirm: number): unknown =>
+    boostByConfirm ? ['+', base, boost(perConfirm)] : base
+
   map.addLayer({
     id: `${prefix}-aura-layer`,
     type: 'circle',
     source: sourceId,
     paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 7, 10, 16],
+      'circle-radius': withBoost(
+        ['interpolate', ['linear'], ['zoom'], 1, 7, 10, 16],
+        0.9,
+      ) as never,
       'circle-color': color as string,
       'circle-opacity': 0.4 * opacityScale,
       'circle-blur': 0.85,
@@ -185,7 +213,10 @@ function addStarLayers(
     type: 'circle',
     source: sourceId,
     paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 3.5, 10, 8],
+      'circle-radius': withBoost(
+        ['interpolate', ['linear'], ['zoom'], 1, 3.5, 10, 8],
+        0.45,
+      ) as never,
       'circle-color': color as string,
       'circle-opacity': 0.8 * opacityScale,
       'circle-blur': 0.25,
@@ -198,7 +229,10 @@ function addStarLayers(
     source: sourceId,
     layout: {
       'icon-image': STAR_FLARE_IMAGE_ID,
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 1, 0.18, 10, 0.38],
+      'icon-size': withBoost(
+        ['interpolate', ['linear'], ['zoom'], 1, 0.18, 10, 0.38],
+        0.022,
+      ) as never,
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },
@@ -235,16 +269,15 @@ export default function MapGlobe({
   onDraftRemove,
   initialFocusLatLng,
   resetViewToken = 0,
+  myLocation,
+  locating,
+  locateError,
+  onLocateRequest,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const haloRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
 
-  // 내 위치는 이 컴포넌트 안에만 둔다. 스토어에 올리면 다른 곳에서 서버로 실어 보낼
-  // 여지가 생기는데, 이 좌표는 카메라를 움직이는 용도 외에는 쓰지 않기로 한 값이다.
-  const [myLocation, setMyLocation] = useState<LocatedPoint | null>(null)
-  const [locating, setLocating] = useState(false)
-  const [locateError, setLocateError] = useState<string | null>(null)
   const myLocationRef = useRef<LocatedPoint | null>(null)
   myLocationRef.current = myLocation
   const readyRef = useRef(false)
@@ -373,7 +406,7 @@ export default function MapGlobe({
         type: 'geojson',
         data: toEventGeoJson(eventsRef.current),
       })
-      addStarLayers(map, EVENTS_SOURCE_ID, 'events', ['get', 'color'], 1)
+      addStarLayers(map, EVENTS_SOURCE_ID, 'events', ['get', 'color'], 1, true)
 
       // 임시 별은 나중에 얹어 등록된 별 위에 오게 한다 — 같은 자리에 겹쳤을 때
       // 아직 처리해야 할 임시 별이 클릭에 먼저 잡히도록.
@@ -630,32 +663,22 @@ export default function MapGlobe({
     const map = mapRef.current
     if (!map || locating) return
 
-    setLocating(true)
-    setLocateError(null)
-    try {
-      const point = await detectPreciseLocation()
-      if (!point) {
-        setLocateError('위치를 확인할 수 없습니다. 브라우저 위치 권한을 확인해 주세요.')
-        return
-      }
-      setMyLocation(point)
+    const point = await onLocateRequest()
+    if (!point) return
 
-      // 사용자가 명시적으로 누른 이동이므로 자전이 끼어들지 않게 막는다.
-      isInteractingRef.current = true
-      map.flyTo({
-        center: [point.longitude, point.latitude],
-        zoom: point.source === 'gps' ? MY_LOCATION_ZOOM : MY_LOCATION_APPROX_ZOOM,
-        duration: 2000,
-        curve: 1.4,
-        essential: true,
-      })
-      map.once('moveend', () => {
-        isInteractingRef.current = false
-      })
-    } finally {
-      setLocating(false)
-    }
-  }, [locating])
+    // 사용자가 명시적으로 누른 이동이므로 자전이 끼어들지 않게 막는다.
+    isInteractingRef.current = true
+    map.flyTo({
+      center: [point.longitude, point.latitude],
+      zoom: point.source === 'gps' ? MY_LOCATION_ZOOM : MY_LOCATION_APPROX_ZOOM,
+      duration: 2000,
+      curve: 1.4,
+      essential: true,
+    })
+    map.once('moveend', () => {
+      isInteractingRef.current = false
+    })
+  }, [locating, onLocateRequest])
 
   // 이벤트 목록이 바뀔 때마다 지도 위 별 데이터 갱신
   useEffect(() => {

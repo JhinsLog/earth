@@ -14,8 +14,12 @@ export interface EarthEvent {
   createdAt: string
   /** 수정된 적이 없으면 null. */
   updatedAt: string | null
-  /** 이 시각이 지나면 별은 지구본에서 사라진다(현재 TTL 30분, 임시 정책). */
+  /** 이 시각이 지나면 별은 지구본에서 사라진다(기본 30분, 공감이 쌓이면 연장된다). */
   expiresAt: string
+  /** "나도 봤다"고 확인한 사람 수. 별의 크기·밝기와 수명에 반영된다. */
+  confirmCount: number
+  /** 지금 로그인한 사용자가 이미 공감했는지. 비로그인이면 항상 false. */
+  confirmedByMe: boolean
 }
 
 /**
