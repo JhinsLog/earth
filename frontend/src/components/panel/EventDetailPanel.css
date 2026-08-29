@@ -57,3 +57,11 @@
   color: #dbe4f0;
   white-space: pre-wrap;
 }
+
+/* 별의 남은 수명. TTL이 지나면 지구본에서 사라진다. */
+.event-panel__expiry {
+  margin: 10px 0 12px;
+  font-size: 12px;
+  color: #9db4d4;
+  letter-spacing: 0.02em;
+}

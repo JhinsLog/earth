@@ -21,7 +21,8 @@ function formatRemaining(ms: number | null): string {
 }
 
 export default function HomePage() {
-  const { events, selectedEventId, loadEvents, selectEvent, subscribeRealtime, addOrUpdate } = useEventStore()
+  const { events, selectedEventId, loadEvents, selectEvent, subscribeRealtime, addOrUpdate, pruneExpired } =
+    useEventStore()
   const { accessToken, user, setUser } = useAuthStore()
   const { drafts, addDraft, removeDraft, soonestRemainingMs } = useDraftStars()
 
@@ -31,6 +32,14 @@ export default function HomePage() {
   // 값이 바뀔 때마다 지구본이 첫 화면으로 되돌아간다. 같은 위치에서 여러 번 눌러도
   // 매번 동작해야 하므로 boolean이 아니라 증가하는 카운터를 쓴다.
   const [resetViewToken, setResetViewToken] = useState(0)
+
+  // 만료 전파는 WebSocket으로 오지만, 연결이 끊겼다 붙는 사이의 메시지는 재생되지
+  // 않는다(STOMP는 재연결만 하고 놓친 메시지를 다시 주지 않는다). 그 구간에 수명이
+  // 다한 별이 화면에 영영 남지 않도록 클라이언트에서도 주기적으로 걷어낸다.
+  useEffect(() => {
+    const id = window.setInterval(pruneExpired, 1000)
+    return () => window.clearInterval(id)
+  }, [pruneExpired])
 
   useEffect(() => {
     loadEvents()

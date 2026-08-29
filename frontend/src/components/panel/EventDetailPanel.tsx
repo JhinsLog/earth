@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { EVENT_CATEGORY_LABEL, type EarthEvent } from '../../types'
 import ChatRoom from './ChatRoom'
 import './EventDetailPanel.css'
@@ -25,7 +26,27 @@ function formatCreatedAt(isoString: string): string {
   })
 }
 
+/** 남은 시간을 "12분 30초" 형태로. 이미 지났으면 null. */
+function formatRemaining(expiresAt: string, now: number): string | null {
+  const ms = new Date(expiresAt).getTime() - now
+  if (ms <= 0) return null
+  const totalSeconds = Math.floor(ms / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`
+}
+
 export default function EventDetailPanel({ event, onClose }: Props) {
+  // 별은 수명이 다하면 예고 없이 지구본에서 사라진다. 남은 시간을 보여줘야
+  // 사라진 것이 오류가 아니라 정책이라는 걸 알 수 있다.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  const remaining = formatRemaining(event.expiresAt, now)
+
   return (
     <aside className="event-panel">
       <button className="event-panel__close" onClick={onClose}>
@@ -38,6 +59,10 @@ export default function EventDetailPanel({ event, onClose }: Props) {
         {event.authorNickname} · {formatCreatedAt(event.createdAt)}
       </p>
       {event.content && <p className="event-panel__content">{event.content}</p>}
+
+      <p className="event-panel__expiry">
+        {remaining ? `${remaining} 후 사라집니다` : '곧 사라집니다'}
+      </p>
 
       <ChatRoom eventId={event.id} />
     </aside>
