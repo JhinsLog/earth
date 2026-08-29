@@ -27,11 +27,15 @@ export function useDraftStars() {
   }, [])
 
   const addDraft = useCallback((latitude: number, longitude: number): DraftStar => {
+    // 화면에 쓰는 now는 1초 타이머로만 갱신돼 이 시점엔 최대 1초 뒤처져 있다.
+    // 그대로 두면 남은 시간이 수명보다 커져 5:00이어야 할 표시가 5:01로 시작한다.
+    const now = Date.now()
+    setNow(now)
     const draft: DraftStar = {
-      id: `draft-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      id: `draft-${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       latitude,
       longitude,
-      createdAt: Date.now(),
+      createdAt: now,
     }
     setDrafts((prev) => [...prev, draft])
     return draft
@@ -47,7 +51,11 @@ export function useDraftStars() {
       ? null
       : Math.max(
           0,
-          Math.min(...drafts.map((draft) => draft.createdAt + DRAFT_STAR_LIFETIME_MS - now)),
+          // 남은 시간은 수명을 넘을 수 없다. now가 뒤처진 순간에도 표시가 튀지 않도록 묶어둔다.
+          Math.min(
+            DRAFT_STAR_LIFETIME_MS,
+            ...drafts.map((draft) => draft.createdAt + DRAFT_STAR_LIFETIME_MS - now),
+          ),
         )
 
   return { drafts, addDraft, removeDraft, soonestRemainingMs }
