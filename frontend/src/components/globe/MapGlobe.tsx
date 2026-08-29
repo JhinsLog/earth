@@ -51,6 +51,31 @@ interface Props {
   resetViewToken?: number
 }
 
+/**
+ * 소스가 준비된 뒤 콜백을 실행하고, 정리 함수를 돌려준다.
+ *
+ * isStyleLoaded()로 판단하면 안 된다. 이 값은 "모든 소스의 타일까지 다 왔는가"를
+ * 보기 때문에 지도가 조금이라도 움직이는 중이면 false가 된다. 그때 once('load')로
+ * 미루면 'load'는 이미 지나가 다시 오지 않으므로 콜백이 영영 실행되지 않는다.
+ * 새로 등록한 별이 지도에 올라오지 않아 클릭조차 되지 않던 원인이다.
+ *
+ * setData는 소스만 있으면 안전하므로 소스 존재 여부만 본다. 소스는 map 'load'
+ * 안에서 추가되니, 아직 없다면 load가 아직 오지 않은 것이라 기다려도 안전하다.
+ */
+function whenSourceReady(map: MapLibreMap, sourceId: string, run: () => void): () => void {
+  if (map.getSource(sourceId)) {
+    run()
+    return () => {}
+  }
+  const handler = () => {
+    if (!map.getSource(sourceId)) return
+    map.off('load', handler)
+    run()
+  }
+  map.on('load', handler)
+  return () => map.off('load', handler)
+}
+
 function toEventGeoJson(events: EarthEvent[]) {
   return {
     type: 'FeatureCollection' as const,
@@ -488,24 +513,20 @@ export default function MapGlobe({
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    const apply = () => {
+    return whenSourceReady(map, EVENTS_SOURCE_ID, () => {
       const source = map.getSource(EVENTS_SOURCE_ID) as GeoJSONSource | undefined
       source?.setData(toEventGeoJson(events))
-    }
-    if (map.isStyleLoaded()) apply()
-    else map.once('load', apply)
+    })
   }, [events])
 
   // 임시 별 목록 갱신 (생성 / 등록 완료 / 수명 만료로 바뀐다)
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    const apply = () => {
+    return whenSourceReady(map, DRAFTS_SOURCE_ID, () => {
       const source = map.getSource(DRAFTS_SOURCE_ID) as GeoJSONSource | undefined
       source?.setData(toDraftGeoJson(draftStars))
-    }
-    if (map.isStyleLoaded()) apply()
-    else map.once('load', apply)
+    })
   }, [draftStars])
 
   // 이벤트를 선택하면 해당 좌표로 확대 이동
