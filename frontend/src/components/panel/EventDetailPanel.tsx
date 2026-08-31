@@ -2,16 +2,12 @@ import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { useAuthStore } from '../../store/authStore'
 import { EVENT_CATEGORY_LABEL, type EarthEvent } from '../../types'
-import type { LocatedPoint } from '../../lib/geolocate'
-import { checkWitnessRange, formatDistance } from '../../lib/witnessRule'
 import ChatRoom from './ChatRoom'
 import './EventDetailPanel.css'
 
 interface Props {
   event: EarthEvent
   onClose: () => void
-  /** 내 위치. 공감도 등록과 같은 거리 규칙을 따른다. */
-  myLocation: LocatedPoint | null
   onConfirmed: (event: EarthEvent) => void
 }
 
@@ -43,18 +39,12 @@ function formatRemaining(expiresAt: string, now: number): string | null {
   return minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`
 }
 
-export default function EventDetailPanel({ event, onClose, myLocation, onConfirmed }: Props) {
+export default function EventDetailPanel({ event, onClose, onConfirmed }: Props) {
   const user = useAuthStore((s) => s.user)
   const [confirming, setConfirming] = useState(false)
   const [confirmError, setConfirmError] = useState<string | null>(null)
 
   const isAuthor = user != null && user.id === event.authorId
-  // 공감도 등록과 같은 규범을 따른다 — 그 사건을 볼 수 있는 자리에 있었어야 한다.
-  const witness = myLocation
-    ? checkWitnessRange(myLocation, { latitude: event.latitude, longitude: event.longitude }, event.category)
-    : null
-  const outOfRange = witness != null && !witness.ok
-
   const toggleConfirm = async () => {
     setConfirming(true)
     setConfirmError(null)
@@ -103,16 +93,10 @@ export default function EventDetailPanel({ event, onClose, myLocation, onConfirm
           <button
             className={`event-panel__confirm-btn${event.confirmedByMe ? ' is-on' : ''}`}
             onClick={toggleConfirm}
-            disabled={confirming || (outOfRange && !event.confirmedByMe)}
+            disabled={confirming}
           >
             {event.confirmedByMe ? '✓ 나도 봤어요' : '나도 봤어요'}
           </button>
-          {outOfRange && !event.confirmedByMe && witness && (
-            <p className="event-panel__confirm-note">
-              {formatDistance(witness.distanceKm)} 떨어져 있어 공감할 수 없습니다 — 직접 본
-              사람만 확인할 수 있어요
-            </p>
-          )}
           {confirmError && <p className="event-panel__confirm-note">{confirmError}</p>}
         </div>
       )}

@@ -56,8 +56,6 @@ public class EventController {
 
     /**
      * "나도 봤다" — 목격 확인. 쌓일수록 별의 수명이 늘고 지구본에서 더 밝게 보인다.
-     *
-     * <p>등록자와의 거리 검사는 클라이언트가 한다(서버는 사용자 위치를 받지 않는 정책).
      */
     @PostMapping("/{eventId}/confirm")
     public EventResponse confirm(@AuthenticationPrincipal User user, @PathVariable Long eventId) {

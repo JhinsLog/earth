@@ -139,7 +139,6 @@ export default function HomePage() {
           key={selectedEvent.id}
           event={selectedEvent}
           onClose={() => selectEvent(null)}
-          myLocation={myLocation}
           onConfirmed={addOrUpdate}
         />
       )}
@@ -148,9 +147,6 @@ export default function HomePage() {
         <CreateEventModal
           latitude={selectedDraft.latitude}
           longitude={selectedDraft.longitude}
-          myLocation={myLocation}
-          onRefineLocation={locate}
-          locating={locating}
           onClose={() => setSelectedDraftId(null)}
           onDelete={() => {
             removeDraft(selectedDraft.id)
