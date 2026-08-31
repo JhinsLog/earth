@@ -157,20 +157,65 @@ export function detectIpLocation(): Promise<GeoPoint | null> {
 
 const IP_GEOLOCATION_ENDPOINTS = ['https://ipwho.is/', 'https://get.geojs.io/v1/ip/geo.json']
 
-async function tryIpGeolocation(): Promise<GeoPoint | null> {
-  for (const endpoint of IP_GEOLOCATION_ENDPOINTS) {
-    try {
-      const response = await fetch(endpoint)
-      if (!response.ok) continue
-      const data = await response.json()
-      const latitude = Number(data.latitude)
-      const longitude = Number(data.longitude)
-      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-        return { latitude, longitude }
-      }
-    } catch {
-      // 다음 엔드포인트로 폴백
-    }
+/** 응답이 지역을 얼마나 좁혀 말했는지. 클수록 구체적이다. */
+const PRECISION_DISTRICT = 2
+const PRECISION_CITY = 1
+const PRECISION_UNKNOWN = 0
+
+/** 한 제공자가 응답을 늦게 주더라도 나머지로 진행할 수 있게 끊는다. */
+const IP_LOOKUP_TIMEOUT_MS = 4000
+
+interface ScoredLocation extends GeoPoint {
+  precision: number
+}
+
+/**
+ * 응답의 지역 이름이 얼마나 구체적인지 점수화한다.
+ *
+ * <p>핵심은 <b>city가 region(시/도)과 같은 값이면 그 제공자는 구 단위를 모른다</b>는 것이다.
+ * 그때 돌려주는 좌표는 실제 위치가 아니라 도시 중심값이라 크게 어긋난다. 실측에서 같은 IP에
+ * 대해 city를 "Seoul"로 준 쪽은 10.8km, "Gangseo-gu"로 준 쪽은 0.9km 오차였다.
+ *
+ * <p>그래서 응답 순서가 아니라 이 점수로 고른다. 어느 제공자가 더 낫다고 고정하면 다른
+ * 지역·통신사에서 반대가 될 수 있지만, "지역명을 구체적으로 말한 쪽이 실제로 더 정확하다"는
+ * 관계는 제공자와 무관하게 성립한다.
+ */
+function scorePrecision(data: { city?: unknown; region?: unknown }): number {
+  const city = typeof data.city === 'string' ? data.city.trim() : ''
+  const region = typeof data.region === 'string' ? data.region.trim() : ''
+  if (!city) return PRECISION_UNKNOWN
+  // 대소문자만 다른 경우도 같은 값으로 본다.
+  if (region && city.toLowerCase() === region.toLowerCase()) return PRECISION_CITY
+  return PRECISION_DISTRICT
+}
+
+async function fetchIpLocation(endpoint: string): Promise<ScoredLocation | null> {
+  try {
+    const response = await fetch(endpoint, { signal: AbortSignal.timeout(IP_LOOKUP_TIMEOUT_MS) })
+    if (!response.ok) return null
+    const data = await response.json()
+    const latitude = Number(data.latitude)
+    const longitude = Number(data.longitude)
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+    return { latitude, longitude, precision: scorePrecision(data) }
+  } catch {
+    return null
   }
-  return null
+}
+
+/**
+ * 여러 제공자에게 동시에 물어보고 <b>지역을 가장 구체적으로 특정한</b> 응답을 쓴다.
+ *
+ * <p>순차로 돌며 첫 성공을 쓰면 목록 앞에 있는 제공자가 항상 이긴다. 그 제공자가 도시
+ * 중심값만 주는 경우 실제 위치와 10km 넘게 어긋나고, 목격 거리 규칙에서 현장에 있는
+ * 사용자가 차단된다.
+ */
+async function tryIpGeolocation(): Promise<GeoPoint | null> {
+  const results = await Promise.all(IP_GEOLOCATION_ENDPOINTS.map(fetchIpLocation))
+  const usable = results.filter((r): r is ScoredLocation => r != null)
+  if (usable.length === 0) return null
+
+  // 점수가 같으면 먼저 선언된 제공자를 쓴다(reduce가 기존 값을 유지하므로 자연히 그렇게 된다).
+  const best = usable.reduce((a, b) => (b.precision > a.precision ? b : a))
+  return { latitude: best.latitude, longitude: best.longitude }
 }
