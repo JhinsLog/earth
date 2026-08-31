@@ -22,8 +22,16 @@ function formatRemaining(ms: number | null): string {
 }
 
 export default function HomePage() {
-  const { events, selectedEventId, loadEvents, selectEvent, subscribeRealtime, addOrUpdate, pruneExpired } =
-    useEventStore()
+  const {
+    events,
+    selectedEventId,
+    selectionToken,
+    loadEvents,
+    selectEvent,
+    subscribeRealtime,
+    addOrUpdate,
+    pruneExpired,
+  } = useEventStore()
   const { accessToken, user, setUser } = useAuthStore()
   const { drafts, addDraft, removeDraft, soonestRemainingMs } = useDraftStars()
   // 내 위치는 여기서만 소유하고 필요한 두 곳에만 내려보낸다. 서버로는 나가지 않는다.
@@ -89,6 +97,7 @@ export default function HomePage() {
       <MapGlobe
         events={events}
         selectedEventId={selectedEventId}
+        selectionToken={selectionToken}
         onSelect={selectEvent}
         draftStars={drafts}
         onDraftCreate={handleDraftCreate}

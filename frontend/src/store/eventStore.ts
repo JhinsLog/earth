@@ -6,6 +6,14 @@ import type { EarthEvent } from '../types'
 interface EventState {
   events: EarthEvent[]
   selectedEventId: number | null
+  /**
+   * 별을 선택할 때마다 증가하는 값.
+   *
+   * 이미 선택된 별을 다시 클릭하면 selectedEventId가 그대로라 지도의 확대 effect가
+   * 재실행되지 않는다. 줌 아웃한 뒤 같은 별을 눌러도 다시 확대되지 않던 원인이다.
+   * 선택 "사건"을 나타내는 값이 따로 있어야 매번 트리거된다.
+   */
+  selectionToken: number
   loadEvents: () => Promise<void>
   selectEvent: (id: number | null) => void
   subscribeRealtime: () => Promise<() => void>
@@ -18,13 +26,19 @@ interface EventState {
 export const useEventStore = create<EventState>((set, get) => ({
   events: [],
   selectedEventId: null,
+  selectionToken: 0,
 
   loadEvents: async () => {
     const { data } = await api.get<EarthEvent[]>('/api/events')
     set({ events: data })
   },
 
-  selectEvent: (id) => set({ selectedEventId: id }),
+  selectEvent: (id) =>
+    set((state) => ({
+      selectedEventId: id,
+      // 선택 해제(null)는 확대할 대상이 없으므로 토큰을 올리지 않는다.
+      selectionToken: id == null ? state.selectionToken : state.selectionToken + 1,
+    })),
 
   addOrUpdate: (event) => {
     // 서버는 삭제·만료도 같은 채널로 흘려보낸다. ACTIVE가 아니면 지구본에서 걷어낸다.

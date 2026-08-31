@@ -52,6 +52,8 @@ const DRAFT_CLICK_LAYER_IDS = ['drafts-aura-layer', 'drafts-white-core'] as cons
 interface Props {
   events: EarthEvent[]
   selectedEventId: number | null
+  /** 값이 바뀔 때마다 선택된 별로 다시 확대한다. 같은 별을 다시 눌렀을 때도 동작하게 하는 장치. */
+  selectionToken: number
   onSelect: (id: number | null) => void
   draftStars: DraftStar[]
   onDraftCreate: (latitude: number, longitude: number) => void
@@ -262,6 +264,7 @@ function addStarLayers(
 export default function MapGlobe({
   events,
   selectedEventId,
+  selectionToken,
   onSelect,
   draftStars,
   onDraftCreate,
@@ -730,7 +733,7 @@ export default function MapGlobe({
       window.clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedEventId])
+  }, [selectionToken])
 
   // 접속 위치(GPS/IP)로 최초 1회만 이동
   useEffect(() => {
