@@ -1,0 +1,99 @@
+# Earth 백엔드 스택. 프론트엔드는 Cloudflare Pages가 서빙하므로 여기 없다.
+#
+#   earth.jhinslog.com      → Cloudflare Pages (정적, 홈서버와 무관)
+#   earth-api.jhinslog.com  → Cloudflare Tunnel → 이 스택의 earth-backend
+#
+# 다른 서버로 옮길 때는 이 파일 + .env + 볼륨만 가져가면 된다.
+#
+# 사전 준비 (개발 PC에서):
+#   cd backend && ./gradlew bootJar   →   backend/build/libs/earth-backend-*.jar
+# 산출물을 서버에 올린 뒤:
+#   docker compose up -d --build
+name: earth
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-earth}
+      POSTGRES_USER: ${DB_USERNAME:-earth}
+      # 기본값을 두지 않는다. .env에 없으면 기동 자체를 실패시켜서,
+      # 약한 기본 비밀번호로 조용히 떠 있는 상황을 막는다.
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD를 .env에 지정해야 한다}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    # 127.0.0.1에만 묶는다. 집 LAN에도 인터넷에도 노출되지 않고, 서버 내부에서만 보인다.
+    # PC의 GUI 도구(DBeaver 등)로 볼 때는 SSH 터널을 경유한다:
+    #   ssh -L 15432:localhost:5432 jhin@192.168.0.11   →  localhost:15432로 접속
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-earth} -d ${DB_NAME:-earth}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    mem_limit: 512m
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # 리프레시 토큰 회전 상태가 Redis에 있다. 재시작했다고 전원이 로그아웃되면 곤란하므로
+    # AOF로 디스크에 남긴다.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    mem_limit: 128m
+
+  earth-backend:
+    # 평소 배포는 GitHub Actions가 올려둔 이미지를 홈서버가 당겨서 쓴다.
+    #   docker compose pull && docker compose up -d
+    # 로컬에서 직접 만들어 시험하고 싶으면 --build를 붙이면 이 태그로 빌드된다.
+    #   docker compose up -d --build
+    image: ghcr.io/jhinslog/earth-backend:${EARTH_IMAGE_TAG:-latest}
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      # 단순 depends_on은 "컨테이너가 떴다"까지만 본다. Flyway가 DB에 붙어야 하므로
+      # 실제 접속 가능한 상태(healthy)까지 기다린다.
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-earth}
+      DB_USERNAME: ${DB_USERNAME:-earth}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD를 .env에 지정해야 한다}
+      # application.yml은 redis 호스트가 localhost로 박혀 있다. 컨테이너에서는 서비스명으로 붙는다.
+      SPRING_DATA_REDIS_HOST: redis
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?구글 OAuth 클라이언트 ID가 필요하다}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?구글 OAuth 시크릿이 필요하다}
+      JWT_SECRET: ${JWT_SECRET:?JWT 서명 키가 필요하다}
+      # 프론트는 다른 오리진(Pages)에 있다. CORS 허용 대상이자 OAuth 성공 후 돌아갈 곳이다.
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?프론트엔드 주소가 필요하다}
+      OAUTH_REDIRECT_URL: ${FRONTEND_ORIGIN}/oauth2/redirect
+      # TLS가 Cloudflare 엣지에서 끝나고 여기까지는 평문으로 온다.
+      # 이걸 켜야 Spring이 X-Forwarded-Proto를 신뢰해 OAuth 콜백 URL을 https로 만든다.
+      # 빠뜨리면 구글이 redirect_uri_mismatch로 로그인을 거부한다.
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+    # 127.0.0.1에만 묶는다. 집 LAN 전체에 노출되지 않고, 호스트의 cloudflared만 여기로 붙는다.
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    mem_limit: 1g
+
+volumes:
+  pg_data:
+  redis_data:
