@@ -49,6 +49,11 @@ jobs:
           chmod +x gradlew
           ./gradlew bootJar --no-daemon
 
+      - name: Buildx 준비
+        # 러너의 기본 docker 드라이버는 캐시 내보내기(cache-to)를 지원하지 않는다.
+        # 이 단계가 docker-container 드라이버를 붙여줘야 아래 cache-to가 동작한다.
+        uses: docker/setup-buildx-action@v3
+
       - name: ghcr.io 로그인
         uses: docker/login-action@v3
         with:
