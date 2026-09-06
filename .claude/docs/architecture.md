@@ -42,7 +42,8 @@
 추가한다(`V2__...sql`). 기존 `V1__init.sql`은 수정하지 않는다 — 이미 적용된 환경에서
 체크섬 불일치로 기동이 실패한다.
 
-테이블: `users`, `events`, `region_subscriptions`, `notifications`, `chat_messages`.
+테이블: `users`, `events`, `event_confirmations`, `region_subscriptions`, `notifications`,
+`chat_messages`. 마이그레이션은 `V3__`까지 적용돼 있으므로 다음에 추가할 것은 `V4__`다.
 
 ## 불변식 3 — 인증은 JWT, 세션은 없다
 

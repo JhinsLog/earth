@@ -62,10 +62,17 @@ npm run build                        # tsc -b + vite build (타입체크 포함,
 npm run lint                         # oxlint
 ```
 
-**자동화 테스트와 CI가 없다.** `backend/src/test`도 프론트 테스트 설정도 `.github/`도 없다.
+**자동화 테스트가 없다.** `backend/src/test`도 프론트 테스트 설정도 없다.
 따라서 변경 후 검증은 위 빌드 명령 + 실시간 경로 수동 확인(이벤트 등록이 다른 브라우저에
 즉시 뜨는지, 채팅 송수신)이 전부다. 두 계정이 필요한 시나리오는 local 전용
 `GET /api/dev/login?nickname=테스터` 로 만든다.
+
+CI는 **이미지 빌드만** 한다 — `.github/workflows/backend-image.yml`이 `backend/**` 변경 시
+jar을 빌드해 ghcr.io에 올린다. 테스트를 돌리지 않으므로 **워크플로 통과는 동작 검증이 아니다.**
+
+배포는 직접 할 일이 없다. `main`에 `backend/**`가 푸시되면 CI가 ghcr.io에 이미지를 올리고,
+홈서버의 `earth-autoupdate.timer`가 3분마다 확인해 새 이미지일 때만 컨테이너를 교체한다.
+운영 스택 정의는 루트 `compose.yml`, 프론트엔드는 Cloudflare Pages가 따로 서빙한다.
 
 ---
 
@@ -83,7 +90,7 @@ npm run lint                         # oxlint
 | 설정값(`earth.*`) | `backend/src/main/resources/application.yml` + `config/*Properties.java` |
 | DB 스키마 | `backend/src/main/resources/db/migration/` |
 | 에러 코드 | `backend/…/exception/ErrorCode.java` |
-| 지도 로직 전부 | `frontend/src/components/globe/MapGlobe.tsx` (598줄) |
+| 지도 로직 전부 | `frontend/src/components/globe/MapGlobe.tsx` (855줄) |
 | 지도 스타일·타일 소스 | `frontend/src/components/globe/mapStyle.ts` |
 | 지도 수치 상수 | `frontend/src/components/globe/constants.ts` |
 | HTTP 클라이언트(토큰 갱신) | `frontend/src/lib/api.ts` |
