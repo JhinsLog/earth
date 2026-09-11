@@ -61,7 +61,7 @@ export const MY_LOCATION_APPROX_ZOOM = 12.0
  * IP 위치로 이동할 때의 줌(12)보다 낮게 둔다 — 그렇지 않으면 버튼을 눌러 이동한 직후에도
  * 표시가 나타나지 않는다. 이동 후 조금 축소해도 유지되도록 여유를 뒀다.
  */
-export const MY_LOCATION_MIN_ZOOM = 10.0
+export const MY_LOCATION_MIN_ZOOM = 11.0
 
 /** 내 위치 표시 색 — 별(이벤트)과 혼동되지 않도록 채도가 다른 청록을 쓴다. */
 export const MY_LOCATION_COLOR = '#4dd2ff'
