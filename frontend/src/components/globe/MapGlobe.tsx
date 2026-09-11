@@ -28,6 +28,7 @@ import {
   MIN_ZOOM,
   MY_LOCATION_APPROX_ZOOM,
   MY_LOCATION_COLOR,
+  MY_LOCATION_MIN_ZOOM,
   MY_LOCATION_ZOOM,
 } from './constants'
 import {
@@ -425,11 +426,14 @@ export default function MapGlobe({
         data: toMyLocationGeoJson(myLocationRef.current),
       })
 
+      // 세 레이어 모두 minzoom 아래에서는 그려지지 않는다. 어떻게 확대했는지("내 위치"
+      // 버튼이든 마우스 휠이든)와 무관하게 줌만으로 결정되므로 별도 상태가 필요 없다.
       map.addLayer({
         id: 'my-location-accuracy',
         type: 'fill',
         source: MY_LOCATION_SOURCE_ID,
         filter: ['==', ['get', 'kind'], 'accuracy'],
+        minzoom: MY_LOCATION_MIN_ZOOM,
         paint: {
           'fill-color': MY_LOCATION_COLOR,
           'fill-opacity': 0.12,
@@ -441,6 +445,7 @@ export default function MapGlobe({
         type: 'line',
         source: MY_LOCATION_SOURCE_ID,
         filter: ['==', ['get', 'kind'], 'accuracy'],
+        minzoom: MY_LOCATION_MIN_ZOOM,
         paint: {
           'line-color': MY_LOCATION_COLOR,
           'line-opacity': 0.35,
@@ -453,6 +458,7 @@ export default function MapGlobe({
         type: 'circle',
         source: MY_LOCATION_SOURCE_ID,
         filter: ['==', ['get', 'kind'], 'dot'],
+        minzoom: MY_LOCATION_MIN_ZOOM,
         paint: {
           'circle-radius': 6,
           'circle-color': MY_LOCATION_COLOR,
