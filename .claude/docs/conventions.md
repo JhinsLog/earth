@@ -87,3 +87,5 @@
   `git log`의 기존 커밋이 그대로 예시다.
 - 커밋 금지: `backend/.env`, `frontend/.env`, `.claude/settings.local.json`, 빌드 산출물.
   `.claude/launch.json`은 공유 설정이므로 커밋한다.
+- **`Co-Authored-By`를 비롯한 공동 작성자·도구 표기를 넣지 않는다.** 커밋 메시지 본문은
+  무엇을 왜 고쳤는지로만 채운다.
