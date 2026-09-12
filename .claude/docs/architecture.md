@@ -17,6 +17,26 @@
 **새 실시간 기능을 추가할 때 서비스에서 `SimpMessagingTemplate`을 직접 호출하지 않는다.**
 `RedisMessagePublisher`에 발행 메서드를 추가하고 `RedisMessageSubscriber`에 릴레이 분기를 넣는다.
 
+### 발행은 커밋된 뒤에 일어난다
+
+**서비스는 `RedisMessagePublisher`도 직접 호출하지 않는다.** 도메인 이벤트를 발행하고,
+`@TransactionalEventListener(AFTER_COMMIT)` 리스너가 커밋 후에 내보낸다.
+
+| 무엇 | 어디 |
+| --- | --- |
+| 별 상태 변경 | `domain/event/EventChanged` → `realtime/EventChangedListener` |
+| 채팅 메시지 | `domain/chat/ChatMessagePosted` → `realtime/ChatMessagePostedListener` |
+
+트랜잭션 안에서 내보내면 이후 단계가 실패해 롤백되었을 때 **존재하지 않는 별이 전 접속자
+화면에 뜬다.** pub/sub에는 롤백이 없어 되돌릴 수 없고, 사용자는 새로고침해야 사라진다.
+
+구독자 알림도 같은 리스너에서 커밋 후에 만든다. 알림은 부가 기능이라 실패해도 사용자가 쓴
+별을 무산시켜서는 안 되고, 구독 전수 조회가 느려서 등록 트랜잭션과 사용자 행 잠금을
+불필요하게 길게 잡는다.
+
+대가는 반대 방향의 실패다 — 커밋은 됐는데 전파가 실패하면 그 알림은 유실된다. 정석은
+아웃박스 패턴이지만 현재 규모에서는 도입하지 않았다.
+
 ### STOMP 목적지 계약
 
 | 목적지 | 용도 | 인증 |

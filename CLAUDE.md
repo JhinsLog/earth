@@ -39,8 +39,10 @@
    발급하므로 운영 경로에 노출시키지 않는다.
 3. **엔티티를 바꾸면 Flyway 마이그레이션을 새로 추가한다** (`V2__`, `V3__`…).
    `ddl-auto: validate`라 스키마가 어긋나면 기동이 실패한다. `V1__init.sql`은 수정 금지.
-4. **실시간 브로드캐스트는 반드시 Redis pub/sub을 경유한다.** 서비스에서
-   `SimpMessagingTemplate`을 직접 호출하지 않는다 (다중 인스턴스에서 한쪽에 고립된다).
+4. **실시간 브로드캐스트는 반드시 Redis pub/sub을 경유하고, 커밋된 뒤에 나간다.** 서비스에서
+   `SimpMessagingTemplate`도 `RedisMessagePublisher`도 직접 호출하지 않는다. 도메인 이벤트를
+   발행하고 `@TransactionalEventListener(AFTER_COMMIT)`가 내보낸다 (직접 호출하면 다중
+   인스턴스에서 고립되고, 트랜잭션 안에서 내보내면 롤백 시 유령 데이터가 전파된다).
 5. **"왜 이렇게 했는지" 주석이 붙은 코드는 지우기 전에 그 주석을 읽는다.**
    불필요해 보이는 방어 코드 대부분은 오래 추적한 버그의 해결책이다. → `prohibited.md`
 
@@ -62,13 +64,17 @@ npm run build                        # tsc -b + vite build (타입체크 포함,
 npm run lint                         # oxlint
 ```
 
-**자동화 테스트가 없다.** `backend/src/test`도 프론트 테스트 설정도 없다.
-따라서 변경 후 검증은 위 빌드 명령 + 실시간 경로 수동 확인(이벤트 등록이 다른 브라우저에
-즉시 뜨는지, 채팅 송수신)이 전부다. 두 계정이 필요한 시나리오는 local 전용
+**백엔드 테스트는 Testcontainers로 실제 PostgreSQL·Redis를 띄운다.** 따라서 `./gradlew test`에
+**docker가 필요하다.** 인메모리 DB를 쓰지 않는 이유는 검증 대상이 트랜잭션 격리와 행 잠금이라,
+가짜 DB에서는 통과해도 아무것도 증명하지 못하기 때문이다. 공통 기반은
+`backend/src/test/java/com/earth/support/IntegrationTest.java`.
+
+**프론트엔드 테스트는 아직 없다.** 실시간 경로는 수동으로 확인한다(이벤트 등록이 다른
+브라우저에 즉시 뜨는지, 채팅 송수신). 두 계정이 필요한 시나리오는 local 전용
 `GET /api/dev/login?nickname=테스터` 로 만든다.
 
-CI는 **이미지 빌드만** 한다 — `.github/workflows/backend-image.yml`이 `backend/**` 변경 시
-jar을 빌드해 ghcr.io에 올린다. 테스트를 돌리지 않으므로 **워크플로 통과는 동작 검증이 아니다.**
+CI는 `.github/workflows/backend-image.yml`이 `backend/**` 변경 시 **테스트를 돌린 뒤**
+jar과 이미지를 ghcr.io에 올린다. 테스트가 실패하면 이미지가 올라가지 않는다.
 
 배포는 직접 할 일이 없다. `main`에 `backend/**`가 푸시되면 CI가 ghcr.io에 이미지를 올리고,
 홈서버의 `earth-autoupdate.timer`가 3분마다 확인해 새 이미지일 때만 컨테이너를 교체한다.

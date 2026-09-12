@@ -49,6 +49,13 @@ jobs:
           chmod +x gradlew
           ./gradlew bootJar --no-daemon
 
+      - name: 테스트
+        # 통합 테스트는 Testcontainers로 PostgreSQL/Redis를 띄운다. 러너에 docker가 있어
+        # 추가 서비스 설정 없이 동작한다. 테스트가 실패하면 이미지를 올리지 않는다 —
+        # 여기서 막지 않으면 워크플로 통과가 동작 검증이 아니게 된다.
+        working-directory: backend
+        run: ./gradlew test --no-daemon
+
       - name: Buildx 준비
         # 러너의 기본 docker 드라이버는 캐시 내보내기(cache-to)를 지원하지 않는다.
         # 이 단계가 docker-container 드라이버를 붙여줘야 아래 cache-to가 동작한다.
