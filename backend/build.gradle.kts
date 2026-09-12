@@ -55,6 +55,14 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
+
+    // 통합 테스트용 PostgreSQL/Redis. 테스트가 돌 때만 임시 컨테이너를 띄우고 끝나면 버린다.
+    // 운영 스택과 포트가 겹치지 않고(무작위 할당), 테스트가 운영 데이터에 닿을 경로가 없다.
+    // Testcontainers 2.x부터 모듈 아티팩트에 testcontainers- 접두사가 붙는다.
+    // 1.x 문서에 나오는 org.testcontainers:postgresql 로는 해석되지 않는다.
+    testImplementation("org.springframework.boot:spring-boot-testcontainers")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers-postgresql")
 }
 
 tasks.withType<Test> {

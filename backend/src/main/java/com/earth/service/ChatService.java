@@ -2,13 +2,14 @@ package com.earth.service;
 
 import com.earth.config.ChatProperties;
 import com.earth.domain.chat.ChatMessage;
+import com.earth.domain.chat.ChatMessagePosted;
 import com.earth.domain.chat.ChatMessageRepository;
 import com.earth.domain.event.Event;
 import com.earth.domain.user.User;
 import com.earth.dto.ChatMessageResponse;
 import com.earth.exception.EarthApiException;
 import com.earth.exception.ErrorCode;
-import com.earth.realtime.RedisMessagePublisher;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,18 +26,18 @@ public class ChatService {
     private static final Duration FLOOD_WINDOW = Duration.ofMinutes(1);
 
     private final ChatMessageRepository chatMessageRepository;
-    private final RedisMessagePublisher redisMessagePublisher;
+    private final ApplicationEventPublisher events;
     private final EventService eventService;
     private final ChatProperties chatProperties;
     private final StringRedisTemplate stringRedisTemplate;
 
     public ChatService(ChatMessageRepository chatMessageRepository,
-                        RedisMessagePublisher redisMessagePublisher,
+                        ApplicationEventPublisher events,
                         EventService eventService,
                         ChatProperties chatProperties,
                         StringRedisTemplate stringRedisTemplate) {
         this.chatMessageRepository = chatMessageRepository;
-        this.redisMessagePublisher = redisMessagePublisher;
+        this.events = events;
         this.eventService = eventService;
         this.chatProperties = chatProperties;
         this.stringRedisTemplate = stringRedisTemplate;
@@ -61,8 +62,9 @@ public class ChatService {
         ChatMessage message = new ChatMessage(event, sender, content);
         chatMessageRepository.save(message);
 
+        // 전파는 커밋된 뒤에 일어난다. 이유는 ChatMessagePosted 주석 참고.
         ChatMessageResponse response = ChatMessageResponse.from(message);
-        redisMessagePublisher.publishChatMessage(eventId, response);
+        events.publishEvent(new ChatMessagePosted(eventId, response));
         return response;
     }
 

@@ -1,0 +1,19 @@
+# 통합 테스트 전용 설정. DB와 Redis 접속 정보는 Testcontainers가 런타임에 주입한다.
+earth:
+  jwt:
+    # 운영 키를 쓰지 않는다. HS256 최소 길이(32바이트)를 넘기기만 하면 된다.
+    secret: test-only-jwt-secret-please-never-use-this-in-production
+  event:
+    max-per-hour: 5
+    # 테스트 중 만료 스케줄러가 끼어들지 않게 주기를 크게 잡는다.
+    expiration-scan-interval-ms: 3600000
+
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            # 값이 비어 있으면 ClientRegistration을 만들 수 없어 컨텍스트가 뜨지 않는다.
+            client-id: test-client-id
+            client-secret: test-client-secret

@@ -2,16 +2,18 @@ package com.earth.service;
 
 import com.earth.config.EventProperties;
 import com.earth.domain.event.Event;
+import com.earth.domain.event.EventChanged;
 import com.earth.domain.event.EventConfirmation;
 import com.earth.domain.event.EventConfirmationRepository;
 import com.earth.domain.event.EventRepository;
 import com.earth.domain.user.User;
+import com.earth.domain.user.UserRepository;
 import com.earth.dto.EventCreateRequest;
 import com.earth.dto.EventResponse;
 import com.earth.dto.EventUpdateRequest;
 import com.earth.exception.EarthApiException;
 import com.earth.exception.ErrorCode;
-import com.earth.realtime.RedisMessagePublisher;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,19 +31,19 @@ public class EventService {
 
     private final EventRepository eventRepository;
     private final EventConfirmationRepository confirmationRepository;
-    private final RedisMessagePublisher redisMessagePublisher;
-    private final NotificationService notificationService;
+    private final UserRepository userRepository;
+    private final ApplicationEventPublisher events;
     private final EventProperties eventProperties;
 
     public EventService(EventRepository eventRepository,
                          EventConfirmationRepository confirmationRepository,
-                         RedisMessagePublisher redisMessagePublisher,
-                         NotificationService notificationService,
+                         UserRepository userRepository,
+                         ApplicationEventPublisher events,
                          EventProperties eventProperties) {
         this.eventRepository = eventRepository;
         this.confirmationRepository = confirmationRepository;
-        this.redisMessagePublisher = redisMessagePublisher;
-        this.notificationService = notificationService;
+        this.userRepository = userRepository;
+        this.events = events;
         this.eventProperties = eventProperties;
     }
 
@@ -76,6 +78,13 @@ public class EventService {
 
     @Transactional
     public EventResponse create(User author, EventCreateRequest request) {
+        // 검사 전에 작성자 행을 잠근다. 잠그지 않으면 같은 사용자의 요청 여러 개가 아래 COUNT를
+        // 거의 동시에 실행해 전부 같은 값을 보고 통과한다(한도 5에 동시 요청 15개 → 11개 저장).
+        // 도배를 막으려고 만든 제한이 정확히 도배 방식으로 뚫리는 셈이다.
+        // 잠금은 같은 사용자에게만 걸리므로 다른 사용자의 등록은 기다리지 않는다.
+        userRepository.findByIdForUpdate(author.getId())
+                .orElseThrow(() -> new EarthApiException(ErrorCode.USER_NOT_FOUND));
+
         // 한 사람이 지도를 도배하지 못하도록 최근 1시간 등록 수를 확인한다.
         // 클라이언트에서도 안내하지만 그쪽은 우회 가능하므로 실제 차단은 여기서 한다.
         long recentCount =
@@ -92,9 +101,9 @@ public class EventService {
                 Duration.ofMinutes(eventProperties.ttlMinutes()));
         eventRepository.save(event);
 
+        // 전파와 구독자 알림은 커밋된 뒤에 일어난다. 이유는 EventChanged 주석 참고.
         EventResponse response = EventResponse.from(event);
-        redisMessagePublisher.publishNewEvent(response);
-        notificationService.notifySubscribers(event);
+        events.publishEvent(EventChanged.created(response));
         return response;
     }
 
@@ -105,7 +114,7 @@ public class EventService {
 
         EventResponse response = EventResponse.from(event);
         // 다른 사용자 화면에도 수정 내용이 즉시 반영되도록 같은 채널로 전파한다.
-        redisMessagePublisher.publishNewEvent(response);
+        events.publishEvent(EventChanged.updated(response));
         return response;
     }
 
@@ -116,7 +125,7 @@ public class EventService {
 
         EventResponse response = EventResponse.from(event);
         // status가 ACTIVE가 아니므로 구독자 화면에서는 목록에서 제거된다.
-        redisMessagePublisher.publishNewEvent(response);
+        events.publishEvent(EventChanged.updated(response));
         return response;
     }
 
@@ -134,7 +143,7 @@ public class EventService {
         List<Event> due = eventRepository.findDueForExpiration(Instant.now());
         for (Event event : due) {
             event.markExpired();
-            redisMessagePublisher.publishNewEvent(EventResponse.from(event));
+            events.publishEvent(EventChanged.updated(EventResponse.from(event)));
         }
         return due.size();
     }
@@ -167,7 +176,8 @@ public class EventService {
 
         EventResponse response = EventResponse.from(event, true);
         // 다른 사람 화면에서도 별이 밝아지고 수명이 늘어난 것이 즉시 보이도록 전파한다.
-        redisMessagePublisher.publishNewEvent(EventResponse.from(event));
+        // 전파용 스냅샷은 confirmedByMe를 담지 않는다 — 받는 사람마다 값이 다르다.
+        events.publishEvent(EventChanged.updated(EventResponse.from(event)));
         return response;
     }
 
@@ -181,7 +191,7 @@ public class EventService {
         });
 
         EventResponse response = EventResponse.from(event, false);
-        redisMessagePublisher.publishNewEvent(EventResponse.from(event));
+        events.publishEvent(EventChanged.updated(EventResponse.from(event)));
         return response;
     }
 
