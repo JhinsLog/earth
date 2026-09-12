@@ -161,7 +161,7 @@ public class EventService {
      */
     @Transactional
     public EventResponse confirm(User user, Long eventId) {
-        Event event = getVisibleOrThrow(eventId);
+        Event event = getVisibleForUpdateOrThrow(eventId);
         if (event.isAuthor(user)) {
             throw new EarthApiException(ErrorCode.CANNOT_CONFIRM_OWN_EVENT);
         }
@@ -184,7 +184,7 @@ public class EventService {
     /** 공감 취소. 이미 늘어난 수명은 되돌리지 않는다 — 되돌리면 취소로 남의 별을 죽일 수 있다. */
     @Transactional
     public EventResponse withdrawConfirmation(User user, Long eventId) {
-        Event event = getVisibleOrThrow(eventId);
+        Event event = getVisibleForUpdateOrThrow(eventId);
         confirmationRepository.findByEventAndUser(event, user).ifPresent(confirmation -> {
             confirmationRepository.delete(confirmation);
             event.withdrawConfirmation();
@@ -197,6 +197,21 @@ public class EventService {
 
     private Event getVisibleOrThrow(Long eventId) {
         Event event = getEventOrThrow(eventId);
+        if (!event.isVisible()) {
+            throw new EarthApiException(ErrorCode.EVENT_NOT_FOUND);
+        }
+        return event;
+    }
+
+    /**
+     * 공감 수와 수명을 바꿀 때 쓰는 조회. 별 행을 잠근 채로 읽는다.
+     *
+     * <p>두 값 모두 "읽어서 계산하고 쓴다"라서, 잠그지 않으면 동시 공감이 서로를 덮어쓴다.
+     * 사유는 {@code EventRepository.findByIdForUpdate} 주석에 적어두었다.
+     */
+    private Event getVisibleForUpdateOrThrow(Long eventId) {
+        Event event = eventRepository.findByIdForUpdate(eventId)
+                .orElseThrow(() -> new EarthApiException(ErrorCode.EVENT_NOT_FOUND));
         if (!event.isVisible()) {
             throw new EarthApiException(ErrorCode.EVENT_NOT_FOUND);
         }

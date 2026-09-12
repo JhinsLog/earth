@@ -21,6 +21,6 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 public record EventProperties(
         @DefaultValue("30") int ttlMinutes,
         @DefaultValue("5") int maxPerHour,
-        @DefaultValue("15") int confirmExtensionMinutes,
-        @DefaultValue("6") int maxLifetimeHours) {
+        @DefaultValue("5") int confirmExtensionMinutes,
+        @DefaultValue("12") int maxLifetimeHours) {
 }
