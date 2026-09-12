@@ -169,10 +169,12 @@ public class EventService {
             throw new EarthApiException(ErrorCode.ALREADY_CONFIRMED);
         }
 
-        confirmationRepository.save(new EventConfirmation(event, user));
-        event.applyConfirmation(
+        // 실제로 늘어난 시간을 기록해 둔다. 상한에 걸리면 요청한 5분보다 짧으므로,
+        // 취소할 때 5분을 그냥 빼면 자기가 준 것보다 많이 회수하게 된다.
+        Duration granted = event.applyConfirmation(
                 Duration.ofMinutes(eventProperties.confirmExtensionMinutes()),
                 Duration.ofHours(eventProperties.maxLifetimeHours()));
+        confirmationRepository.save(new EventConfirmation(event, user, granted));
 
         EventResponse response = EventResponse.from(event, true);
         // 다른 사람 화면에서도 별이 밝아지고 수명이 늘어난 것이 즉시 보이도록 전파한다.
@@ -181,13 +183,20 @@ public class EventService {
         return response;
     }
 
-    /** 공감 취소. 이미 늘어난 수명은 되돌리지 않는다 — 되돌리면 취소로 남의 별을 죽일 수 있다. */
+    /**
+     * 공감 취소. 그 공감이 실제로 늘려준 만큼만 수명을 되돌린다.
+     *
+     * <p>되돌리지 않으면 취소가 기록을 지워 유니크 제약이 다시 통과하므로 재공감으로 연장이
+     * 또 붙는다. 버튼을 반복해 누르면 한 사람이 혼자 상한까지 밀어올릴 수 있었다.
+     * 정확히 되돌리면 한 사람의 순 기여가 구조적으로 1회분을 넘지 못한다.
+     */
     @Transactional
     public EventResponse withdrawConfirmation(User user, Long eventId) {
         Event event = getVisibleForUpdateOrThrow(eventId);
         confirmationRepository.findByEventAndUser(event, user).ifPresent(confirmation -> {
+            Duration granted = confirmation.granted();
             confirmationRepository.delete(confirmation);
-            event.withdrawConfirmation();
+            event.withdrawConfirmation(granted);
         });
 
         EventResponse response = EventResponse.from(event, false);

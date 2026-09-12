@@ -114,18 +114,36 @@ public class Event {
      * <p>연장은 현재 만료 시각이 아니라 <b>생성 시각</b>을 기준으로 상한을 건다. 만료 시각에
      * 계속 더하면 공감이 꾸준히 들어오는 별이 영원히 남을 수 있기 때문이다.
      */
-    public void applyConfirmation(Duration extension, Duration maxLifetime) {
+    /**
+     * @return 이 공감이 <b>실제로</b> 늘려준 시간. 상한에 걸리면 요청한 연장보다 짧거나 0이다.
+     *         취소할 때 정확히 이만큼만 되돌리기 위해 호출한 쪽이 기록해 둔다.
+     */
+    public Duration applyConfirmation(Duration extension, Duration maxLifetime) {
         this.confirmCount++;
-        Instant extended = this.expiresAt.plus(extension);
+        Instant before = this.expiresAt;
+        Instant extended = before.plus(extension);
         Instant hardLimit = this.createdAt.plus(maxLifetime);
         this.expiresAt = extended.isAfter(hardLimit) ? hardLimit : extended;
+        return Duration.between(before, this.expiresAt);
     }
 
-    /** 공감을 취소한다. 이미 늘어난 수명은 되돌리지 않는다 — 되돌리면 취소로 남의 별을 죽일 수 있다. */
-    public void withdrawConfirmation() {
+    /**
+     * 공감을 취소한다. 그 공감이 실제로 늘려준 만큼만 수명을 되돌린다.
+     *
+     * <p>되돌리지 않으면 두 가지가 어긋난다. 취소가 기록을 지워 유니크 제약이 다시 통과하므로
+     * <b>재공감으로 연장이 또 붙어</b> 한 사람이 혼자 상한까지 밀어올릴 수 있고, 공감이 0인데
+     * 기본 수명을 넘겨 살아 있는 별이 생긴다. 정확히 되돌리면 한 사람의 순 기여가 구조적으로
+     * 1회분을 넘지 못한다(+5분 -5분 +5분 … = 최대 +5분).
+     *
+     * <p>차감 결과가 이미 지난 시각이면 별은 그 순간 사라진다. 의도한 동작이다 — 그 공감이
+     * 없었다면 애초에 그 시점에 사라졌을 별이고, 자기가 준 만큼만 회수하므로 원래 상태보다
+     * 나쁘게 만들 수는 없다.
+     */
+    public void withdrawConfirmation(Duration granted) {
         if (this.confirmCount > 0) {
             this.confirmCount--;
         }
+        this.expiresAt = this.expiresAt.minus(granted);
     }
 
     public boolean isAuthor(User user) {
