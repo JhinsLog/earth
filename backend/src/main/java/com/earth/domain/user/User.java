@@ -13,6 +13,9 @@ import java.time.Instant;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User {
 
+    public static final int NICKNAME_MAX_LENGTH = 50;
+    public static final int PROFILE_IMAGE_URL_MAX_LENGTH = 2048;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -27,10 +30,10 @@ public class User {
     @Column(nullable = false)
     private String email;
 
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = NICKNAME_MAX_LENGTH)
     private String nickname;
 
-    @Column(name = "profile_image_url", length = 500)
+    @Column(name = "profile_image_url", length = PROFILE_IMAGE_URL_MAX_LENGTH)
     private String profileImageUrl;
 
     @Enumerated(EnumType.STRING)
