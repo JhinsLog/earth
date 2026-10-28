@@ -7,6 +7,9 @@ earth:
     max-per-hour: 5
     # 테스트 중 만료 스케줄러가 끼어들지 않게 주기를 크게 잡는다.
     expiration-scan-interval-ms: 3600000
+  clouds:
+    # 테스트가 외부(NOAA)에 나가지 않게 수집을 끈다.
+    enabled: false
 
 spring:
   security:

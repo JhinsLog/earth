@@ -59,6 +59,8 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/events", "/api/events/*").permitAll()
                         // 비로그인 화면이 자기 접속 국가를 알아야 어느 별까지 자세히 볼 수 있는지 안다
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/geo/me").permitAll()
+                        // 홈 지구본의 구름 이미지. 누구에게나 같은 위성 영상이다
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/globe/clouds").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()
                 )
@@ -85,6 +87,8 @@ public class SecurityConfig {
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
+        // 프론트가 구름 관측 시각을 읽으려면 노출 헤더로 열어야 한다(기본은 몇 가지 표준 헤더만 보인다).
+        configuration.setExposedHeaders(List.of(com.earth.controller.GlobeController.OBSERVED_AT_HEADER));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import Starfield from './Starfield'
 import { HOME_GLOBE_CLICK_TOLERANCE_PX, HOME_GLOBE_SPIN_RAD_PER_SEC } from './constants'
 import type { GeoPoint } from '../../lib/geolocate'
+import { API_BASE_URL } from '../../lib/api'
 import { EVENT_CATEGORY_COLOR, RESTRICTED_STAR_COLOR, type EarthEvent } from '../../types'
 import './HomeGlobe.css'
 
@@ -26,8 +27,47 @@ const CLOUD_RADIUS = 1.006
 const ATMOSPHERE_RADIUS = 1.025
 // 카메라 기준 태양 방향(왼쪽 위 앞). 보이는 면 대부분이 낮이고 오른쪽 가장자리만 어둡다.
 const SUN_DIRECTION = new THREE.Vector3(-0.38, 0.32, 0.87).normalize()
-// 구름은 지구보다 조금 빨리 흘러 정지 사진이 아니라는 느낌을 준다.
+// 정적 구름 사진일 때만 지구보다 조금 빨리 흘려 정지 사진이 아니라는 느낌을 준다.
+// 실시간 구름은 실제 위치가 의미라 흘리지 않는다.
 const CLOUD_DRIFT_RAD_PER_SEC = 0.004
+
+/**
+ * 실시간 구름(NOAA GMGSI, 백엔드가 1시간마다 변환). 실패하면 null이고 정적 구름 사진을 그대로 쓴다.
+ * 구름은 장식이라 이 요청이 실패해도 화면은 정상이어야 한다.
+ */
+async function loadLiveClouds(signal: AbortSignal): Promise<{ texture: THREE.Texture; observedAt: string | null } | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/globe/clouds`, { signal })
+    if (!response.ok) return null
+    const observedAt = response.headers.get('X-Clouds-Observed-At')
+    const url = URL.createObjectURL(await response.blob())
+    try {
+      const texture = await new THREE.TextureLoader().loadAsync(url)
+      return { texture, observedAt }
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+  } catch {
+    return null
+  }
+}
+
+// 지구 표면(그림자)과 구름층이 같은 규칙으로 구름 밀도를 읽는다.
+// 실시간 구름은 원본이 위도 약 72°까지만 있어서 60~70°에서 정적 사진으로 넘겨 극지방을 채운다.
+// 정적 구름 사진에는 촬영 구획 단위의 옅은 연무(밝기 5~10%)가 사각형으로 남아 있어 문턱 0.12를 둔다.
+// 실시간 구름은 백엔드가 이미 지표를 걸러 0으로 만들어 오므로, 같은 문턱을 또 걸면 얇은 구름까지 지워진다.
+const CLOUD_DENSITY = /* glsl */ `
+  uniform sampler2D cloudMap;
+  uniform sampler2D liveCloudMap;
+  uniform float liveClouds;
+  float cloudDensity(vec2 uv, vec2 staticUv) {
+    float fallback = texture2D(cloudMap, staticUv).r;
+    float live = texture2D(liveCloudMap, uv).r;
+    float latitude = abs(uv.y - 0.5) * 180.0;
+    float liveWeight = liveClouds * (1.0 - smoothstep(60.0, 70.0, latitude));
+    return mix(smoothstep(0.12, 1.0, fallback), smoothstep(0.0, 0.8, live), liveWeight);
+  }
+`
 
 /**
  * 위경도 → 지구 로컬 좌표.
@@ -79,7 +119,7 @@ const EARTH_VERTEX = /* glsl */ `
 const EARTH_FRAGMENT = /* glsl */ `
   uniform sampler2D dayMap;
   uniform sampler2D nightMap;
-  uniform sampler2D cloudMap;
+  ${CLOUD_DENSITY}
   uniform sampler2D waterMap;
   uniform vec3 sunWorld;
   uniform float cloudOffset;
@@ -96,9 +136,7 @@ const EARTH_FRAGMENT = /* glsl */ `
     float dayMix = smoothstep(-0.1, 0.2, sunDot);
 
     // 구름 그림자. 구름층이 지구보다 조금 빨리 돌기 때문에 그만큼 밀어서 읽는다.
-    // 원본 구름 사진에는 촬영 구획 단위의 옅은 연무(밝기 5~10%)가 사각형으로 남아 있다. 구름층과 같은
-    // 문턱을 둬야 그 사각형이 반사광 위에 얼룩으로 드러나지 않는다.
-    float cloudShadow = smoothstep(0.12, 1.0, texture2D(cloudMap, vUv - vec2(cloudOffset, 0.0)).r);
+    float cloudShadow = cloudDensity(vUv, vUv - vec2(cloudOffset, 0.0));
     vec3 color = day * (light * 1.7 + 0.01) * (1.0 - cloudShadow * 0.4 * light);
     color += night * vec3(1.0, 0.85, 0.6) * 1.4 * (1.0 - dayMix);
 
@@ -127,7 +165,7 @@ const EARTH_FRAGMENT = /* glsl */ `
 
 // 구름층. 밝기를 투명도로 쓰고, 해가 비치는 만큼 하얗게 빛난다.
 const CLOUD_FRAGMENT = /* glsl */ `
-  uniform sampler2D cloudMap;
+  ${CLOUD_DENSITY}
   uniform vec3 sunWorld;
   varying vec2 vUv;
   varying vec3 vWorldNormal;
@@ -135,11 +173,10 @@ const CLOUD_FRAGMENT = /* glsl */ `
   void main() {
     vec3 n = normalize(vWorldNormal);
     vec3 viewDir = normalize(cameraPosition - vWorldPos);
-    float density = texture2D(cloudMap, vUv).r;
     float light = max(dot(n, sunWorld), 0.0);
     // 가장자리에서는 구름이 대기에 묻혀 흐려진다.
     float edgeFade = smoothstep(0.0, 0.35, dot(n, viewDir));
-    float alpha = smoothstep(0.12, 1.0, density) * edgeFade;
+    float alpha = cloudDensity(vUv, vUv) * edgeFade;
     vec3 color = vec3(1.0) * (light * 1.5 + 0.015);
     gl_FragColor = vec4(color, alpha);
     #include <tonemapping_fragment>
@@ -215,6 +252,8 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
   const [hoveringEarth, setHoveringEarth] = useState(false)
+  // 실시간 구름의 위성 관측 시각. 없으면 정적 구름 사진을 쓰는 중이다.
+  const [cloudObservedAt, setCloudObservedAt] = useState<string | null>(null)
 
   // 장면을 만드는 effect는 한 번만 돌기 때문에, 그 안의 클릭 처리기는 이 ref로 최신 콜백을 읽는다.
   const onEnterRef = useRef(onEnter)
@@ -274,11 +313,20 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
       map.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
     }
 
+    // 실시간 구름이 오기 전까지 셰이더에 묶어 둘 빈 텍스처.
+    const noLiveClouds = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1)
+    noLiveClouds.needsUpdate = true
+    const cloudUniforms = {
+      cloudMap: { value: cloudMap },
+      liveCloudMap: { value: noLiveClouds as THREE.Texture },
+      liveClouds: { value: 0 },
+    }
+
     const earthMaterial = new THREE.ShaderMaterial({
       uniforms: {
+        ...cloudUniforms,
         dayMap: { value: dayMap },
         nightMap: { value: nightMap },
-        cloudMap: { value: cloudMap },
         waterMap: { value: waterMap },
         sunWorld: { value: SUN_DIRECTION },
         cloudOffset: { value: 0 },
@@ -292,7 +340,8 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
 
     const cloudGeometry = new THREE.SphereGeometry(CLOUD_RADIUS, 128, 64)
     const cloudMaterial = new THREE.ShaderMaterial({
-      uniforms: { cloudMap: { value: cloudMap }, sunWorld: { value: SUN_DIRECTION } },
+      // 같은 uniform 객체를 공유해 실시간 구름이 오면 두 재질에 한 번에 반영된다.
+      uniforms: { ...cloudUniforms, sunWorld: { value: SUN_DIRECTION } },
       vertexShader: EARTH_VERTEX,
       fragmentShader: CLOUD_FRAGMENT,
       transparent: true,
@@ -395,6 +444,24 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
     canvas.addEventListener('pointerup', onPointerUp)
     canvas.addEventListener('pointercancel', onPointerUp)
 
+    const liveCloudsRequest = new AbortController()
+    let liveCloudMap: THREE.Texture | null = null
+    void loadLiveClouds(liveCloudsRequest.signal).then((live) => {
+      if (!live || liveCloudsRequest.signal.aborted) {
+        live?.texture.dispose()
+        return
+      }
+      liveCloudMap = live.texture
+      // 경도 ±180°에서 이어 읽는다.
+      liveCloudMap.wrapS = THREE.RepeatWrapping
+      liveCloudMap.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
+      cloudUniforms.liveCloudMap.value = liveCloudMap
+      cloudUniforms.liveClouds.value = 1
+      // 실제 위치에 맞춰 구름층을 원위치로 되돌린다.
+      clouds.rotation.y = 0
+      setCloudObservedAt(live.observedAt)
+    })
+
     const timer = new THREE.Timer()
     let rafId = 0
     const animate = (timestamp: number) => {
@@ -402,7 +469,7 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
       // 탭이 백그라운드였다가 돌아오면 경과 시간이 한꺼번에 들어온다. 지구가 순간이동하지 않게 자른다.
       const dt = Math.min(timer.getDelta(), 0.1)
       if (!dragging) spin.rotation.y += HOME_GLOBE_SPIN_RAD_PER_SEC * dt
-      clouds.rotation.y += CLOUD_DRIFT_RAD_PER_SEC * dt
+      if (cloudUniforms.liveClouds.value === 0) clouds.rotation.y += CLOUD_DRIFT_RAD_PER_SEC * dt
       // 구름 구를 a만큼 돌리면 텍스처의 u가 a/2π만큼 밀린다. 그림자도 같은 만큼 밀어 읽는다.
       earthMaterial.uniforms.cloudOffset.value = clouds.rotation.y / (2 * Math.PI)
       starMaterial.uniforms.time.value = timer.getElapsed()
@@ -413,6 +480,9 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
 
     return () => {
       cancelAnimationFrame(rafId)
+      liveCloudsRequest.abort()
+      liveCloudMap?.dispose()
+      noLiveClouds.dispose()
       timer.dispose()
       resizeObserver.disconnect()
       canvas.removeEventListener('pointerdown', onPointerDown)
@@ -465,7 +535,13 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
         className={`home-globe__canvas${hoveringEarth ? ' home-globe__canvas--hover' : ''}`}
       />
       {/* NASA 자료는 퍼블릭 도메인이지만 출처 표기를 요청한다. 지도 화면은 MapLibre 출처 표시가 맡는다. */}
-      <span className="home-globe__credit">Imagery: NASA GIBS, NASA Visible Earth · Water mask © OpenStreetMap contributors</span>
+      <span className="home-globe__credit">
+        Imagery: NASA GIBS · Clouds:{' '}
+        {cloudObservedAt
+          ? `NOAA GMGSI ${new Date(cloudObservedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`
+          : 'NASA Visible Earth'}{' '}
+        · Water mask © OpenStreetMap contributors
+      </span>
     </div>
   )
 }

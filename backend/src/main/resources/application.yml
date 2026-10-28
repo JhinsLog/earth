@@ -29,6 +29,12 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  task:
+    scheduling:
+      pool:
+        # 기본 1개면 구름 수집(다운로드+변환 수 초)이 도는 동안 별 만료 스케줄러가 기다린다.
+        size: 2
+
   data:
     redis:
       host: localhost
@@ -75,6 +81,11 @@ earth:
     # 만료된 별을 정리하고 실시간으로 알리는 주기. 조회는 이미 expires_at으로
     # 걸러지므로 이 값이 커도 만료된 별이 보이지는 않는다.
     expiration-scan-interval-ms: 30000
+  clouds:
+    # 홈 지구본 실시간 구름(NOAA GMGSI). 출처는 docs/data-sources.md
+    enabled: true
+    # 원본은 1시간마다 오지만 올라오는 시각이 일정하지 않아 목록만 자주 본다. 새 파일일 때만 받는다.
+    refresh-interval-ms: 600000
 
 springdoc:
   # 운영에서는 API 명세 전체가 외부에 공개되지 않도록 기본적으로 끈다.

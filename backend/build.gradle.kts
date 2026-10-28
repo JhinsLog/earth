@@ -43,6 +43,9 @@ dependencies {
     // Realtime transport (STOMP over WebSocket) for globe event feed + chat rooms
     implementation("org.springframework.boot:spring-boot-starter-websocket")
 
+    // 실시간 구름(NOAA GMGSI)이 NetCDF4(HDF5) 파일로 온다. 순수 자바 HDF5 리더라 네이티브 라이브러리가 없다.
+    implementation("io.jhdf:jhdf:0.13.0")
+
     // API docs
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5")
 
