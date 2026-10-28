@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import Starfield from './Starfield'
 import { HOME_GLOBE_CLICK_TOLERANCE_PX, HOME_GLOBE_SPIN_RAD_PER_SEC } from './constants'
-import { subsolarPoint } from '../../lib/sun'
 import type { GeoPoint } from '../../lib/geolocate'
 import { EVENT_CATEGORY_COLOR, RESTRICTED_STAR_COLOR, type EarthEvent } from '../../types'
 import './HomeGlobe.css'
@@ -23,6 +22,12 @@ const HOME_TILT_LIMIT_RAD = (30 * Math.PI) / 180
 // 화면 짧은 변 대비 지구 지름 비율.
 const GLOBE_SCREEN_FRACTION = 0.72
 const FOV_DEG = 30
+const CLOUD_RADIUS = 1.006
+const ATMOSPHERE_RADIUS = 1.025
+// 카메라 기준 태양 방향(왼쪽 위 앞). 보이는 면 대부분이 낮이고 오른쪽 가장자리만 어둡다.
+const SUN_DIRECTION = new THREE.Vector3(-0.38, 0.32, 0.87).normalize()
+// 구름은 지구보다 조금 빨리 흘러 정지 사진이 아니라는 느낌을 준다.
+const CLOUD_DRIFT_RAD_PER_SEC = 0.004
 
 /**
  * 위경도 → 지구 로컬 좌표.
@@ -55,12 +60,10 @@ function spinFacing(longitude: number): number {
 
 const EARTH_VERTEX = /* glsl */ `
   varying vec2 vUv;
-  varying vec3 vLocalNormal;
   varying vec3 vWorldNormal;
   varying vec3 vWorldPos;
   void main() {
     vUv = uv;
-    vLocalNormal = normal;
     vWorldNormal = normalize(mat3(modelMatrix) * normal);
     vec4 world = modelMatrix * vec4(position, 1.0);
     vWorldPos = world.xyz;
@@ -68,56 +71,106 @@ const EARTH_VERTEX = /* glsl */ `
   }
 `
 
-// 조명은 지구에 붙은(로컬) 좌표에서 계산한다. 태양 방향을 실제 태양 직하점으로 두면 지구가 돌아도
-// 낮·밤 경계가 지리에 고정돼, 지금 실제로 밤인 지역에 도시 불빛이 켜진다.
+// 조명은 카메라 기준으로 고정한다(왼쪽 위 앞). 지구가 그 아래에서 돌아 보이는 면은 늘 낮이고,
+// 바다의 태양 반사가 왼쪽 위에 맺힌다. 실제 시각의 낮·밤 경계 대신 실사 사진 같은 구도를 택했다.
+//
+// 텍스처는 sRGB로 읽어 선형 공간에서 조명하고, 마지막에 톤 매핑과 sRGB 변환을 거친다. 감마 공간에서
+// 그대로 곱하면 명암이 뭉개져 바다가 회보라색으로 뜬다.
 const EARTH_FRAGMENT = /* glsl */ `
   uniform sampler2D dayMap;
   uniform sampler2D nightMap;
-  uniform vec3 sunLocal;
+  uniform sampler2D cloudMap;
+  uniform sampler2D waterMap;
   uniform vec3 sunWorld;
+  uniform float cloudOffset;
   varying vec2 vUv;
-  varying vec3 vLocalNormal;
   varying vec3 vWorldNormal;
   varying vec3 vWorldPos;
   void main() {
-    vec3 day = texture2D(dayMap, vUv).rgb;
-    vec3 night = texture2D(nightMap, vUv).rgb;
-    float sunDot = dot(normalize(vLocalNormal), sunLocal);
-    // 경계를 칼같이 자르지 않고 박명(황혼) 폭만큼 섞는다.
-    float dayMix = smoothstep(-0.12, 0.2, sunDot);
-    vec3 dayLit = day * (0.3 + 0.95 * max(sunDot, 0.0));
-    vec3 nightLit = night * 1.5;
-    vec3 color = mix(nightLit, dayLit, dayMix);
-
-    // 바다에만 햇빛 반사. 별도 마스크 텍스처 없이 '어둡고 푸른 픽셀'을 바다로 본다.
     vec3 n = normalize(vWorldNormal);
     vec3 viewDir = normalize(cameraPosition - vWorldPos);
-    float luminance = dot(day, vec3(0.299, 0.587, 0.114));
-    float water = clamp((day.b - day.r) * 5.0, 0.0, 1.0) * (1.0 - smoothstep(0.12, 0.3, luminance));
-    float spec = pow(max(dot(reflect(-sunWorld, n), viewDir), 0.0), 40.0);
-    color += vec3(1.0, 0.95, 0.85) * spec * water * 0.6 * dayMix;
+    vec3 day = texture2D(dayMap, vUv).rgb;
+    vec3 night = texture2D(nightMap, vUv).rgb;
+    float sunDot = dot(n, sunWorld);
+    float light = max(sunDot, 0.0);
+    float dayMix = smoothstep(-0.1, 0.2, sunDot);
 
-    // 가장자리의 얇은 대기층. 낮 쪽이 더 밝다.
-    float rim = 1.0 - max(dot(viewDir, n), 0.0);
-    color += vec3(0.35, 0.6, 1.0) * pow(rim, 3.0) * (0.25 + 0.6 * dayMix);
+    // 구름 그림자. 구름층이 지구보다 조금 빨리 돌기 때문에 그만큼 밀어서 읽는다.
+    // 원본 구름 사진에는 촬영 구획 단위의 옅은 연무(밝기 5~10%)가 사각형으로 남아 있다. 구름층과 같은
+    // 문턱을 둬야 그 사각형이 반사광 위에 얼룩으로 드러나지 않는다.
+    float cloudShadow = smoothstep(0.12, 1.0, texture2D(cloudMap, vUv - vec2(cloudOffset, 0.0)).r);
+    vec3 color = day * (light * 1.7 + 0.01) * (1.0 - cloudShadow * 0.4 * light);
+    color += night * vec3(1.0, 0.85, 0.6) * 1.4 * (1.0 - dayMix);
+
+    // 바다에만 햇빛 반사. 처음엔 '어둡고 푸른 픽셀'을 바다로 봤는데, 위성 사진의 섬 주변에 남은 JPEG
+    // 압축 블록에서 판정이 뒤집혀 반사광 속에 사각형 얼룩이 생겼다. 육지/바다 마스크를 따로 쓴다.
+    float water = texture2D(waterMap, vUv).r;
+    // 블루 마블의 바다는 거의 검은 남색이라 실사 렌더처럼 깊은 파랑이 나오도록 조금 끌어올린다.
+    color = mix(color, color * vec3(0.8, 1.15, 1.6) + vec3(0.002, 0.008, 0.026) * (light + 0.05), water);
+    vec3 halfDir = normalize(sunWorld + viewDir);
+    float nh = max(dot(n, halfDir), 0.0);
+    float spec = pow(nh, 60.0) * 0.12 + pow(nh, 500.0) * 1.3;
+    color += vec3(1.0, 0.96, 0.88) * spec * water * light * (1.0 - cloudShadow);
+    // 바다의 비스듬한 면은 하늘빛을 조금 비춘다(프레넬).
+    float fresnel = pow(1.0 - max(dot(n, viewDir), 0.0), 5.0);
+    color += vec3(0.06, 0.12, 0.25) * fresnel * water * dayMix;
+
+    // 가장자리의 얇은 대기층. 빛이 비스듬히 대기를 길게 지나는 곳일수록 푸르게 번진다.
+    float rim = pow(1.0 - max(dot(n, viewDir), 0.0), 3.5);
+    color = mix(color, vec3(0.32, 0.55, 1.0) * (0.15 + light), rim * 0.65 * smoothstep(-0.25, 0.35, sunDot));
+
     gl_FragColor = vec4(color, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`
+
+// 구름층. 밝기를 투명도로 쓰고, 해가 비치는 만큼 하얗게 빛난다.
+const CLOUD_FRAGMENT = /* glsl */ `
+  uniform sampler2D cloudMap;
+  uniform vec3 sunWorld;
+  varying vec2 vUv;
+  varying vec3 vWorldNormal;
+  varying vec3 vWorldPos;
+  void main() {
+    vec3 n = normalize(vWorldNormal);
+    vec3 viewDir = normalize(cameraPosition - vWorldPos);
+    float density = texture2D(cloudMap, vUv).r;
+    float light = max(dot(n, sunWorld), 0.0);
+    // 가장자리에서는 구름이 대기에 묻혀 흐려진다.
+    float edgeFade = smoothstep(0.0, 0.35, dot(n, viewDir));
+    float alpha = smoothstep(0.12, 1.0, density) * edgeFade;
+    vec3 color = vec3(1.0) * (light * 1.5 + 0.015);
+    gl_FragColor = vec4(color, alpha);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
   }
 `
 
 const ATMOSPHERE_VERTEX = /* glsl */ `
   varying vec3 vViewNormal;
+  varying vec3 vWorldNormal;
   void main() {
     vViewNormal = normalize(normalMatrix * normal);
+    vWorldNormal = normalize(mat3(modelMatrix) * normal);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `
 
-// 지구보다 조금 큰 구의 안쪽 면만 그려 테두리 바깥으로 번지는 빛을 만든다.
+// 지구보다 2.5% 큰 구의 안쪽 면. 지구 테두리 바로 바깥에서 가장 밝고 바깥으로 빠르게 사라지는 얇은 띠.
+// 이 반지름에서 지구 테두리는 껍질 법선과 시선의 내적이 약 -0.22인 곳이다.
 const ATMOSPHERE_FRAGMENT = /* glsl */ `
+  uniform vec3 sunWorld;
   varying vec3 vViewNormal;
+  varying vec3 vWorldNormal;
   void main() {
-    float intensity = pow(clamp(0.72 - dot(vViewNormal, vec3(0.0, 0.0, 1.0)), 0.0, 1.0), 2.4);
-    gl_FragColor = vec4(0.35, 0.62, 1.0, 1.0) * intensity * 1.3;
+    float d = dot(vViewNormal, vec3(0.0, 0.0, 1.0));
+    float intensity = pow(clamp(-d / 0.22, 0.0, 1.0), 2.0);
+    float lit = smoothstep(-0.3, 0.5, dot(normalize(vWorldNormal), sunWorld));
+    vec3 color = vec3(0.35, 0.6, 1.0) * intensity * lit * 0.9;
+    gl_FragColor = vec4(color, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
   }
 `
 
@@ -180,6 +233,8 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
     const pixelRatio = Math.min(window.devicePixelRatio, 2)
     renderer.setPixelRatio(pixelRatio)
     renderer.setClearColor(0x000000, 0)
+    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMappingExposure = 1.15
     container.appendChild(renderer.domElement)
 
     const scene = new THREE.Scene()
@@ -207,18 +262,26 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
     const loader = new THREE.TextureLoader(new THREE.LoadingManager(() => setReady(true)))
     const dayMap = loader.load(`/textures/day_${size}.jpg`)
     const nightMap = loader.load(`/textures/night_${size}.jpg`)
-    for (const map of [dayMap, nightMap]) {
+    // 구름은 밝기 자체가 밀도라 색 공간 변환을 하지 않는다.
+    const cloudMap = loader.load(`/textures/clouds_${size}.jpg`)
+    // 해안선이 부드럽게 섞이기만 하면 되므로 마스크는 한 크기면 충분하다.
+    const waterMap = loader.load('/textures/water_2048.jpg')
+    dayMap.colorSpace = THREE.SRGBColorSpace
+    // 구름층이 돌면서 경도 ±180°를 넘어 읽으므로 가로는 이어 붙인다.
+    cloudMap.wrapS = THREE.RepeatWrapping
+    nightMap.colorSpace = THREE.SRGBColorSpace
+    for (const map of [dayMap, nightMap, cloudMap]) {
       map.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
     }
 
-    const sun = subsolarPoint(new Date())
-    const sunLocal = toVector(sun.latitude, sun.longitude, 1)
     const earthMaterial = new THREE.ShaderMaterial({
       uniforms: {
         dayMap: { value: dayMap },
         nightMap: { value: nightMap },
-        sunLocal: { value: sunLocal },
-        sunWorld: { value: new THREE.Vector3() },
+        cloudMap: { value: cloudMap },
+        waterMap: { value: waterMap },
+        sunWorld: { value: SUN_DIRECTION },
+        cloudOffset: { value: 0 },
       },
       vertexShader: EARTH_VERTEX,
       fragmentShader: EARTH_FRAGMENT,
@@ -227,8 +290,20 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
     const earth = new THREE.Mesh(earthGeometry, earthMaterial)
     spin.add(earth)
 
-    const atmosphereGeometry = new THREE.SphereGeometry(EARTH_RADIUS * 1.1, 64, 32)
+    const cloudGeometry = new THREE.SphereGeometry(CLOUD_RADIUS, 128, 64)
+    const cloudMaterial = new THREE.ShaderMaterial({
+      uniforms: { cloudMap: { value: cloudMap }, sunWorld: { value: SUN_DIRECTION } },
+      vertexShader: EARTH_VERTEX,
+      fragmentShader: CLOUD_FRAGMENT,
+      transparent: true,
+      depthWrite: false,
+    })
+    const clouds = new THREE.Mesh(cloudGeometry, cloudMaterial)
+    spin.add(clouds)
+
+    const atmosphereGeometry = new THREE.SphereGeometry(ATMOSPHERE_RADIUS, 96, 48)
     const atmosphereMaterial = new THREE.ShaderMaterial({
+      uniforms: { sunWorld: { value: SUN_DIRECTION } },
       vertexShader: ATMOSPHERE_VERTEX,
       fragmentShader: ATMOSPHERE_FRAGMENT,
       side: THREE.BackSide,
@@ -321,17 +396,16 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
     canvas.addEventListener('pointercancel', onPointerUp)
 
     const timer = new THREE.Timer()
-    const sunWorld = new THREE.Vector3()
     let rafId = 0
     const animate = (timestamp: number) => {
       timer.update(timestamp)
       // 탭이 백그라운드였다가 돌아오면 경과 시간이 한꺼번에 들어온다. 지구가 순간이동하지 않게 자른다.
       const dt = Math.min(timer.getDelta(), 0.1)
       if (!dragging) spin.rotation.y += HOME_GLOBE_SPIN_RAD_PER_SEC * dt
+      clouds.rotation.y += CLOUD_DRIFT_RAD_PER_SEC * dt
+      // 구름 구를 a만큼 돌리면 텍스처의 u가 a/2π만큼 밀린다. 그림자도 같은 만큼 밀어 읽는다.
+      earthMaterial.uniforms.cloudOffset.value = clouds.rotation.y / (2 * Math.PI)
       starMaterial.uniforms.time.value = timer.getElapsed()
-      earth.updateMatrixWorld()
-      sunWorld.copy(sunLocal).transformDirection(earth.matrixWorld)
-      earthMaterial.uniforms.sunWorld.value = sunWorld
       renderer.render(scene, camera)
       rafId = requestAnimationFrame(animate)
     }
@@ -347,8 +421,8 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
       canvas.removeEventListener('pointercancel', onPointerUp)
       starsRef.current = null
       for (const disposable of [
-        earthGeometry, earthMaterial, atmosphereGeometry, atmosphereMaterial,
-        starGeometry, starMaterial, dayMap, nightMap,
+        earthGeometry, earthMaterial, cloudGeometry, cloudMaterial, atmosphereGeometry, atmosphereMaterial,
+        starGeometry, starMaterial, dayMap, nightMap, cloudMap, waterMap,
       ]) {
         disposable.dispose()
       }
@@ -391,7 +465,7 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
         className={`home-globe__canvas${hoveringEarth ? ' home-globe__canvas--hover' : ''}`}
       />
       {/* NASA 자료는 퍼블릭 도메인이지만 출처 표기를 요청한다. 지도 화면은 MapLibre 출처 표시가 맡는다. */}
-      <span className="home-globe__credit">Imagery: NASA GIBS (Blue Marble, Black Marble)</span>
+      <span className="home-globe__credit">Imagery: NASA GIBS, NASA Visible Earth · Water mask © OpenStreetMap contributors</span>
     </div>
   )
 }
