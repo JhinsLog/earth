@@ -41,7 +41,21 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param("westLng2") double westLng2,
             @Param("eastLng2") double eastLng2);
 
+    /**
+     * 범위 조회 전에 이 트랜잭션에서만 계획 재사용을 끈다.
+     *
+     * <p>같은 쿼리가 한 연결에서 반복되면 PostgreSQL은 파라미터 값을 보지 않는 범용 계획으로 바꾼다.
+     * 이 쿼리는 범위에 따라 해당 행이 95개(유럽)부터 14만 개(한국)까지 벌어져서, 맞는 인덱스가 다르다.
+     * 빽빽하면 최신순 인덱스로 걷다 500개에서 멈추고, 성기면 위경도 인덱스로 범위만 읽어야 한다.
+     * 범용 계획은 범위를 아주 좁다고 가정해 위경도 인덱스에 고정되고, 한국 범위가 1ms에서 80ms가 된다
+     * (보이는 별 20만 측정, V6 주석). 매번 계획하는 비용은 0.2~0.3ms다.
+     * {@code SET LOCAL}과 같고 트랜잭션이 끝나면 풀린다. 연결 풀의 다른 쿼리에는 영향이 없다.
+     */
+    @Query(value = "select set_config('plan_cache_mode', 'force_custom_plan', true)", nativeQuery = true)
+    String planEachExecutionInThisTransaction();
+
     default List<Event> findVisibleWithin(Instant now, BoundingBox box) {
+        planEachExecutionInThisTransaction();
         return findVisibleWithinRanges(now, box.southLat(), box.northLat(),
                 box.westLng1(), box.eastLng1(), box.westLng2(), box.eastLng2());
     }
