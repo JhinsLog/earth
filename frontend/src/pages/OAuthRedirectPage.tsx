@@ -17,7 +17,8 @@ export default function OAuthRedirectPage() {
     if (accessToken && refreshToken) {
       login(accessToken, refreshToken, remember)
     }
-    navigate('/home', { replace: true })
+    // 로그인은 홈 지구본을 클릭해 진입하려던 흐름에서 시작된다. 돌아오면 지구본을 건너뛰고 지도로 들어간다.
+    navigate('/home', { replace: true, state: { enter: true } })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

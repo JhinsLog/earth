@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react'
-import MapGlobe from '../components/globe/MapGlobe'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
+import HomeGlobe from '../components/globe/HomeGlobe'
+import { GLOBE_TRANSITION_MS } from '../components/globe/constants'
+import LoginModal from '../components/auth/LoginModal'
 import Navbar from '../components/layout/Navbar'
 import EventDetailPanel from '../components/panel/EventDetailPanel'
 import CreateEventModal from '../components/panel/CreateEventModal'
@@ -8,9 +11,13 @@ import { useAuthStore } from '../store/authStore'
 import { useDraftStars } from '../hooks/useDraftStars'
 import { useMyLocation } from '../hooks/useMyLocation'
 import { api } from '../lib/api'
-import { detectApproximateLocation, type GeoPoint } from '../lib/geolocate'
+import { approximateLongitudeFromTimezone, detectApproximateLocation, type GeoPoint } from '../lib/geolocate'
 import type { EarthUser } from '../types'
 import './HomePage.css'
+
+// 첫 화면은 홈 지구본(three)이고 지도(MapLibre, 번들의 큰 몫)는 지구를 클릭해 들어갈 때만 필요하다.
+// 따로 떼어 내 첫 로딩에서 빼고, 들어갈 때 내려받는다.
+const MapGlobe = lazy(() => import('../components/globe/MapGlobe'))
 
 /** 남은 시간을 m:ss 형태로. */
 function formatRemaining(ms: number | null): string {
@@ -40,9 +47,46 @@ export default function HomePage() {
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
   const [initialFocusLatLng, setInitialFocusLatLng] = useState<GeoPoint | null>(null)
   const [showLoginHint, setShowLoginHint] = useState(false)
-  // 값이 바뀔 때마다 지구본이 첫 화면으로 되돌아간다. 같은 위치에서 여러 번 눌러도
-  // 매번 동작해야 하므로 boolean이 아니라 증가하는 카운터를 쓴다.
-  const [resetViewToken, setResetViewToken] = useState(0)
+
+  // 첫 화면은 감상용 3D 지구본(HomeGlobe), 클릭하면 탐색용 지도(MapGlobe)로 들어간다.
+  // 로그인하고 돌아온 경우(OAuthRedirectPage가 state.enter를 붙인다)는 지구본을 건너뛴다.
+  const location = useLocation()
+  const [view, setView] = useState<'globe' | 'map'>(
+    (location.state as { enter?: boolean } | null)?.enter ? 'map' : 'globe',
+  )
+  // 교차 페이드 동안 사라지는 쪽도 잠깐 남겨 둔다. 그 뒤 언마운트해 WebGL 컨텍스트를 하나만 유지한다.
+  const [leaving, setLeaving] = useState<'globe' | 'map' | null>(null)
+  const leavingTimerRef = useRef<number | undefined>(undefined)
+  /** 지구본에서 클릭한 지점. 지도는 그곳으로 날아가며 시작한다. */
+  const [enterPoint, setEnterPoint] = useState<GeoPoint | null>(null)
+  const [pendingEnterPoint, setPendingEnterPoint] = useState<GeoPoint | null>(null)
+  const [globeCenter] = useState<GeoPoint>(() => ({ latitude: 20, longitude: approximateLongitudeFromTimezone() }))
+
+  const switchView = (next: 'globe' | 'map') => {
+    if (next === view) return
+    window.clearTimeout(leavingTimerRef.current)
+    setLeaving(view)
+    setView(next)
+    leavingTimerRef.current = window.setTimeout(() => setLeaving(null), GLOBE_TRANSITION_MS)
+  }
+  useEffect(() => () => window.clearTimeout(leavingTimerRef.current), [])
+
+  const enterMap = (point: GeoPoint | null) => {
+    setPendingEnterPoint(null)
+    setEnterPoint(point)
+    switchView('map')
+  }
+
+  const handleGlobeClick = (point: GeoPoint) => {
+    if (accessToken) enterMap(point)
+    else setPendingEnterPoint(point)
+  }
+
+  const exitToGlobe = () => {
+    selectEvent(null)
+    setSelectedDraftId(null)
+    switchView('globe')
+  }
 
   // 만료 전파는 WebSocket으로 오지만, 연결이 끊겼다 붙는 사이의 메시지는 재생되지
   // 않는다(STOMP는 재연결만 하고 놓친 메시지를 다시 주지 않는다). 그 구간에 수명이
@@ -86,43 +130,59 @@ export default function HomePage() {
   return (
     <div className={`home${selectedEvent ? ' home--panel-open' : ''}`}>
       <Navbar
-        onBrandClick={() => {
-          // 열려 있던 상세/입력창을 모두 닫고 지구본 전체 화면으로 되돌린다.
-          selectEvent(null)
-          setSelectedDraftId(null)
-          setResetViewToken((token) => token + 1)
-        }}
+        onBrandClick={exitToGlobe}
       />
 
-      <MapGlobe
-        onViewportChange={loadEvents}
-        events={events}
-        selectedEventId={selectedEventId}
-        selectionToken={selectionToken}
-        onSelect={selectEvent}
-        draftStars={drafts}
-        onDraftCreate={handleDraftCreate}
-        onDraftSelect={(id) => {
-          selectEvent(null)
-          setSelectedDraftId(id)
-        }}
-        onDraftRemove={(id) => {
-          removeDraft(id)
-          setSelectedDraftId((current) => (current === id ? null : current))
-        }}
-        initialFocusLatLng={initialFocusLatLng}
-        resetViewToken={resetViewToken}
-        myLocation={myLocation}
-        locating={locating}
-        locateError={locateError}
-        onLocateRequest={locate}
-      />
+      {(view === 'globe' || leaving === 'globe') && (
+        <div className={`home__layer${view === 'globe' ? ' home__layer--in' : ' home__layer--out'}`}>
+          <HomeGlobe events={events} center={globeCenter} onEnter={handleGlobeClick} />
+        </div>
+      )}
+
+      {view === 'globe' && <div className="home__hint">지구를 <strong>클릭</strong>해 들어가 보세요</div>}
+
+      {pendingEnterPoint && (
+        <LoginModal
+          onClose={() => setPendingEnterPoint(null)}
+          onGuest={() => enterMap(pendingEnterPoint)}
+        />
+      )}
+
+      {(view === 'map' || leaving === 'map') && (
+        <div className={`home__layer${view === 'map' ? ' home__layer--in' : ' home__layer--out'}`}>
+          <Suspense fallback={null}>
+            <MapGlobe
+              onViewportChange={loadEvents}
+              events={events}
+              selectedEventId={selectedEventId}
+              selectionToken={selectionToken}
+              onSelect={selectEvent}
+              draftStars={drafts}
+              onDraftCreate={handleDraftCreate}
+              onDraftSelect={(id) => {
+                selectEvent(null)
+                setSelectedDraftId(id)
+              }}
+              onDraftRemove={(id) => {
+                removeDraft(id)
+                setSelectedDraftId((current) => (current === id ? null : current))
+              }}
+              initialFocusLatLng={enterPoint ?? initialFocusLatLng}
+              onZoomOutBeyondMin={exitToGlobe}
+              myLocation={myLocation}
+              locating={locating}
+              locateError={locateError}
+              onLocateRequest={locate}
+            />
+          </Suspense>
+        </div>
+      )}
 
       {showLoginHint && (
         <div className="home__hint home__hint--warn">별을 남기려면 로그인이 필요합니다</div>
       )}
 
-      {!showLoginHint && user && (
+      {view === 'map' && !showLoginHint && user && (
         <div className="home__hint">
           {drafts.length === 0 ? (
             <>지구본을 <strong>우클릭</strong>해 별을 남겨보세요</>

@@ -6,6 +6,31 @@
   background: #000103;
 }
 
+/*
+ * 홈 지구본과 지도를 겹쳐 두고 투명도로 교차 페이드한다. 시간은 constants.ts의
+ * GLOBE_TRANSITION_MS와 맞춘다. 사라지는 쪽은 클릭을 받지 않게 해 페이드 중 오조작을 막는다.
+ */
+.home__layer {
+  position: absolute;
+  inset: 0;
+  animation: home-layer-in 600ms ease both;
+}
+
+.home__layer--out {
+  animation: home-layer-out 600ms ease both;
+  pointer-events: none;
+}
+
+@keyframes home-layer-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes home-layer-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 /* 지구본 아래쪽에 떠 있는 안내 배너. 지도 조작을 방해하지 않도록 클릭을 통과시킨다. */
 .home__hint {
   position: absolute;
