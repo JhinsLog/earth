@@ -14,6 +14,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -89,6 +90,36 @@ class EventViewportQueryTest extends IntegrationTest {
     void partialBoundsAreRejected() {
         assertThatThrownBy(() -> eventService.findVisible(null, 30.0, 45.0, null, 135.0))
                 .isInstanceOf(EarthApiException.class);
+    }
+
+    @Autowired
+    private TransactionTemplate tx;
+
+    /**
+     * 같은 범위 쿼리가 한 연결에서 반복되면 PostgreSQL은 파라미터를 보지 않는 범용 계획으로 바꾼다.
+     * 범용 계획은 범위를 아주 좁다고 가정해 위경도 인덱스에 고정되고, 별이 빽빽한 범위(한국)에서
+     * 14만 행을 다 읽는다(측정용 DB에서 1~2ms → 80ms, 기존 인덱스로는 436ms).
+     * 연결 하나에서 확인하려고 바깥 트랜잭션으로 묶는다. {@code pg_prepared_statements}는 세션별이다.
+     */
+    @Test
+    @DisplayName("범위 조회는 반복돼도 범용 계획으로 바뀌지 않고 매번 값에 맞는 계획을 세운다")
+    void viewportQueryNeverUsesGenericPlan() {
+        User author = userRepository.save(user());
+        eventRepository.save(event(author, 37.5, 127.0));
+
+        List<Integer> plans = tx.execute(status -> {
+            for (int i = 0; i < 15; i++) {
+                eventService.findVisible(null, 33.0, 39.0, 124.0, 132.0);
+            }
+            return jdbc.query("select generic_plans, custom_plans from pg_prepared_statements"
+                            + " where statement like '%latitude between%'",
+                    (rs, n) -> List.of(rs.getInt(1), rs.getInt(2))).stream()
+                    .reduce((a, b) -> List.of(a.get(0) + b.get(0), a.get(1) + b.get(1)))
+                    .orElse(List.of(0, 0));
+        });
+
+        assertThat(plans.get(1)).as("서버 측 준비문으로 실행돼야 이 검증이 의미가 있다").isPositive();
+        assertThat(plans.get(0)).as("범용 계획 사용 횟수").isZero();
     }
 
     private static List<Long> idsOf(List<EventResponse> responses) {
