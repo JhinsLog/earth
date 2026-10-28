@@ -109,7 +109,7 @@ class EventViewportQueryTest extends IntegrationTest {
 
         List<Integer> plans = tx.execute(status -> {
             for (int i = 0; i < 15; i++) {
-                eventService.findVisible(null, 33.0, 39.0, 124.0, 132.0);
+                eventService.findVisible(null, null, 33.0, 39.0, 124.0, 132.0);
             }
             return jdbc.query("select generic_plans, custom_plans from pg_prepared_statements"
                             + " where statement like '%latitude between%'",
