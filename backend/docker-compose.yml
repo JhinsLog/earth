@@ -1,6 +1,10 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    # PostGIS 포함 이미지. 국가 판정(국경 폴리곤)에 공간 함수가 필요하다.
+    # 공식 postgres:17-alpine 위에 PostGIS를 얹은 이미지라 PostgreSQL 메이저 버전과 libc(musl)가
+    # 같다. 그래서 기존 데이터 볼륨을 그대로 쓴다. Debian 기반(17-3.5)으로 바꾸면 libc가 glibc로
+    # 바뀌어 문자열 정렬 규칙이 달라지고, 텍스트 인덱스가 조용히 어긋날 수 있다. -alpine을 유지할 것.
+    image: postgis/postgis:17-3.5-alpine
     environment:
       POSTGRES_DB: ${DB_NAME:-earth}
       POSTGRES_USER: ${DB_USERNAME:-earth}
