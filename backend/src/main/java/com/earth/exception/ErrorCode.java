@@ -14,7 +14,8 @@ public enum ErrorCode {
     CHAT_RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "메시지를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요."),
     CANNOT_CONFIRM_OWN_EVENT(HttpStatus.BAD_REQUEST, "자신이 등록한 별에는 공감할 수 없습니다."),
     ALREADY_CONFIRMED(HttpStatus.CONFLICT, "이미 공감한 별입니다."),
-    INVALID_BOUNDS(HttpStatus.BAD_REQUEST, "조회 범위가 올바르지 않습니다.");
+    INVALID_BOUNDS(HttpStatus.BAD_REQUEST, "조회 범위가 올바르지 않습니다."),
+    COUNTRY_RESTRICTED(HttpStatus.FORBIDDEN, "로그인하지 않으면 접속한 국가의 별만 자세히 볼 수 있습니다.");
 
     private final HttpStatus status;
     private final String defaultMessage;

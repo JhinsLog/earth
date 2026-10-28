@@ -7,6 +7,7 @@ import com.earth.domain.event.EventChanged;
 import com.earth.domain.event.EventConfirmation;
 import com.earth.domain.event.EventConfirmationRepository;
 import com.earth.domain.event.EventRepository;
+import com.earth.domain.geo.CountryBoundaryRepository;
 import com.earth.domain.user.User;
 import com.earth.domain.user.UserRepository;
 import com.earth.dto.EventCreateRequest;
@@ -35,20 +36,35 @@ public class EventService {
     private final UserRepository userRepository;
     private final ApplicationEventPublisher events;
     private final EventProperties eventProperties;
+    private final CountryBoundaryRepository countryBoundaryRepository;
 
     public EventService(EventRepository eventRepository,
                          EventConfirmationRepository confirmationRepository,
                          UserRepository userRepository,
                          ApplicationEventPublisher events,
-                         EventProperties eventProperties) {
+                         EventProperties eventProperties,
+                         CountryBoundaryRepository countryBoundaryRepository) {
         this.eventRepository = eventRepository;
         this.confirmationRepository = confirmationRepository;
         this.userRepository = userRepository;
         this.events = events;
         this.eventProperties = eventProperties;
+        this.countryBoundaryRepository = countryBoundaryRepository;
     }
 
-    public List<EventResponse> findVisible(User viewer, Double southLat, Double northLat,
+    /**
+     * 이 사용자가 별의 상세(제목·내용·분류·작성자·공감 수)를 볼 수 있는지.
+     *
+     * <p>로그인했으면 전부. 비로그인이면 접속 국가와 같은 나라의 별만이고, 나머지는 위치와 존재만 준다.
+     * 접속 국가를 모르면(헤더 없음, Cloudflare가 판정 실패) 어느 별의 상세도 주지 않는다.
+     * 공해의 별(country_code null)도 비로그인에게는 상세를 주지 않는다.
+     */
+    static boolean canSeeDetails(User viewer, String viewerCountry, Event event) {
+        if (viewer != null) return true;
+        return viewerCountry != null && viewerCountry.equals(event.getCountryCode());
+    }
+
+    public List<EventResponse> findVisible(User viewer, String viewerCountry, Double southLat, Double northLat,
                                             Double westLng, Double eastLng) {
         Instant now = Instant.now();
         List<Event> events;
@@ -66,7 +82,10 @@ public class EventService {
         // 별마다 "내가 공감했나"를 묻으면 별 수만큼 쿼리가 나간다(최대 500개). 한 번에 가져온다.
         Set<Long> confirmedIds = confirmedEventIds(viewer, events);
         return events.stream()
-                .map(event -> EventResponse.from(event, confirmedIds.contains(event.getId())))
+                .map(event -> {
+                    EventResponse full = EventResponse.from(event, confirmedIds.contains(event.getId()));
+                    return canSeeDetails(viewer, viewerCountry, event) ? full : full.toRestricted();
+                })
                 .toList();
     }
 
@@ -85,8 +104,11 @@ public class EventService {
         }
     }
 
-    public EventResponse findById(User viewer, Long eventId) {
+    public EventResponse findById(User viewer, String viewerCountry, Long eventId) {
         Event event = getEventOrThrow(eventId);
+        if (!canSeeDetails(viewer, viewerCountry, event)) {
+            throw new EarthApiException(ErrorCode.COUNTRY_RESTRICTED);
+        }
         boolean confirmed = viewer != null && confirmationRepository.existsByEventAndUser(event, viewer);
         return EventResponse.from(event, confirmed);
     }
@@ -111,8 +133,10 @@ public class EventService {
                             .formatted(eventProperties.maxPerHour()));
         }
 
+        // 국가는 등록할 때 한 번만 판정한다. 12해리 최근접 판정은 거리 계산이라 조회 때마다 하기엔 무겁다.
+        String countryCode = countryBoundaryRepository.countryCodeAt(request.latitude(), request.longitude());
         Event event = new Event(author, request.title(), request.content(), request.category(),
-                request.latitude(), request.longitude(),
+                request.latitude(), request.longitude(), countryCode,
                 Duration.ofMinutes(eventProperties.ttlMinutes()));
         eventRepository.save(event);
 

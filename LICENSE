@@ -26,6 +26,15 @@ over it:
   NASA material is generally not copyrighted. See NASA's data use policy at
   https://www.earthdata.nasa.gov/engage/open-data-services-software-policies
 
+- frontend/public/textures/ contains equirectangular imagery from NASA's Blue
+  Marble Next Generation and VIIRS Black Marble, obtained through NASA's Global
+  Imagery Browse Services (GIBS). Same NASA data use policy as above.
+
+- backend/src/main/resources/db/migration/V6__country_boundaries.sql contains
+  country boundaries derived (simplified) from Natural Earth's 1:10m Admin 0
+  "point of view" dataset for South Korea. Natural Earth data is in the public
+  domain. Made with Natural Earth. https://www.naturalearthdata.com/
+
 - Vector map data served at runtime by OpenFreeMap is derived from
   OpenStreetMap and is licensed under the Open Database License (ODbL).
   See https://www.openstreetmap.org/copyright

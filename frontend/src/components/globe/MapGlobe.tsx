@@ -40,7 +40,7 @@ import {
   type GeoPoint,
   type LocatedPoint,
 } from '../../lib/geolocate'
-import { EVENT_CATEGORY_COLOR, type DraftStar, type EarthEvent } from '../../types'
+import { EVENT_CATEGORY_COLOR, RESTRICTED_STAR_COLOR, type DraftStar, type EarthEvent } from '../../types'
 import type { ViewportBounds } from '../../store/eventStore'
 import './MapGlobe.css'
 
@@ -159,10 +159,11 @@ function toEventGeoJson(events: EarthEvent[]) {
       geometry: { type: 'Point' as const, coordinates: [event.longitude, event.latitude] },
       properties: {
         id: event.id,
-        color: EVENT_CATEGORY_COLOR[event.category],
+        // 위치만 아는 별(비로그인, 다른 나라)은 분류를 모르므로 중립색, 공감 보너스 없음.
+        color: event.restricted ? RESTRICTED_STAR_COLOR : EVENT_CATEGORY_COLOR[event.category],
         // 목격자가 많을수록 밝고 크게. 신뢰도를 지구본 위에서 바로 읽을 수 있게 한다.
         // 상한을 두는 이유는 공감이 많은 별 하나가 화면을 뒤덮지 않게 하기 위함이다.
-        confirmBoost: Math.min(event.confirmCount, CONFIRM_BOOST_MAX),
+        confirmBoost: event.restricted ? 0 : Math.min(event.confirmCount, CONFIRM_BOOST_MAX),
       },
     })),
   }

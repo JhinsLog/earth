@@ -4,7 +4,7 @@ import Starfield from './Starfield'
 import { HOME_GLOBE_CLICK_TOLERANCE_PX, HOME_GLOBE_SPIN_RAD_PER_SEC } from './constants'
 import { subsolarPoint } from '../../lib/sun'
 import type { GeoPoint } from '../../lib/geolocate'
-import { EVENT_CATEGORY_COLOR, type EarthEvent } from '../../types'
+import { EVENT_CATEGORY_COLOR, RESTRICTED_STAR_COLOR, type EarthEvent } from '../../types'
 import './HomeGlobe.css'
 
 interface Props {
@@ -368,11 +368,12 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
     const color = new THREE.Color()
     events.forEach((event, i) => {
       toVector(event.latitude, event.longitude, STAR_RADIUS).toArray(positions, i * 3)
-      color.set(EVENT_CATEGORY_COLOR[event.category]).toArray(colors, i * 3)
+      // 위치만 아는 별(비로그인, 다른 나라)은 분류를 모르므로 중립색.
+      color.set(event.restricted ? RESTRICTED_STAR_COLOR : EVENT_CATEGORY_COLOR[event.category]).toArray(colors, i * 3)
       // id에서 위상을 뽑아 다시 그려도 같은 별이 같은 박자로 깜빡이게 한다.
       phases[i] = ((event.id * 0.618034) % 1 + 1) % 1
       // 공감이 많을수록 조금 더 크게. 상한을 둬 한 별이 화면을 덮지 않게 한다.
-      scales[i] = 1 + Math.min(event.confirmCount, 10) * 0.08
+      scales[i] = event.restricted ? 1 : 1 + Math.min(event.confirmCount, 10) * 0.08
     })
     const geometry = stars.geometry
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))

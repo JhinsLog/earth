@@ -4,7 +4,9 @@ import com.earth.domain.user.User;
 import com.earth.dto.EventCreateRequest;
 import com.earth.dto.EventResponse;
 import com.earth.dto.EventUpdateRequest;
+import com.earth.security.geo.ViewerCountryResolver;
 import com.earth.service.EventService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -17,26 +19,35 @@ import java.util.List;
 public class EventController {
 
     private final EventService eventService;
+    private final ViewerCountryResolver viewerCountryResolver;
 
-    public EventController(EventService eventService) {
+    public EventController(EventService eventService, ViewerCountryResolver viewerCountryResolver) {
         this.eventService = eventService;
+        this.viewerCountryResolver = viewerCountryResolver;
+    }
+
+    private String viewerCountry(HttpServletRequest request) {
+        return viewerCountryResolver.resolve(request.getHeader(viewerCountryResolver.headerName())).orElse(null);
     }
 
     /** 지구본 뷰포트(bounding box)를 넘기면 그 안의 별만, 없으면 전체 최신 별을 반환한다. */
     @GetMapping
     public List<EventResponse> list(
             @AuthenticationPrincipal User viewer,
+            HttpServletRequest request,
             @RequestParam(required = false) Double southLat,
             @RequestParam(required = false) Double northLat,
             @RequestParam(required = false) Double westLng,
             @RequestParam(required = false) Double eastLng) {
-        // 비로그인도 조회할 수 있으므로 viewer가 null일 수 있다. 그때는 공감 여부가 전부 false다.
-        return eventService.findVisible(viewer, southLat, northLat, westLng, eastLng);
+        // 비로그인도 조회할 수 있으므로 viewer가 null일 수 있다. 그때는 공감 여부가 전부 false이고,
+        // 접속 국가 밖의 별은 위치와 존재만 받는다.
+        return eventService.findVisible(viewer, viewerCountry(request), southLat, northLat, westLng, eastLng);
     }
 
     @GetMapping("/{eventId}")
-    public EventResponse get(@AuthenticationPrincipal User viewer, @PathVariable Long eventId) {
-        return eventService.findById(viewer, eventId);
+    public EventResponse get(@AuthenticationPrincipal User viewer, HttpServletRequest request,
+                             @PathVariable Long eventId) {
+        return eventService.findById(viewer, viewerCountry(request), eventId);
     }
 
     @PostMapping

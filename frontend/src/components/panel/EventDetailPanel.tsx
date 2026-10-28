@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { useAuthStore } from '../../store/authStore'
-import { EVENT_CATEGORY_LABEL, type EarthEvent } from '../../types'
+import { EVENT_CATEGORY_LABEL, type DetailedEvent } from '../../types'
 import ChatRoom from './ChatRoom'
 import './EventDetailPanel.css'
 
 interface Props {
-  event: EarthEvent
+  /** 상세를 받은 별만 연다. 위치만 아는 별은 HomePage가 여기까지 보내지 않는다. */
+  event: DetailedEvent
   onClose: () => void
-  onConfirmed: (event: EarthEvent) => void
+  onConfirmed: (event: DetailedEvent) => void
 }
 
 /**
@@ -50,8 +51,8 @@ export default function EventDetailPanel({ event, onClose, onConfirmed }: Props)
     setConfirmError(null)
     try {
       const { data } = event.confirmedByMe
-        ? await api.delete<EarthEvent>(`/api/events/${event.id}/confirm`)
-        : await api.post<EarthEvent>(`/api/events/${event.id}/confirm`)
+        ? await api.delete<DetailedEvent>(`/api/events/${event.id}/confirm`)
+        : await api.post<DetailedEvent>(`/api/events/${event.id}/confirm`)
       onConfirmed(data)
     } catch {
       setConfirmError('처리에 실패했습니다. 다시 시도해 주세요.')

@@ -58,6 +58,10 @@ earth:
     refresh-token-validity-ms: 1209600000    # 14d
   oauth2:
     redirect-url: ${OAUTH_REDIRECT_URL:http://localhost:5173/oauth2/redirect}
+  geo:
+    # 접속 국가(ISO 3166-1 alpha-2)가 담긴 헤더. Cloudflare가 엣지에서 붙인다.
+    # Cloudflare Tunnel 뒤에서만 신뢰할 수 있다 — 직접 노출하면 클라이언트가 위조할 수 있다.
+    country-header: CF-IPCountry
   chat:
     min-level-to-join: 1   # 상세 레벨 정책 확정 전까지는 로그인만 되어 있으면 입장 가능
     max-per-minute: 20     # 한 사용자가 1분 안에 보낼 수 있는 메시지 수 (도배 방지)

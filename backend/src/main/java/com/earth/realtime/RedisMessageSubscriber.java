@@ -41,7 +41,12 @@ public class RedisMessageSubscriber implements MessageListener {
         try {
             if (channel.equals(RedisConfig.EVENT_CHANNEL)) {
                 EventResponse event = objectMapper.readValue(message.getBody(), EventResponse.class);
-                messagingTemplate.convertAndSend("/topic/events", event);
+                // 받는 사람마다 볼 수 있는 범위가 달라 세 갈래로 내보낸다. 이유는 TopicAccessPolicy.
+                messagingTemplate.convertAndSend(TopicAccessPolicy.EVENTS_ALL, event);
+                messagingTemplate.convertAndSend(TopicAccessPolicy.EVENTS_PUBLIC, event.toRestricted());
+                if (event.countryCode() != null) {
+                    messagingTemplate.convertAndSend(TopicAccessPolicy.EVENTS_COUNTRY_PREFIX + event.countryCode(), event);
+                }
             } else if (channel.startsWith(RedisConfig.CHAT_CHANNEL_PREFIX)) {
                 String eventId = channel.substring(RedisConfig.CHAT_CHANNEL_PREFIX.length());
                 ChatMessageResponse chatMessage = objectMapper.readValue(message.getBody(), ChatMessageResponse.class);

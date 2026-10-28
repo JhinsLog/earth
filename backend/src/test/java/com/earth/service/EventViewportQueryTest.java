@@ -60,7 +60,7 @@ class EventViewportQueryTest extends IntegrationTest {
         eventRepository.save(event(author, -17.0, 0.0));                  // 범위 밖
 
         // MapLibre는 경도를 감지 않고 170~190으로 보낸다.
-        List<Long> ids = idsOf(eventService.findVisible(null, -20.0, -10.0, 170.0, 190.0));
+        List<Long> ids = idsOf(eventService.findVisible(null, null, -20.0, -10.0, 170.0, 190.0));
 
         assertThat(ids).containsExactlyInAnyOrder(west.getId(), east.getId());
     }
@@ -77,7 +77,7 @@ class EventViewportQueryTest extends IntegrationTest {
         jdbc.update("update events set created_at = timestamp with time zone '2026-01-01 00:00:00+00'"
                 + " + id * interval '1 second'");
 
-        List<EventResponse> result = eventService.findVisible(null, 30.0, 45.0, 120.0, 135.0);
+        List<EventResponse> result = eventService.findVisible(null, null, 30.0, 45.0, 120.0, 135.0);
 
         assertThat(result).hasSize(500);
         long oldestReturned = result.stream().mapToLong(EventResponse::id).min().orElseThrow();
@@ -88,7 +88,7 @@ class EventViewportQueryTest extends IntegrationTest {
     @Test
     @DisplayName("범위 좌표를 일부만 보내면 전 세계 조회로 넘기지 않고 거부한다")
     void partialBoundsAreRejected() {
-        assertThatThrownBy(() -> eventService.findVisible(null, 30.0, 45.0, null, 135.0))
+        assertThatThrownBy(() -> eventService.findVisible(null, null, 30.0, 45.0, null, 135.0))
                 .isInstanceOf(EarthApiException.class);
     }
 
@@ -109,7 +109,7 @@ class EventViewportQueryTest extends IntegrationTest {
 
         List<Integer> plans = tx.execute(status -> {
             for (int i = 0; i < 15; i++) {
-                eventService.findVisible(null, 33.0, 39.0, 124.0, 132.0);
+                eventService.findVisible(null, null, 33.0, 39.0, 124.0, 132.0);
             }
             return jdbc.query("select generic_plans, custom_plans from pg_prepared_statements"
                             + " where statement like '%latitude between%'",
@@ -131,6 +131,6 @@ class EventViewportQueryTest extends IntegrationTest {
     }
 
     private static Event event(User author, double lat, double lng) {
-        return new Event(author, "범위 조회", "내용", EventCategory.ETC, lat, lng, Duration.ofHours(1));
+        return new Event(author, "범위 조회", "내용", EventCategory.ETC, lat, lng, null, Duration.ofHours(1));
     }
 }
