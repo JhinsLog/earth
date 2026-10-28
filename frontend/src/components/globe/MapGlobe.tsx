@@ -188,23 +188,31 @@ function addStarLayers(
   opacityScale: number,
   boostByConfirm = false,
 ) {
-  /** 공감 수에 비례해 크기를 더한다. 공감이 없으면 0이라 기존 크기와 같다. */
-  const boost = (perConfirm: number): unknown =>
-    boostByConfirm
-      ? ['*', ['coalesce', ['get', 'confirmBoost'], 0], perConfirm]
-      : 0
-  const withBoost = (base: unknown, perConfirm: number): unknown =>
-    boostByConfirm ? ['+', base, boost(perConfirm)] : base
+  /**
+   * 줌에 따라 커지는 크기에, 공감 수에 비례한 크기를 더한다. 공감이 없으면 기존 크기와 같다.
+   *
+   * 공감 보너스는 줌 보간의 **각 출력값 안에서** 더한다. 보간식 바깥을 감싸면
+   * (`['+', ['interpolate', …, ['zoom'], …], 보너스]`) MapLibre가 "zoom 표현식은 최상위
+   * step/interpolate의 입력으로만 쓸 수 있다"며 레이어 추가 자체를 거부한다. 그 결과 등록된 별의
+   * 오라·헤일로·색 성광 레이어가 통째로 빠지고 흰 코어만 그려졌다. 오류가 콘솔에만 찍히고 화면은
+   * 그럭저럭 별처럼 보여서 오래 눈에 띄지 않았다.
+   */
+  const zoomRamp = (
+    [zoomLow, sizeLow]: [number, number],
+    [zoomHigh, sizeHigh]: [number, number],
+    perConfirm: number,
+  ): unknown => {
+    const withBoost = (size: number): unknown =>
+      boostByConfirm ? ['+', size, ['*', ['coalesce', ['get', 'confirmBoost'], 0], perConfirm]] : size
+    return ['interpolate', ['linear'], ['zoom'], zoomLow, withBoost(sizeLow), zoomHigh, withBoost(sizeHigh)]
+  }
 
   map.addLayer({
     id: `${prefix}-aura-layer`,
     type: 'circle',
     source: sourceId,
     paint: {
-      'circle-radius': withBoost(
-        ['interpolate', ['linear'], ['zoom'], 1, 7, 10, 16],
-        0.9,
-      ) as never,
+      'circle-radius': zoomRamp([1, 7], [10, 16], 0.9) as never,
       'circle-color': color as string,
       'circle-opacity': 0.4 * opacityScale,
       'circle-blur': 0.85,
@@ -216,10 +224,7 @@ function addStarLayers(
     type: 'circle',
     source: sourceId,
     paint: {
-      'circle-radius': withBoost(
-        ['interpolate', ['linear'], ['zoom'], 1, 3.5, 10, 8],
-        0.45,
-      ) as never,
+      'circle-radius': zoomRamp([1, 3.5], [10, 8], 0.45) as never,
       'circle-color': color as string,
       'circle-opacity': 0.8 * opacityScale,
       'circle-blur': 0.25,
@@ -232,10 +237,7 @@ function addStarLayers(
     source: sourceId,
     layout: {
       'icon-image': STAR_FLARE_IMAGE_ID,
-      'icon-size': withBoost(
-        ['interpolate', ['linear'], ['zoom'], 1, 0.18, 10, 0.38],
-        0.022,
-      ) as never,
+      'icon-size': zoomRamp([1, 0.18], [10, 0.38], 0.022) as never,
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },
