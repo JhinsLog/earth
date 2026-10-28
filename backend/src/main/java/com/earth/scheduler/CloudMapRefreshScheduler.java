@@ -40,7 +40,7 @@ public class CloudMapRefreshScheduler {
         this.properties = properties;
     }
 
-    // 기동 직후 한 번 돈다(initialDelay 0). 만료 스케줄러와 스레드를 나눠 쓰지 않게 풀을 2로 둔다(application.yml).
+    // 기동 직후 한 번 돈다(initialDelay 0). 스레드 풀은 SchedulingConfig.
     @Scheduled(fixedDelayString = "${earth.clouds.refresh-interval-ms:600000}", initialDelay = 0)
     public void refresh() {
         try {
