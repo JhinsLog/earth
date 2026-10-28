@@ -24,7 +24,8 @@ async function refreshAccessToken(): Promise<string | null> {
       .post(`${API_BASE_URL}/api/auth/refresh`, { refreshToken })
       .then(({ data }) => {
         setTokens(data.accessToken, data.refreshToken)
-        return data.accessToken as string
+        // 로그인 유지 기한이 지났으면 setTokens가 저장하지 않고 로그아웃한다. 그때는 null이라 재시도하지 않는다.
+        return useAuthStore.getState().accessToken
       })
       .catch(() => {
         logout()
