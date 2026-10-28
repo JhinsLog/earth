@@ -31,9 +31,12 @@ import org.testcontainers.utility.DockerImageName;
 @ActiveProfiles("test")
 public abstract class IntegrationTest {
 
+    // 운영과 같은 PostGIS 이미지. 공식 postgres 이미지가 아니라고 Testcontainers가 거부하지 않도록
+    // 호환 대상임을 밝힌다.
     @ServiceConnection
     static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>(DockerImageName.parse("postgres:17-alpine"));
+            new PostgreSQLContainer<>(DockerImageName.parse("postgis/postgis:17-3.5-alpine")
+                    .asCompatibleSubstituteFor("postgres"));
 
     // GenericContainer에는 전용 컨테이너 타입이 없으므로 어떤 서비스인지 이름으로 알려준다.
     @ServiceConnection(name = "redis")
