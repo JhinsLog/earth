@@ -16,7 +16,7 @@ import java.util.List;
 /**
  * STOMP CONNECT 프레임의 Authorization 헤더로 JWT를 검증해 STOMP 세션에
  * Principal(userId)을 부여한다. 비로그인 사용자는 Principal 없이 연결되며,
- * /topic/events 같은 공개 피드는 그대로 구독할 수 있다.
+ * 무엇을 구독할 수 있는지는 {@link StompSubscriptionGuard}가 검사한다.
  */
 @Component
 public class StompAuthChannelInterceptor implements ChannelInterceptor {

@@ -46,7 +46,13 @@ export default function HomePage() {
 
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
   const [initialFocusLatLng, setInitialFocusLatLng] = useState<GeoPoint | null>(null)
-  const [showLoginHint, setShowLoginHint] = useState(false)
+  const [loginHint, setLoginHint] = useState<string | null>(null)
+  const loginHintTimerRef = useRef<number | undefined>(undefined)
+  const flashLoginHint = (message: string) => {
+    window.clearTimeout(loginHintTimerRef.current)
+    setLoginHint(message)
+    loginHintTimerRef.current = window.setTimeout(() => setLoginHint(null), 3000)
+  }
 
   // 첫 화면은 감상용 3D 지구본(HomeGlobe), 클릭하면 탐색용 지도(MapGlobe)로 들어간다.
   // 로그인하고 돌아온 경우(OAuthRedirectPage가 state.enter를 붙인다)는 지구본을 건너뛴다.
@@ -97,14 +103,33 @@ export default function HomePage() {
   }, [pruneExpired])
 
   useEffect(() => {
-    loadEvents()
-    const unsubscribe = subscribeRealtime()
     detectApproximateLocation().then(setInitialFocusLatLng)
+  }, [])
+
+  // 로그인 여부에 따라 받을 수 있는 범위가 다르다(비로그인은 접속 국가의 별만 상세).
+  // 로그인·로그아웃하면 목록을 다시 받고 실시간 구독도 그 범위에 맞게 다시 맺는다.
+  useEffect(() => {
+    let cancelled = false
+    let unsubscribe: (() => void) | null = null
+    loadEvents()
+    const viewerCountry = accessToken
+      ? Promise.resolve(null)
+      : api
+          .get<{ countryCode: string | null }>('/api/geo/me')
+          .then(({ data }) => data.countryCode)
+          .catch(() => null)
+    viewerCountry
+      .then((country) => subscribeRealtime({ loggedIn: !!accessToken, country }))
+      .then((fn) => {
+        if (cancelled) fn()
+        else unsubscribe = fn
+      })
     return () => {
-      unsubscribe.then((fn) => fn())
+      cancelled = true
+      unsubscribe?.()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [accessToken])
 
   useEffect(() => {
     if (!accessToken) {
@@ -114,14 +139,24 @@ export default function HomePage() {
     api.get<EarthUser>('/api/users/me').then(({ data }) => setUser(data))
   }, [accessToken, setUser])
 
-  const selectedEvent = events.find((e) => e.id === selectedEventId) ?? null
+  const found = events.find((e) => e.id === selectedEventId)
+  const selectedEvent = found && !found.restricted ? found : null
+
+  const handleSelect = (id: number | null) => {
+    const target = id == null ? null : events.find((e) => e.id === id)
+    // 위치만 아는 별은 서버가 상세를 주지 않는다(403). 열지 않고 이유를 알려 준다.
+    if (target?.restricted) {
+      flashLoginHint('로그인하면 다른 나라의 별도 자세히 볼 수 있습니다')
+      return
+    }
+    selectEvent(id)
+  }
   // 수명이 다해 목록에서 빠지면 selectedDraft도 자연히 null이 되어 모달이 닫힌다.
   const selectedDraft = drafts.find((d) => d.id === selectedDraftId) ?? null
 
   const handleDraftCreate = (latitude: number, longitude: number) => {
     if (!user) {
-      setShowLoginHint(true)
-      window.setTimeout(() => setShowLoginHint(false), 3000)
+      flashLoginHint('별을 남기려면 로그인이 필요합니다')
       return
     }
     addDraft(latitude, longitude)
@@ -156,7 +191,7 @@ export default function HomePage() {
               events={events}
               selectedEventId={selectedEventId}
               selectionToken={selectionToken}
-              onSelect={selectEvent}
+              onSelect={handleSelect}
               draftStars={drafts}
               onDraftCreate={handleDraftCreate}
               onDraftSelect={(id) => {
@@ -178,11 +213,11 @@ export default function HomePage() {
         </div>
       )}
 
-      {showLoginHint && (
-        <div className="home__hint home__hint--warn">별을 남기려면 로그인이 필요합니다</div>
+      {loginHint && (
+        <div className="home__hint home__hint--warn">{loginHint}</div>
       )}
 
-      {view === 'map' && !showLoginHint && user && (
+      {view === 'map' && !loginHint && user && (
         <div className="home__hint">
           {drafts.length === 0 ? (
             <>지구본을 <strong>우클릭</strong>해 별을 남겨보세요</>

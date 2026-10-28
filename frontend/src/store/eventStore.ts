@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { api } from '../lib/api'
+import type { IMessage } from '@stomp/stompjs'
 import { subscribeTopic } from '../lib/ws'
 import type { EarthEvent } from '../types'
 
@@ -25,7 +26,11 @@ interface EventState {
   /** 범위 없이 부르면 전 세계 최신 별로 교체하고, 범위를 주면 그 안의 별을 기존 목록에 합친다. */
   loadEvents: (bounds?: ViewportBounds) => Promise<void>
   selectEvent: (id: number | null) => void
-  subscribeRealtime: () => Promise<() => void>
+  /**
+   * 실시간 별 피드를 구독한다. 로그인하면 전체 피드, 아니면 위치 전용 공개 피드 + 자기 접속 국가 피드.
+   * 비로그인 연결은 서버가 그 둘 외의 구독을 버린다(TopicAccessPolicy).
+   */
+  subscribeRealtime: (viewer: { loggedIn: boolean; country: string | null }) => Promise<() => void>
   addOrUpdate: (event: EarthEvent) => void
   removeEvent: (id: number) => void
   /** 만료 시각이 지난 별을 목록에서 걷어낸다. 타이머로 주기 호출된다. */
@@ -88,10 +93,20 @@ export const useEventStore = create<EventState>((set, get) => ({
     }
   },
 
-  subscribeRealtime: async () => {
-    return subscribeTopic('/topic/events', (message) => {
-      const event = JSON.parse(message.body) as EarthEvent
-      get().addOrUpdate(event)
-    })
+  subscribeRealtime: async ({ loggedIn, country }) => {
+    const apply = (message: IMessage) => get().addOrUpdate(JSON.parse(message.body) as EarthEvent)
+    if (loggedIn) return subscribeTopic('/topic/events', apply)
+
+    const unsubscribes = [
+      await subscribeTopic('/topic/events.public', (message) => {
+        const event = JSON.parse(message.body) as EarthEvent
+        // 자기 나라 별은 같은 소식이 국가 피드로 상세와 함께 온다. 위치만 담긴 쪽이 늦게 도착해
+        // 상세를 덮어쓰지 않도록 공개 피드의 것은 버린다.
+        if (event.restricted && country !== null && event.countryCode === country) return
+        get().addOrUpdate(event)
+      }),
+    ]
+    if (country) unsubscribes.push(await subscribeTopic(`/topic/events.country.${country}`, apply))
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe())
   },
 }))

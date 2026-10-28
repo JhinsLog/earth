@@ -45,6 +45,13 @@ public class Event {
     @Column(nullable = false)
     private double longitude;
 
+    /**
+     * 이 별이 속한 국가(ISO 3166-1 alpha-2). 등록할 때 한 번 판정해 저장한다. 공해 등은 null.
+     * 비로그인 사용자는 자기 접속 국가와 같은 별만 상세를 볼 수 있다.
+     */
+    @Column(name = "country_code", length = 2)
+    private String countryCode;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private EventStatus status = EventStatus.ACTIVE;
@@ -68,13 +75,14 @@ public class Event {
     private int confirmCount = 0;
 
     public Event(User author, String title, String content, EventCategory category,
-                 double latitude, double longitude, Duration ttl) {
+                 double latitude, double longitude, String countryCode, Duration ttl) {
         this.author = author;
         this.title = title;
         this.content = content;
         this.category = category;
         this.latitude = latitude;
         this.longitude = longitude;
+        this.countryCode = countryCode;
         this.createdAt = Instant.now();
         this.expiresAt = this.createdAt.plus(ttl);
     }

@@ -57,6 +57,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/events/*/chat/**").authenticated()
                         // 지구본에 표시되는 이벤트 목록/상세는 비로그인 사용자도 볼 수 있어야 한다
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/events", "/api/events/*").permitAll()
+                        // 비로그인 화면이 자기 접속 국가를 알아야 어느 별까지 자세히 볼 수 있는지 안다
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/geo/me").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()
                 )
