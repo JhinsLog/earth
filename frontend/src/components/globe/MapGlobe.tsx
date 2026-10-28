@@ -30,6 +30,8 @@ import {
   MY_LOCATION_COLOR,
   MY_LOCATION_MIN_ZOOM,
   MY_LOCATION_ZOOM,
+  VIEWPORT_QUERY_DEBOUNCE_MS,
+  VIEWPORT_QUERY_MIN_ZOOM,
 } from './constants'
 import {
   approximateLongitudeFromTimezone,
@@ -37,6 +39,7 @@ import {
   type LocatedPoint,
 } from '../../lib/geolocate'
 import { EVENT_CATEGORY_COLOR, type DraftStar, type EarthEvent } from '../../types'
+import type { ViewportBounds } from '../../store/eventStore'
 import './MapGlobe.css'
 
 const EVENTS_SOURCE_ID = 'earth-events-source'
@@ -69,6 +72,8 @@ interface Props {
   locateError: string | null
   /** "내 위치" 버튼을 눌렀을 때. 위치를 구해 돌려주면 그 지점으로 날아간다. */
   onLocateRequest: () => Promise<LocatedPoint | null>
+  /** 지도가 멈췄을 때 화면 범위. VIEWPORT_QUERY_MIN_ZOOM 이상에서만 호출된다. */
+  onViewportChange?: (bounds: ViewportBounds) => void
 }
 
 /**
@@ -277,6 +282,7 @@ export default function MapGlobe({
   locating,
   locateError,
   onLocateRequest,
+  onViewportChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const haloRef = useRef<HTMLDivElement>(null)
@@ -304,6 +310,8 @@ export default function MapGlobe({
   onSelectRef.current = onSelect
   const onDraftCreateRef = useRef(onDraftCreate)
   onDraftCreateRef.current = onDraftCreate
+  const onViewportChangeRef = useRef(onViewportChange)
+  onViewportChangeRef.current = onViewportChange
   const onDraftSelectRef = useRef(onDraftSelect)
   onDraftSelectRef.current = onDraftSelect
   const onDraftRemoveRef = useRef(onDraftRemove)
@@ -386,6 +394,22 @@ export default function MapGlobe({
     // 타일 하나가 끝내 도착하지 않아도 화면이 영원히 비어 있지 않도록 하는 안전장치.
     revealTimeoutId = window.setTimeout(reveal, 5000)
     let nearbyCountryIntervalId: number | undefined
+
+    let viewportTimeoutId: number | undefined
+    const scheduleViewportQuery = () => {
+      window.clearTimeout(viewportTimeoutId)
+      if (map.getZoom() < VIEWPORT_QUERY_MIN_ZOOM) return
+      viewportTimeoutId = window.setTimeout(() => {
+        const bounds = map.getBounds()
+        onViewportChangeRef.current?.({
+          southLat: bounds.getSouth(),
+          northLat: bounds.getNorth(),
+          westLng: bounds.getWest(),
+          eastLng: bounds.getEast(),
+        })
+      }, VIEWPORT_QUERY_DEBOUNCE_MS)
+    }
+    map.on('moveend', scheduleViewportQuery)
 
     const setInteractingTrue = () => {
       isInteractingRef.current = true
@@ -649,6 +673,8 @@ export default function MapGlobe({
       map.off('sourcedata', syncRasterGates)
       map.off('moveend', syncRasterGates)
       map.off('zoom', syncRasterGates)
+      map.off('moveend', scheduleViewportQuery)
+      window.clearTimeout(viewportTimeoutId)
       window.clearTimeout(revealTimeoutId)
       readyRef.current = false
       appliedInitialFocusRef.current = false

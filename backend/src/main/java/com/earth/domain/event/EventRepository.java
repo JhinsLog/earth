@@ -13,20 +13,38 @@ import java.util.Optional;
 
 public interface EventRepository extends JpaRepository<Event, Long> {
 
+    /**
+     * 화면 범위 안의 보이는 별, 최신순 500개.
+     *
+     * <p>LIMIT이 없으면 넓은 범위에서 응답이 무한정 커진다. 보이는 별 20만 개 기준으로 한국 범위가
+     * 14만 행·200ms였고 정렬이 메모리를 넘어 디스크로 넘쳤다. 지구본에 한 번에 그릴 수 있는 양도
+     * 그보다 훨씬 적다. 전 세계 조회({@link #findVisibleLatest})와 같은 상한을 쓴다.
+     *
+     * <p>경도 조건이 두 구간인 이유는 {@link BoundingBox} 참고. 날짜변경선을 넘지 않으면 두 구간이 같다.
+     */
     @Query("""
             select e from Event e
             where e.status = com.earth.domain.event.EventStatus.ACTIVE
               and e.expiresAt > :now
               and e.latitude between :southLat and :northLat
-              and e.longitude between :westLng and :eastLng
+              and (e.longitude between :westLng1 and :eastLng1
+                   or e.longitude between :westLng2 and :eastLng2)
             order by e.createdAt desc
+            limit 500
             """)
-    List<Event> findVisibleWithinBoundingBox(
+    List<Event> findVisibleWithinRanges(
             @Param("now") Instant now,
             @Param("southLat") double southLat,
             @Param("northLat") double northLat,
-            @Param("westLng") double westLng,
-            @Param("eastLng") double eastLng);
+            @Param("westLng1") double westLng1,
+            @Param("eastLng1") double eastLng1,
+            @Param("westLng2") double westLng2,
+            @Param("eastLng2") double eastLng2);
+
+    default List<Event> findVisibleWithin(Instant now, BoundingBox box) {
+        return findVisibleWithinRanges(now, box.southLat(), box.northLat(),
+                box.westLng1(), box.eastLng1(), box.westLng2(), box.eastLng2());
+    }
 
     @Query("""
             select e from Event e

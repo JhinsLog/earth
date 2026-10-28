@@ -3,6 +3,14 @@ import { api } from '../lib/api'
 import { subscribeTopic } from '../lib/ws'
 import type { EarthEvent } from '../types'
 
+/** 지도 화면 범위. 경도는 MapLibre가 주는 그대로(감지 않은 값) 보내고, 정규화는 서버가 한다. */
+export interface ViewportBounds {
+  southLat: number
+  northLat: number
+  westLng: number
+  eastLng: number
+}
+
 interface EventState {
   events: EarthEvent[]
   selectedEventId: number | null
@@ -14,7 +22,8 @@ interface EventState {
    * 선택 "사건"을 나타내는 값이 따로 있어야 매번 트리거된다.
    */
   selectionToken: number
-  loadEvents: () => Promise<void>
+  /** 범위 없이 부르면 전 세계 최신 별로 교체하고, 범위를 주면 그 안의 별을 기존 목록에 합친다. */
+  loadEvents: (bounds?: ViewportBounds) => Promise<void>
   selectEvent: (id: number | null) => void
   subscribeRealtime: () => Promise<() => void>
   addOrUpdate: (event: EarthEvent) => void
@@ -28,9 +37,18 @@ export const useEventStore = create<EventState>((set, get) => ({
   selectedEventId: null,
   selectionToken: 0,
 
-  loadEvents: async () => {
-    const { data } = await api.get<EarthEvent[]>('/api/events')
-    set({ events: data })
+  loadEvents: async (bounds) => {
+    const { data } = await api.get<EarthEvent[]>('/api/events', { params: bounds })
+    if (!bounds) {
+      set({ events: data })
+      return
+    }
+    // 교체하지 않고 합친다. 교체하면 화면 밖으로 나간 별이 지워져, 줌아웃했을 때 방금까지
+    // 보던 지역이 비어 보인다. 목록이 무한히 커지지 않는 건 pruneExpired가 만료된 별을 걷어내기 때문이다.
+    const fetched = new Map(data.map((e) => [e.id, e]))
+    const merged = get().events.map((e) => fetched.get(e.id) ?? e)
+    const known = new Set(merged.map((e) => e.id))
+    set({ events: [...data.filter((e) => !known.has(e.id)), ...merged] })
   },
 
   selectEvent: (id) =>

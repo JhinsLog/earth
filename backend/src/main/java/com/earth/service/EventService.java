@@ -1,6 +1,7 @@
 package com.earth.service;
 
 import com.earth.config.EventProperties;
+import com.earth.domain.event.BoundingBox;
 import com.earth.domain.event.Event;
 import com.earth.domain.event.EventChanged;
 import com.earth.domain.event.EventConfirmation;
@@ -51,10 +52,16 @@ public class EventService {
                                             Double westLng, Double eastLng) {
         Instant now = Instant.now();
         List<Event> events;
-        if (southLat != null && northLat != null && westLng != null && eastLng != null) {
-            events = eventRepository.findVisibleWithinBoundingBox(now, southLat, northLat, westLng, eastLng);
-        } else {
+        boolean anyBound = southLat != null || northLat != null || westLng != null || eastLng != null;
+        boolean allBounds = southLat != null && northLat != null && westLng != null && eastLng != null;
+        if (!anyBound) {
             events = eventRepository.findVisibleLatest(now);
+        } else if (!allBounds) {
+            // 일부만 오면 전 세계 조회로 조용히 넘기지 않는다. 화면 범위를 보냈다고 믿는 클라이언트가
+            // 엉뚱한 별 500개를 받고도 알아채지 못한다.
+            throw new EarthApiException(ErrorCode.INVALID_BOUNDS, "범위 좌표 네 개를 모두 보내야 합니다.");
+        } else {
+            events = eventRepository.findVisibleWithin(now, toBoundingBox(southLat, northLat, westLng, eastLng));
         }
         // 별마다 "내가 공감했나"를 묻으면 별 수만큼 쿼리가 나간다(최대 500개). 한 번에 가져온다.
         Set<Long> confirmedIds = confirmedEventIds(viewer, events);
@@ -68,6 +75,14 @@ public class EventService {
         return confirmationRepository.findByUserAndEventIn(viewer, events).stream()
                 .map(confirmation -> confirmation.getEvent().getId())
                 .collect(Collectors.toSet());
+    }
+
+    private static BoundingBox toBoundingBox(double southLat, double northLat, double westLng, double eastLng) {
+        try {
+            return BoundingBox.of(southLat, northLat, westLng, eastLng);
+        } catch (IllegalArgumentException e) {
+            throw new EarthApiException(ErrorCode.INVALID_BOUNDS, e.getMessage());
+        }
     }
 
     public EventResponse findById(User viewer, Long eventId) {

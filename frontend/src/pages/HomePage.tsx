@@ -95,6 +95,7 @@ export default function HomePage() {
       />
 
       <MapGlobe
+        onViewportChange={loadEvents}
         events={events}
         selectedEventId={selectedEventId}
         selectionToken={selectionToken}

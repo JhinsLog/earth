@@ -9,6 +9,16 @@ export const MIN_ZOOM = 1.0
 export const MAX_ZOOM = 22.0
 export const AUTO_ROTATE_MAX_ZOOM = 5 // 이 줌보다 확대하면 자동 자전을 멈춘다
 /**
+ * 이 줌부터 화면 범위(bbox)로 별을 조회한다. 그 아래는 첫 로드의 전 세계 최신 500개를 쓴다.
+ *
+ * 전 세계 최신 500개만으로는 별이 많아질수록 내 동네 별이 화면에 나오지 않는다. 반대로 지구본
+ * 전체가 보이는 줌에서 범위로 조회하면 사실상 전 세계 조회와 같아 이득이 없다. 자전이 멈추는
+ * 줌과 같게 둔 이유는, 자전 중에는 매 프레임 moveend가 와서 조회 요청이 쏟아지기 때문이다.
+ */
+export const VIEWPORT_QUERY_MIN_ZOOM = AUTO_ROTATE_MAX_ZOOM
+/** 지도가 멈춘 뒤 이만큼 더 움직임이 없을 때만 조회한다. 드래그를 끊어 할 때마다 요청하지 않도록. */
+export const VIEWPORT_QUERY_DEBOUNCE_MS = 300
+/**
  * 이벤트를 선택했을 때 확대되는 줌 레벨 — 타일 원본 해상도의 한계.
  *
  * 배경-도로-도로명이 모두 Esri Dark Gray 래스터 한 장에서 나오고 이 타일은 z16까지만
