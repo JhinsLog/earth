@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { useAuthStore } from '../../store/authStore'
-import { API_BASE_URL } from '../../lib/api'
+import LoginModal from '../auth/LoginModal'
 import './Navbar.css'
 
 interface Props {
@@ -9,10 +10,7 @@ interface Props {
 
 export default function Navbar({ onBrandClick }: Props) {
   const { user, logout } = useAuthStore()
-
-  const handleLogin = () => {
-    window.location.href = `${API_BASE_URL}/oauth2/authorization/google`
-  }
+  const [showLogin, setShowLogin] = useState(false)
 
   return (
     <header className="navbar">
@@ -32,11 +30,12 @@ export default function Navbar({ onBrandClick }: Props) {
             </button>
           </div>
         ) : (
-          <button className="navbar__login" onClick={handleLogin}>
-            Google로 로그인
+          <button className="navbar__login" onClick={() => setShowLogin(true)}>
+            로그인
           </button>
         )}
       </div>
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
     </header>
   )
 }

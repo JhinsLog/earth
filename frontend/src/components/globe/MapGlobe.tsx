@@ -30,6 +30,8 @@ import {
   MY_LOCATION_COLOR,
   MY_LOCATION_MIN_ZOOM,
   MY_LOCATION_ZOOM,
+  EXIT_TO_HOME_PINCH_PX,
+  EXIT_TO_HOME_WHEEL_DELTA,
   VIEWPORT_QUERY_DEBOUNCE_MS,
   VIEWPORT_QUERY_MIN_ZOOM,
 } from './constants'
@@ -74,6 +76,8 @@ interface Props {
   onLocateRequest: () => Promise<LocatedPoint | null>
   /** 지도가 멈췄을 때 화면 범위. VIEWPORT_QUERY_MIN_ZOOM 이상에서만 호출된다. */
   onViewportChange?: (bounds: ViewportBounds) => void
+  /** 최소 줌에서 더 축소하려 할 때. 홈 지구본으로 돌아가는 데 쓴다. */
+  onZoomOutBeyondMin?: () => void
 }
 
 /**
@@ -283,6 +287,7 @@ export default function MapGlobe({
   locateError,
   onLocateRequest,
   onViewportChange,
+  onZoomOutBeyondMin,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const haloRef = useRef<HTMLDivElement>(null)
@@ -312,6 +317,8 @@ export default function MapGlobe({
   onDraftCreateRef.current = onDraftCreate
   const onViewportChangeRef = useRef(onViewportChange)
   onViewportChangeRef.current = onViewportChange
+  const onZoomOutBeyondMinRef = useRef(onZoomOutBeyondMin)
+  onZoomOutBeyondMinRef.current = onZoomOutBeyondMin
   const onDraftSelectRef = useRef(onDraftSelect)
   onDraftSelectRef.current = onDraftSelect
   const onDraftRemoveRef = useRef(onDraftRemove)
@@ -410,6 +417,43 @@ export default function MapGlobe({
       }, VIEWPORT_QUERY_DEBOUNCE_MS)
     }
     map.on('moveend', scheduleViewportQuery)
+
+    // MapLibre는 최소 줌에서 더 축소하려는 입력을 조용히 무시하고 이벤트도 내지 않는다.
+    // 그래서 원본 입력(휠, 두 손가락 핀치)을 직접 보고, 최소 줌에 닿은 상태에서 더 밀어낸 양을 센다.
+    let overscroll = 0
+    let pinchDistance: number | null = null
+    const atMinZoom = () => map.getZoom() <= MIN_ZOOM + 0.01
+    const exitIfFarEnough = (amount: number, threshold: number) => {
+      overscroll += amount
+      if (overscroll >= threshold) {
+        overscroll = 0
+        onZoomOutBeyondMinRef.current?.()
+      }
+    }
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY > 0 && atMinZoom()) exitIfFarEnough(e.deltaY, EXIT_TO_HOME_WHEEL_DELTA)
+      else overscroll = 0
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 2) {
+        pinchDistance = null
+        return
+      }
+      const [a, b] = [e.touches[0], e.touches[1]]
+      const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
+      if (pinchDistance !== null && distance < pinchDistance && atMinZoom()) {
+        exitIfFarEnough(pinchDistance - distance, EXIT_TO_HOME_PINCH_PX)
+      }
+      pinchDistance = distance
+    }
+    const onTouchEnd = () => {
+      pinchDistance = null
+      overscroll = 0
+    }
+    const canvasContainer = map.getCanvasContainer()
+    canvasContainer.addEventListener('wheel', onWheel, { passive: true })
+    canvasContainer.addEventListener('touchmove', onTouchMove, { passive: true })
+    canvasContainer.addEventListener('touchend', onTouchEnd)
 
     const setInteractingTrue = () => {
       isInteractingRef.current = true
@@ -674,6 +718,9 @@ export default function MapGlobe({
       map.off('moveend', syncRasterGates)
       map.off('zoom', syncRasterGates)
       map.off('moveend', scheduleViewportQuery)
+      canvasContainer.removeEventListener('wheel', onWheel)
+      canvasContainer.removeEventListener('touchmove', onTouchMove)
+      canvasContainer.removeEventListener('touchend', onTouchEnd)
       window.clearTimeout(viewportTimeoutId)
       window.clearTimeout(revealTimeoutId)
       readyRef.current = false

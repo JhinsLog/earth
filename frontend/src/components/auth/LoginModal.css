@@ -1,0 +1,88 @@
+/* Navbar 안에서 띄우는데 .navbar가 pointer-events: none이고 이 값은 상속된다. 되살리지 않으면 창이 클릭을 받지 못한다. */
+.login-modal__backdrop {
+  pointer-events: auto;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+}
+
+.login-modal {
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  background: #0b1220;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 22px;
+  color: #eaf2ff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.login-modal h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.login-modal__google {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: none;
+  background: #eaf2ff;
+  color: #0b1220;
+  cursor: pointer;
+}
+
+.login-modal__google:hover {
+  background: #ffffff;
+}
+
+.login-modal__remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.login-modal__remember input {
+  accent-color: #2a7bff;
+  width: 15px;
+  height: 15px;
+}
+
+.login-modal__hint {
+  margin: -4px 0 0;
+  font-size: 11px;
+  color: #7c8aa0;
+}
+
+.login-modal__guest {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 9px;
+  border-radius: 8px;
+  border: 1px solid rgba(159, 214, 255, 0.4);
+  background: rgba(42, 123, 255, 0.12);
+  color: #cfe6ff;
+  cursor: pointer;
+}
+
+.login-modal__cancel {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 7px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: none;
+  color: #a8b6cc;
+  cursor: pointer;
+}

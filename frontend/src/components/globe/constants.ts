@@ -75,3 +75,17 @@ export const MY_LOCATION_MIN_ZOOM = 11.0
 
 /** 내 위치 표시 색 — 별(이벤트)과 혼동되지 않도록 채도가 다른 청록을 쓴다. */
 export const MY_LOCATION_COLOR = '#4dd2ff'
+
+/** 홈 지구본의 자전 속도(라디안/초). 실제 자전(하루 1바퀴)으로는 멈춘 것처럼 보여 연출용으로 빠르게 돈다. */
+export const HOME_GLOBE_SPIN_RAD_PER_SEC = (2 * Math.PI) / 120
+/** 이 거리(px) 이상 끌면 클릭이 아니라 회전으로 본다. 진입하려다 살짝 밀린 클릭을 놓치지 않도록. */
+export const HOME_GLOBE_CLICK_TOLERANCE_PX = 5
+/** 홈 지구본과 지도를 오갈 때의 교차 페이드 시간. HomePage.css의 transition과 맞춘다. */
+export const GLOBE_TRANSITION_MS = 600
+
+/**
+ * 지도에서 최소 줌에 닿은 뒤 이만큼 더 축소하려 하면 홈 지구본으로 돌아간다(휠 deltaY 누적, 핀치는 px).
+ * 최소 줌에 닿자마자 돌아가면, 그냥 지구 전체를 보려던 사람까지 화면이 바뀌어 버린다.
+ */
+export const EXIT_TO_HOME_WHEEL_DELTA = 240
+export const EXIT_TO_HOME_PINCH_PX = 80
