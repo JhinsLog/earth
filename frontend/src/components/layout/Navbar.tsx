@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuthStore } from '../../store/authStore'
 import LoginModal from '../auth/LoginModal'
+import SettingsMenu from '../settings/SettingsMenu'
 import './Navbar.css'
 
 interface Props {
@@ -20,6 +21,7 @@ export default function Navbar({ onBrandClick }: Props) {
       </button>
 
       <div className="navbar__actions">
+        <SettingsMenu />
         {user ? (
           <div className="navbar__user">
             {user.profileImageUrl && <img src={user.profileImageUrl} alt="" className="navbar__avatar" />}

@@ -1,0 +1,106 @@
+.settings {
+  position: relative;
+}
+
+.settings__button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(10, 16, 28, 0.6);
+  color: #eaf2ff;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.settings__button:hover,
+.settings__button[aria-expanded='true'] {
+  background: rgba(30, 60, 110, 0.6);
+  border-color: rgba(120, 180, 255, 0.6);
+}
+
+.settings__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 260px;
+  max-width: calc(100vw - 32px);
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(10, 16, 28, 0.88);
+  backdrop-filter: blur(10px);
+  color: #dbe4f0;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.settings__title {
+  margin-bottom: 10px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #8fa3bf;
+}
+
+.settings__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.settings__label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 14px;
+  color: #eaf2ff;
+}
+
+.settings__desc {
+  font-size: 12px;
+  color: #8fa3bf;
+}
+
+/* 체크박스를 스위치 모양으로. 키보드·스크린리더 동작은 체크박스 그대로다. */
+.settings__switch {
+  appearance: none;
+  flex-shrink: 0;
+  position: relative;
+  width: 40px;
+  height: 22px;
+  margin: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.settings__switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #eaf2ff;
+  transition: transform 0.2s ease;
+}
+
+.settings__switch:checked {
+  background: #2a7bff;
+}
+
+.settings__switch:checked::after {
+  transform: translateX(18px);
+}
+
+.settings__switch:focus-visible {
+  outline: 2px solid #9fd6ff;
+  outline-offset: 2px;
+}

@@ -4,6 +4,8 @@ import Starfield from './Starfield'
 import { HOME_GLOBE_CLICK_TOLERANCE_PX, HOME_GLOBE_SPIN_RAD_PER_SEC } from './constants'
 import type { GeoPoint } from '../../lib/geolocate'
 import { API_BASE_URL } from '../../lib/api'
+import { subsolarPoint } from '../../lib/sun'
+import { useSettingsStore } from '../../store/settingsStore'
 import { EVENT_CATEGORY_COLOR, RESTRICTED_STAR_COLOR, type EarthEvent } from '../../types'
 import './HomeGlobe.css'
 
@@ -25,8 +27,10 @@ const GLOBE_SCREEN_FRACTION = 0.72
 const FOV_DEG = 30
 const CLOUD_RADIUS = 1.006
 const ATMOSPHERE_RADIUS = 1.025
-// 카메라 기준 태양 방향(왼쪽 위 앞). 보이는 면 대부분이 낮이고 오른쪽 가장자리만 어둡다.
-const SUN_DIRECTION = new THREE.Vector3(-0.38, 0.32, 0.87).normalize()
+// 태양 직하점은 0.25°/분씩 움직인다. 화면에서 구분되지 않으므로 매 프레임이 아니라 이 간격으로 다시 구한다.
+const SUN_UPDATE_INTERVAL_MS = 10_000
+// 도시 불빛 토글이 한 번에 켜지고 꺼지지 않고 이 시간 동안 번지듯 바뀐다.
+const CITY_LIGHTS_FADE_SEC = 0.6
 // 정적 구름 사진일 때만 지구보다 조금 빨리 흘려 정지 사진이 아니라는 느낌을 준다.
 // 실시간 구름은 실제 위치가 의미라 흘리지 않는다.
 const CLOUD_DRIFT_RAD_PER_SEC = 0.004
@@ -111,8 +115,11 @@ const EARTH_VERTEX = /* glsl */ `
   }
 `
 
-// 조명은 카메라 기준으로 고정한다(왼쪽 위 앞). 지구가 그 아래에서 돌아 보이는 면은 늘 낮이고,
-// 바다의 태양 반사가 왼쪽 위에 맺힌다. 실제 시각의 낮·밤 경계 대신 실사 사진 같은 구도를 택했다.
+// 태양은 실제 시각의 태양 직하점 방향이다(lib/sun.ts). 지구본의 자전은 '보는 위치가 도는 것'이라 태양도
+// 지구와 함께 돈다. 그래서 어느 쪽을 보든 지금 실제로 낮인 곳이 밝고 밤인 곳이 어둡다.
+//
+// 밤 지역의 도시 불빛은 별(이벤트)과 겹쳐 구분이 어려워 기본은 끄고, 설정에서 켤 수 있다(cityLights 0~1).
+// 꺼져 있어도 대륙 윤곽은 보이도록 밤 지역에 아주 옅은 푸른빛을 남긴다.
 //
 // 텍스처는 sRGB로 읽어 선형 공간에서 조명하고, 마지막에 톤 매핑과 sRGB 변환을 거친다. 감마 공간에서
 // 그대로 곱하면 명암이 뭉개져 바다가 회보라색으로 뜬다.
@@ -123,6 +130,7 @@ const EARTH_FRAGMENT = /* glsl */ `
   uniform sampler2D waterMap;
   uniform vec3 sunWorld;
   uniform float cloudOffset;
+  uniform float cityLights;
   varying vec2 vUv;
   varying vec3 vWorldNormal;
   varying vec3 vWorldPos;
@@ -138,7 +146,8 @@ const EARTH_FRAGMENT = /* glsl */ `
     // 구름 그림자. 구름층이 지구보다 조금 빨리 돌기 때문에 그만큼 밀어서 읽는다.
     float cloudShadow = cloudDensity(vUv, vUv - vec2(cloudOffset, 0.0));
     vec3 color = day * (light * 1.7 + 0.01) * (1.0 - cloudShadow * 0.4 * light);
-    color += night * vec3(1.0, 0.85, 0.6) * 1.4 * (1.0 - dayMix);
+    color += day * vec3(0.35, 0.45, 0.8) * 0.12 * (1.0 - dayMix);
+    color += night * vec3(1.0, 0.85, 0.6) * 1.4 * (1.0 - dayMix) * cityLights;
 
     // 바다에만 햇빛 반사. 처음엔 '어둡고 푸른 픽셀'을 바다로 봤는데, 위성 사진의 섬 주변에 남은 JPEG
     // 압축 블록에서 판정이 뒤집혀 반사광 속에 사각형 얼룩이 생겼다. 육지/바다 마스크를 따로 쓴다.
@@ -263,6 +272,12 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
   // 장면은 한 번만 만들고, 별 데이터만 바뀔 때마다 갈아 끼운다.
   const starsRef = useRef<{ geometry: THREE.BufferGeometry; points: THREE.Points } | null>(null)
   const initialCenterRef = useRef(center)
+  // 설정의 도시 불빛. 장면 effect는 한 번만 돌기 때문에 렌더 루프가 이 ref를 읽어 서서히 맞춘다.
+  const cityLights = useSettingsStore((state) => state.cityLights)
+  const cityLightsTargetRef = useRef(cityLights ? 1 : 0)
+  useEffect(() => {
+    cityLightsTargetRef.current = cityLights ? 1 : 0
+  }, [cityLights])
 
   useEffect(() => {
     const container = containerRef.current
@@ -322,14 +337,17 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
       liveClouds: { value: 0 },
     }
 
+    // 세 재질이 같은 벡터를 본다. 매 프레임 이 벡터만 고치면 모두에 반영된다.
+    const sunWorld = new THREE.Vector3()
     const earthMaterial = new THREE.ShaderMaterial({
       uniforms: {
         ...cloudUniforms,
         dayMap: { value: dayMap },
         nightMap: { value: nightMap },
         waterMap: { value: waterMap },
-        sunWorld: { value: SUN_DIRECTION },
+        sunWorld: { value: sunWorld },
         cloudOffset: { value: 0 },
+        cityLights: { value: cityLightsTargetRef.current },
       },
       vertexShader: EARTH_VERTEX,
       fragmentShader: EARTH_FRAGMENT,
@@ -341,7 +359,7 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
     const cloudGeometry = new THREE.SphereGeometry(CLOUD_RADIUS, 128, 64)
     const cloudMaterial = new THREE.ShaderMaterial({
       // 같은 uniform 객체를 공유해 실시간 구름이 오면 두 재질에 한 번에 반영된다.
-      uniforms: { ...cloudUniforms, sunWorld: { value: SUN_DIRECTION } },
+      uniforms: { ...cloudUniforms, sunWorld: { value: sunWorld } },
       vertexShader: EARTH_VERTEX,
       fragmentShader: CLOUD_FRAGMENT,
       transparent: true,
@@ -352,7 +370,7 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
 
     const atmosphereGeometry = new THREE.SphereGeometry(ATMOSPHERE_RADIUS, 96, 48)
     const atmosphereMaterial = new THREE.ShaderMaterial({
-      uniforms: { sunWorld: { value: SUN_DIRECTION } },
+      uniforms: { sunWorld: { value: sunWorld } },
       vertexShader: ATMOSPHERE_VERTEX,
       fragmentShader: ATMOSPHERE_FRAGMENT,
       side: THREE.BackSide,
@@ -462,6 +480,11 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
       setCloudObservedAt(live.observedAt)
     })
 
+    // 지구 좌표계에서의 태양 방향. 렌더할 때 지구의 현재 회전을 입혀 sunWorld로 만든다.
+    const sunLocal = new THREE.Vector3()
+    let sunUpdatedAt = -Infinity
+    const earthRotation = new THREE.Quaternion()
+
     const timer = new THREE.Timer()
     let rafId = 0
     const animate = (timestamp: number) => {
@@ -469,6 +492,17 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
       // 탭이 백그라운드였다가 돌아오면 경과 시간이 한꺼번에 들어온다. 지구가 순간이동하지 않게 자른다.
       const dt = Math.min(timer.getDelta(), 0.1)
       if (!dragging) spin.rotation.y += HOME_GLOBE_SPIN_RAD_PER_SEC * dt
+      const now = Date.now()
+      if (now - sunUpdatedAt >= SUN_UPDATE_INTERVAL_MS) {
+        const sun = subsolarPoint(new Date(now))
+        sunLocal.copy(toVector(sun.latitude, sun.longitude, 1))
+        sunUpdatedAt = now
+      }
+      spin.updateMatrixWorld()
+      sunWorld.copy(sunLocal).applyQuaternion(earth.getWorldQuaternion(earthRotation))
+      const lights = earthMaterial.uniforms.cityLights
+      const step = dt / CITY_LIGHTS_FADE_SEC
+      lights.value += THREE.MathUtils.clamp(cityLightsTargetRef.current - lights.value, -step, step)
       if (cloudUniforms.liveClouds.value === 0) clouds.rotation.y += CLOUD_DRIFT_RAD_PER_SEC * dt
       // 구름 구를 a만큼 돌리면 텍스처의 u가 a/2π만큼 밀린다. 그림자도 같은 만큼 밀어 읽는다.
       earthMaterial.uniforms.cloudOffset.value = clouds.rotation.y / (2 * Math.PI)
