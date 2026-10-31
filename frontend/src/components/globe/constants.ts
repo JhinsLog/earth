@@ -82,15 +82,21 @@ export const HOME_GLOBE_CLICK_TOLERANCE_PX = 5
 export const GLOBE_TRANSITION_MS = 600
 
 /**
- * 지도에서 최소 줌에 닿은 뒤 이만큼 더 축소하려 하면 홈 지구본으로 돌아간다(휠 deltaY 누적, 핀치는 px).
- * 최소 줌에 닿자마자 돌아가면, 그냥 지구 전체를 보려던 사람까지 화면이 바뀌어 버린다.
- */
-export const EXIT_TO_HOME_WHEEL_DELTA = 240
-/**
  * 홈 지구본을 이만큼(처음 크기의 배수) 확대하면 지도로 넘어간다. 지구가 화면을 넘칠 만큼 커진 때라,
  * 같은 위치·같은 크기의 지도로 겹쳐 바꾸면 계속 확대하는 것처럼 보인다.
  */
 export const HOME_GLOBE_ENTER_ZOOM = 1.8
 /** 휠 한 칸(deltaY 100)에 약 16% 확대. 지도(MapLibre)의 휠 확대 속도와 비슷하게 맞췄다. */
 export const HOME_GLOBE_WHEEL_ZOOM_RATE = 0.0015
-export const EXIT_TO_HOME_PINCH_PX = 80
+/** 홈 지구본이 처음 크기(배율 1)일 때 화면 짧은 변 대비 지구 지름 비율. */
+export const HOME_GLOBE_SCREEN_FRACTION = 0.72
+
+/**
+ * 홈 지구본을 배율 scale로 볼 때 화면에 보이는 지구 원판의 반지름(CSS px).
+ * 지도에서 축소해 이 크기(scale = HOME_GLOBE_ENTER_ZOOM)에 닿으면 홈 지구본으로 돌아간다. 들어갈 때와 같은 크기라
+ * 오갈 때 크기가 튀지 않는다. 지도의 최소 줌은 이보다 훨씬 작아서, 예전처럼 최소 줌을 기준으로 삼으면
+ * 그 사이 구간 동안 작아지는 지도가 계속 보였다(2026-10-31 사용자 지적).
+ */
+export function homeGlobeRadiusPx(width: number, height: number, scale: number): number {
+  return Math.min(width, height) * HOME_GLOBE_SCREEN_FRACTION * scale / 2
+}

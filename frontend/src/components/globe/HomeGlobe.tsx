@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import Starfield from './Starfield'
-import { HOME_GLOBE_CLICK_TOLERANCE_PX, HOME_GLOBE_ENTER_ZOOM, HOME_GLOBE_WHEEL_ZOOM_RATE } from './constants'
+import {
+  HOME_GLOBE_CLICK_TOLERANCE_PX,
+  HOME_GLOBE_ENTER_ZOOM,
+  HOME_GLOBE_SCREEN_FRACTION,
+  HOME_GLOBE_WHEEL_ZOOM_RATE,
+  homeGlobeRadiusPx,
+} from './constants'
 import type { GeoPoint } from '../../lib/geolocate'
 import { API_BASE_URL } from '../../lib/api'
 import { subsolarPoint } from '../../lib/sun'
@@ -17,6 +23,8 @@ interface Props {
   onEnter: (point: GeoPoint) => void
   /** 충분히 확대했을 때. 지도가 같은 위치·같은 크기로 이어받도록 화면 중앙의 위경도와 지구 반지름(px)을 넘긴다. */
   onZoomEnter: (view: HandoffView) => void
+  /** 지도에서 축소해 돌아왔을 때 이어받을 화면. 주면 그 지점을 정면에, 지구를 같은 크기로 보이게 시작한다. */
+  initialView?: HandoffView | null
 }
 
 /** 홈 지구본 → 지도로 넘길 때의 화면 상태. */
@@ -31,8 +39,6 @@ const EARTH_RADIUS = 1
 const STAR_RADIUS = 1.012
 const MAX_TILT_RAD = (60 * Math.PI) / 180
 const HOME_TILT_LIMIT_RAD = (30 * Math.PI) / 180
-// 화면 짧은 변 대비 지구 지름 비율.
-const GLOBE_SCREEN_FRACTION = 0.72
 const FOV_DEG = 30
 const CLOUD_RADIUS = 1.006
 const ATMOSPHERE_RADIUS = 1.025
@@ -283,7 +289,7 @@ function cloudCredit(observedAt: string, sources: string[]): string {
   return `${time} ${names.join(' · ')}${meteosat ? `, contains modified EUMETSAT Meteosat data ${date.getUTCFullYear()}` : ''}`
 }
 
-export default function HomeGlobe({ events, center, onEnter, onZoomEnter }: Props) {
+export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initialView = null }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
   const [hoveringEarth, setHoveringEarth] = useState(false)
@@ -299,7 +305,8 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter }: Prop
   }, [onEnter, onZoomEnter])
   // 장면은 한 번만 만들고, 별 데이터만 바뀔 때마다 갈아 끼운다.
   const starsRef = useRef<{ geometry: THREE.BufferGeometry; points: THREE.Points } | null>(null)
-  const initialCenterRef = useRef(center)
+  const initialCenterRef = useRef(initialView?.center ?? center)
+  const initialViewRef = useRef(initialView)
   // 설정의 도시 불빛. 장면 effect는 한 번만 돌기 때문에 렌더 루프가 이 ref를 읽어 서서히 맞춘다.
   const cityLights = useSettingsStore((state) => state.cityLights)
   const cityLightsTargetRef = useRef(cityLights ? 1 : 0)
@@ -327,10 +334,12 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter }: Prop
     const spin = new THREE.Group()
     tilt.add(spin)
     scene.add(tilt)
+    // 첫 접속은 극지방이 정면에 오지 않게 30°로 막고, 지도에서 돌아올 때는 지도가 보던 위도를 그대로 따른다(끌 때 한도와 같다).
+    const tiltLimit = initialViewRef.current ? MAX_TILT_RAD : HOME_TILT_LIMIT_RAD
     tilt.rotation.x = THREE.MathUtils.clamp(
       THREE.MathUtils.degToRad(initialCenterRef.current.latitude),
-      -HOME_TILT_LIMIT_RAD,
-      HOME_TILT_LIMIT_RAD,
+      -tiltLimit,
+      tiltLimit,
     )
     // 자전은 실제 시각에서 바로 구한다: 태양 쪽 경도를 정면에서 늘 같은 각도에 둔다(아래 animate).
     // 이 값은 '처음 정면에 둘 경도'와 '지금 태양 직하점 경도'의 차이이고, 사용자가 끌면 바뀐다.
@@ -428,12 +437,21 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter }: Prop
 
     // 확대 배율. 1이 처음 크기이고 HOME_GLOBE_ENTER_ZOOM에 닿으면 지도로 넘어간다.
     // 입력은 목표값만 바꾸고 화면은 매 프레임 그쪽으로 다가가 부드럽게 확대된다.
-    let zoom = 1
-    let zoomTarget = 1
+    // 지도에서 돌아왔으면 지도의 지구와 같은 크기에서 시작한다. 들어가는 기준보다 조금 작게 묶어 바로 다시 넘어가지 않게 한다.
+    const returnRadius = initialViewRef.current?.globeRadiusPx
+    let zoom =
+      returnRadius && container.clientWidth > 0 && container.clientHeight > 0
+        ? THREE.MathUtils.clamp(
+            returnRadius / homeGlobeRadiusPx(container.clientWidth, container.clientHeight, 1),
+            1,
+            HOME_GLOBE_ENTER_ZOOM * 0.98,
+          )
+        : 1
+    let zoomTarget = zoom
     let handedOff = false
     const halfFov = THREE.MathUtils.degToRad(FOV_DEG / 2)
     /** 지구 원판이 화면에서 보이는 각반지름의 탄젠트. 짧은 변 기준이라 세로 화면(모바일)에서 좌우가 잘리지 않는다. */
-    const globeTan = (scale: number) => Math.tan(halfFov) * Math.min(1, camera.aspect) * GLOBE_SCREEN_FRACTION * scale
+    const globeTan = (scale: number) => Math.tan(halfFov) * Math.min(1, camera.aspect) * HOME_GLOBE_SCREEN_FRACTION * scale
     const applyCamera = () => {
       const t = globeTan(zoom)
       // 각반지름 α에서 sin α = 1/거리, tan α = t → 거리 = sqrt(1 + 1/t²)
@@ -469,7 +487,7 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter }: Prop
       raycaster.setFromCamera(new THREE.Vector2(0, 0), camera)
       const hit = raycaster.intersectObject(earth, false)[0]
       if (!hit) return
-      const globeRadiusPx = (globeTan(zoom) / Math.tan(halfFov)) * (container.clientHeight / 2)
+      const globeRadiusPx = homeGlobeRadiusPx(container.clientWidth, container.clientHeight, zoom)
       onZoomEnterRef.current({ center: toLatLng(earth.worldToLocal(hit.point.clone())), globeRadiusPx })
     }
     const zoomBy = (factor: number) => {

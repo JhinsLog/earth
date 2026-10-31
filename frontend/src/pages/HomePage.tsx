@@ -66,6 +66,8 @@ export default function HomePage() {
   const [enterPoint, setEnterPoint] = useState<GeoPoint | null>(null)
   /** 지구본을 확대해 들어왔을 때 지도가 이어받을 화면. 있으면 지도는 어디로도 날아가지 않고 그 자리에서 시작한다. */
   const [enterView, setEnterView] = useState<HandoffView | null>(null)
+  /** 지도에서 축소해 돌아왔을 때 홈 지구본이 이어받을 화면. 없으면 처음 화면(globeCenter, 배율 1)으로 시작한다. */
+  const [returnView, setReturnView] = useState<HandoffView | null>(null)
   const [globeCenter] = useState<GeoPoint>(() => ({ latitude: 20, longitude: approximateLongitudeFromTimezone() }))
 
   // 지도로 들어갈 때는 지도가 준비될 때까지(타일 도착) 지구본을 그대로 두고 지도는 숨겨 둔다.
@@ -113,7 +115,9 @@ export default function HomePage() {
     switchView('map')
   }
 
-  const exitToGlobe = () => {
+  // 로고로 돌아갈 때는 view 없이 처음 화면으로 돌아간다.
+  const exitToGlobe = (view: HandoffView | null) => {
+    setReturnView(view)
     selectEvent(null)
     setSelectedDraftId(null)
     switchView('globe')
@@ -190,14 +194,20 @@ export default function HomePage() {
   return (
     <div className={`home${selectedEvent ? ' home--panel-open' : ''}`}>
       <Navbar
-        onBrandClick={exitToGlobe}
+        onBrandClick={() => exitToGlobe(null)}
       />
 
       {(view === 'globe' || leaving === 'globe') && (
         <div
           className={`home__layer${view === 'globe' ? ' home__layer--in' : waitingForMap ? ' home__layer--hold' : ' home__layer--out'}`}
         >
-          <HomeGlobe events={events} center={globeCenter} onEnter={handleGlobeClick} onZoomEnter={handleGlobeZoomEnter} />
+          <HomeGlobe
+            events={events}
+            center={globeCenter}
+            initialView={returnView}
+            onEnter={handleGlobeClick}
+            onZoomEnter={handleGlobeZoomEnter}
+          />
         </div>
       )}
 
@@ -230,7 +240,7 @@ export default function HomePage() {
               }}
               initialFocusLatLng={enterView ? null : (enterPoint ?? initialFocusLatLng)}
               initialView={enterView}
-              onZoomOutBeyondMin={exitToGlobe}
+              onZoomOutToHome={exitToGlobe}
               onReady={handleMapReady}
               myLocation={myLocation}
               locating={locating}

@@ -30,8 +30,8 @@ import {
   MY_LOCATION_COLOR,
   MY_LOCATION_MIN_ZOOM,
   MY_LOCATION_ZOOM,
-  EXIT_TO_HOME_PINCH_PX,
-  EXIT_TO_HOME_WHEEL_DELTA,
+  HOME_GLOBE_ENTER_ZOOM,
+  homeGlobeRadiusPx,
   VIEWPORT_QUERY_DEBOUNCE_MS,
   VIEWPORT_QUERY_MIN_ZOOM,
 } from './constants'
@@ -62,6 +62,13 @@ const DRAFT_CLICK_LAYER_IDS = ['drafts-aura-layer', 'drafts-white-core'] as cons
  */
 /** 마지막 확대·축소 입력 뒤 자동 자전을 다시 시작하기까지 기다리는 시간. */
 const ZOOM_INPUT_ROTATE_PAUSE_MS = 1000
+/** 휠·핀치 축소 입력 뒤 이 시간 안의 줌 변화까지 사용자의 축소로 본다. 휠 한 번의 확대·축소 애니메이션이 이 정도 걸린다. */
+const ZOOM_OUT_INPUT_WINDOW_MS = 400
+/**
+ * 지도에서 축소해 이 배율(홈 지구본 기준) 크기가 되면 홈 지구본으로 돌아간다. 들어가는 배율보다 조금 작게 둬서,
+ * 돌아온 홈 지구본이 같은 크기로 시작하면서도 곧바로 다시 지도로 넘어가지 않게 한다.
+ */
+const HOME_GLOBE_EXIT_ZOOM = HOME_GLOBE_ENTER_ZOOM * 0.98
 
 function globeRadiusOnScreen(map: MapLibreMap): number {
   const center = map.getCenter()
@@ -110,8 +117,8 @@ interface Props {
   onLocateRequest: () => Promise<LocatedPoint | null>
   /** 지도가 멈췄을 때 화면 범위. VIEWPORT_QUERY_MIN_ZOOM 이상에서만 호출된다. */
   onViewportChange?: (bounds: ViewportBounds) => void
-  /** 최소 줌에서 더 축소하려 할 때. 홈 지구본으로 돌아가는 데 쓴다. */
-  onZoomOutBeyondMin?: () => void
+  /** 축소해 지구가 홈 지구본이 넘어오던 크기가 됐을 때. 홈 지구본이 같은 위치·크기로 이어받도록 화면을 넘긴다. */
+  onZoomOutToHome?: (view: HandoffView) => void
   /** 스타일과 타일이 준비돼 화면에 나타났을 때. 홈 지구본은 이때까지 남아 있다가 겹쳐 사라진다. */
   onReady?: () => void
 }
@@ -327,7 +334,7 @@ export default function MapGlobe({
   locateError,
   onLocateRequest,
   onViewportChange,
-  onZoomOutBeyondMin,
+  onZoomOutToHome,
   onReady,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -360,8 +367,8 @@ export default function MapGlobe({
   onDraftCreateRef.current = onDraftCreate
   const onViewportChangeRef = useRef(onViewportChange)
   onViewportChangeRef.current = onViewportChange
-  const onZoomOutBeyondMinRef = useRef(onZoomOutBeyondMin)
-  onZoomOutBeyondMinRef.current = onZoomOutBeyondMin
+  const onZoomOutToHomeRef = useRef(onZoomOutToHome)
+  onZoomOutToHomeRef.current = onZoomOutToHome
   const onReadyRef = useRef(onReady)
   onReadyRef.current = onReady
   const onDraftSelectRef = useRef(onDraftSelect)
@@ -475,24 +482,34 @@ export default function MapGlobe({
     }
     map.on('moveend', scheduleViewportQuery)
 
-    // MapLibre는 최소 줌에서 더 축소하려는 입력을 조용히 무시하고 이벤트도 내지 않는다.
-    // 그래서 원본 입력(휠, 두 손가락 핀치)을 직접 보고, 최소 줌에 닿은 상태에서 더 밀어낸 양을 센다.
-    let overscroll = 0
+    // 축소하다 지구가 홈 지구본이 지도로 넘어가던 크기까지 작아지면 그 자리에서 홈 지구본으로 돌아간다.
+    // 들어갈 때와 같은 크기·같은 중심을 넘겨, 오가는 순간 지구 크기와 위치가 튀지 않게 한다.
+    // 사용자가 축소하는 중일 때만 본다 — 로고 버튼처럼 코드가 줌을 바꿀 때까지 돌아가면 안 된다.
+    // MapLibre는 최소 줌에서 더 축소하려는 입력을 조용히 무시하고 이벤트도 내지 않으므로, 최소 줌에 닿은
+    // 경우(화면이 아주 납작해 기준 크기보다 최소 줌이 큰 때)도 원본 입력(휠, 두 손가락 핀치)에서 직접 확인한다.
     // 마지막 휠·핀치 입력 시각. 자동 자전이 이 직후에는 쉬게 하는 데 쓴다(아래 rotate).
     let lastZoomInputAt = 0
+    let lastZoomOutInputAt = -Infinity
+    let exited = false
     let pinchDistance: number | null = null
     const atMinZoom = () => map.getZoom() <= MIN_ZOOM + 0.01
-    const exitIfFarEnough = (amount: number, threshold: number) => {
-      overscroll += amount
-      if (overscroll >= threshold) {
-        overscroll = 0
-        onZoomOutBeyondMinRef.current?.()
-      }
+    const exitIfSmallEnough = () => {
+      if (exited || performance.now() - lastZoomOutInputAt > ZOOM_OUT_INPUT_WINDOW_MS) return
+      const container = map.getContainer()
+      const exitRadius = homeGlobeRadiusPx(container.clientWidth, container.clientHeight, HOME_GLOBE_EXIT_ZOOM)
+      const radius = globeRadiusOnScreen(map)
+      if (radius > exitRadius && !atMinZoom()) return
+      exited = true
+      const center = map.getCenter()
+      onZoomOutToHomeRef.current?.({ center: { latitude: center.lat, longitude: center.lng }, globeRadiusPx: radius })
     }
+    map.on('zoom', exitIfSmallEnough)
     const onWheel = (e: WheelEvent) => {
       lastZoomInputAt = performance.now()
-      if (e.deltaY > 0 && atMinZoom()) exitIfFarEnough(e.deltaY, EXIT_TO_HOME_WHEEL_DELTA)
-      else overscroll = 0
+      if (e.deltaY > 0) {
+        lastZoomOutInputAt = lastZoomInputAt
+        exitIfSmallEnough()
+      }
     }
     const onTouchMove = (e: TouchEvent) => {
       if (e.touches.length !== 2) {
@@ -502,14 +519,14 @@ export default function MapGlobe({
       lastZoomInputAt = performance.now()
       const [a, b] = [e.touches[0], e.touches[1]]
       const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
-      if (pinchDistance !== null && distance < pinchDistance && atMinZoom()) {
-        exitIfFarEnough(pinchDistance - distance, EXIT_TO_HOME_PINCH_PX)
+      if (pinchDistance !== null && distance < pinchDistance) {
+        lastZoomOutInputAt = lastZoomInputAt
+        exitIfSmallEnough()
       }
       pinchDistance = distance
     }
     const onTouchEnd = () => {
       pinchDistance = null
-      overscroll = 0
     }
     const canvasContainer = map.getCanvasContainer()
     canvasContainer.addEventListener('wheel', onWheel, { passive: true })
