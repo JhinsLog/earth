@@ -86,7 +86,7 @@ class CloudMapRendererTest {
     @Test
     @DisplayName("JPEG로 인코딩된다")
     void encodesJpeg() {
-        byte[] jpeg = CloudMapRenderer.renderJpeg(source((lat, lon) -> lat > 0), WIDTH);
+        byte[] jpeg = CloudMapRenderer.encodeJpeg(CloudMapRenderer.render(source((lat, lon) -> lat > 0), WIDTH), WIDTH, HEIGHT);
 
         assertThat(jpeg[0]).isEqualTo((byte) 0xFF);
         assertThat(jpeg[1]).isEqualTo((byte) 0xD8);

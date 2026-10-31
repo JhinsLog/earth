@@ -33,19 +33,29 @@ const CITY_LIGHTS_FADE_SEC = 0.6
 // 실시간 구름은 실제 위치가 의미라 흘리지 않는다.
 const CLOUD_DRIFT_RAD_PER_SEC = 0.004
 
+// 백엔드가 10분마다 위성 영상을 다시 합성한다(응답 캐시는 5분). 같은 간격으로 다시 받는다.
+const LIVE_CLOUDS_REFRESH_MS = 10 * 60 * 1000
+
+interface LiveClouds {
+  observedAt: string | null
+  /** 이 이미지에 쓰인 자료의 제공 기관. 출처 표기에 그대로 쓴다. */
+  sources: string[]
+}
+
 /**
- * 실시간 구름(NOAA GMGSI, 백엔드가 1시간마다 변환). 실패하면 null이고 정적 구름 사진을 그대로 쓴다.
+ * 실시간 구름(정지궤도 위성 다섯 기 합성, 빈 곳은 NOAA GMGSI). 실패하면 null이고 지금 쓰는 구름을 그대로 둔다.
  * 구름은 장식이라 이 요청이 실패해도 화면은 정상이어야 한다.
  */
-async function loadLiveClouds(signal: AbortSignal): Promise<{ texture: THREE.Texture; observedAt: string | null } | null> {
+async function loadLiveClouds(signal: AbortSignal): Promise<({ texture: THREE.Texture } & LiveClouds) | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/globe/clouds`, { signal })
     if (!response.ok) return null
     const observedAt = response.headers.get('X-Clouds-Observed-At')
+    const sources = (response.headers.get('X-Clouds-Sources') ?? '').split(',').filter(Boolean)
     const url = URL.createObjectURL(await response.blob())
     try {
       const texture = await new THREE.TextureLoader().loadAsync(url)
-      return { texture, observedAt }
+      return { texture, observedAt, sources }
     } finally {
       URL.revokeObjectURL(url)
     }
@@ -255,12 +265,21 @@ const STAR_FRAGMENT = /* glsl */ `
   }
 `
 
+/** 예: "14:30 NASA GIBS · EUMETSAT, contains modified EUMETSAT Meteosat data 2026". 시각은 보는 사람의 현지 시각. */
+function cloudCredit(observedAt: string, sources: string[]): string {
+  const date = new Date(observedAt)
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+  const names = sources.length > 0 ? sources : ['NOAA GMGSI']
+  const meteosat = names.some((s) => s === 'EUMETSAT' || s === 'NOAA GMGSI')
+  return `${time} ${names.join(' · ')}${meteosat ? `, contains modified EUMETSAT Meteosat data ${date.getUTCFullYear()}` : ''}`
+}
+
 export default function HomeGlobe({ events, center, onEnter }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
   const [hoveringEarth, setHoveringEarth] = useState(false)
-  // 실시간 구름의 위성 관측 시각. 없으면 정적 구름 사진을 쓰는 중이다.
-  const [cloudObservedAt, setCloudObservedAt] = useState<string | null>(null)
+  // 실시간 구름의 관측 시각과 출처. 없으면 정적 구름 사진을 쓰는 중이다.
+  const [liveClouds, setLiveClouds] = useState<LiveClouds | null>(null)
 
   // 장면을 만드는 effect는 한 번만 돌기 때문에, 그 안의 클릭 처리기는 이 ref로 최신 콜백을 읽는다.
   const onEnterRef = useRef(onEnter)
@@ -464,21 +483,29 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
 
     const liveCloudsRequest = new AbortController()
     let liveCloudMap: THREE.Texture | null = null
-    void loadLiveClouds(liveCloudsRequest.signal).then((live) => {
-      if (!live || liveCloudsRequest.signal.aborted) {
-        live?.texture.dispose()
-        return
-      }
-      liveCloudMap = live.texture
-      // 경도 ±180°에서 이어 읽는다.
-      liveCloudMap.wrapS = THREE.RepeatWrapping
-      liveCloudMap.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
-      cloudUniforms.liveCloudMap.value = liveCloudMap
-      cloudUniforms.liveClouds.value = 1
-      // 실제 위치에 맞춰 구름층을 원위치로 되돌린다.
-      clouds.rotation.y = 0
-      setCloudObservedAt(live.observedAt)
-    })
+    let liveObservedAt: string | null = null
+    const refreshLiveClouds = () =>
+      loadLiveClouds(liveCloudsRequest.signal).then((live) => {
+        // 같은 이미지면 갈아 끼우지 않는다(GPU 업로드를 아낀다).
+        if (!live || liveCloudsRequest.signal.aborted || (liveCloudMap && live.observedAt === liveObservedAt)) {
+          live?.texture.dispose()
+          return
+        }
+        const previous = liveCloudMap
+        liveCloudMap = live.texture
+        liveObservedAt = live.observedAt
+        // 경도 ±180°에서 이어 읽는다.
+        liveCloudMap.wrapS = THREE.RepeatWrapping
+        liveCloudMap.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
+        cloudUniforms.liveCloudMap.value = liveCloudMap
+        cloudUniforms.liveClouds.value = 1
+        previous?.dispose()
+        // 실제 위치에 맞춰 구름층을 원위치로 되돌린다.
+        clouds.rotation.y = 0
+        setLiveClouds({ observedAt: live.observedAt, sources: live.sources })
+      })
+    void refreshLiveClouds()
+    const liveCloudsTimer = window.setInterval(() => void refreshLiveClouds(), LIVE_CLOUDS_REFRESH_MS)
 
     // 지구 좌표계에서의 태양 방향. 렌더할 때 지구의 현재 회전을 입혀 sunWorld로 만든다.
     const sunLocal = new THREE.Vector3()
@@ -513,6 +540,7 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
     return () => {
       cancelAnimationFrame(rafId)
       liveCloudsRequest.abort()
+      window.clearInterval(liveCloudsTimer)
       liveCloudMap?.dispose()
       noLiveClouds.dispose()
       timer.dispose()
@@ -567,12 +595,10 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
         className={`home-globe__canvas${hoveringEarth ? ' home-globe__canvas--hover' : ''}`}
       />
       {/* NASA 자료는 퍼블릭 도메인이지만 출처 표기를 요청한다. 지도 화면은 MapLibre 출처 표시가 맡는다.
-          GMGSI에는 유럽 위성(Meteosat) 자료가 섞여 있어 EUMETSAT 데이터 정책 6.3조의 표기를 붙인다. */}
+          EUMETSAT 영상과 GMGSI(Meteosat 포함)를 쓰면 EUMETSAT 데이터 정책 6.3조의 표기를 붙인다. */}
       <span className="home-globe__credit">
         Imagery: NASA GIBS · Clouds:{' '}
-        {cloudObservedAt
-          ? `NOAA GMGSI ${new Date(cloudObservedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}, contains modified EUMETSAT Meteosat data ${new Date(cloudObservedAt).getUTCFullYear()}`
-          : 'NASA Visible Earth'}{' '}
+        {liveClouds?.observedAt ? cloudCredit(liveClouds.observedAt, liveClouds.sources) : 'NASA Visible Earth'}{' '}
         · Water mask © OpenStreetMap contributors
       </span>
     </div>

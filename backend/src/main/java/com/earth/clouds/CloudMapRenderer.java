@@ -46,12 +46,8 @@ public final class CloudMapRenderer {
     private CloudMapRenderer() {
     }
 
-    public static byte[] renderJpeg(Source source, int width) {
-        return encodeJpeg(render(source, width), width, width / 2);
-    }
-
     /** 등장방형 흑백 픽셀(행 우선). 밝을수록 구름이 짙다. */
-    static byte[] render(Source source, int width) {
+    public static byte[] render(Source source, int width) {
         int height = width / 2;
         byte[] out = new byte[width * height];
         double mercNorth = mercator(source.northLat());
@@ -105,7 +101,7 @@ public final class CloudMapRenderer {
         return Math.log(Math.tan(Math.PI / 4 + Math.toRadians(latDeg) / 2));
     }
 
-    private static byte[] encodeJpeg(byte[] gray, int width, int height) {
+    public static byte[] encodeJpeg(byte[] gray, int width, int height) {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
         image.getRaster().setDataElements(0, 0, width, height, gray);
         ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next();

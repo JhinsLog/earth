@@ -37,7 +37,8 @@ public final class GmgsiFiles {
      * 루트 속성을 읽다 실패한다(HdfException: Failed to load attributes for '//'). lat은 한 덩어리로 압축돼
      * 있어 두 값을 읽는 데 덩어리를 풀지만, 1시간에 한 번이라 감수한다.
      */
-    public static byte[] renderJpeg(Path file, int width) {
+    /** 등장방형 흑백 픽셀(행 우선). {@link CloudMapRenderer#render} 참고. */
+    public static byte[] renderGray(Path file, int width) {
         try (HdfFile hdf = new HdfFile(file)) {
             Dataset data = hdf.getDatasetByPath("/data");
             int[] dims = data.getDimensions(); // [time=1, rows, cols]
@@ -54,7 +55,7 @@ public final class GmgsiFiles {
             }
             CloudMapRenderer.Source source = new CloudMapRenderer.Source(rows, cols, north, south,
                     (start, count) -> ((float[][][]) data.getData(new long[]{0, start, 0}, new int[]{1, count, cols}))[0]);
-            return CloudMapRenderer.renderJpeg(source, width);
+            return CloudMapRenderer.render(source, width);
         }
     }
 

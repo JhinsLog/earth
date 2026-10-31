@@ -87,8 +87,10 @@ public class SecurityConfig {
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
-        // 프론트가 구름 관측 시각을 읽으려면 노출 헤더로 열어야 한다(기본은 몇 가지 표준 헤더만 보인다).
-        configuration.setExposedHeaders(List.of(com.earth.controller.GlobeController.OBSERVED_AT_HEADER));
+        // 프론트가 구름 관측 시각·출처를 읽으려면 노출 헤더로 열어야 한다(기본은 몇 가지 표준 헤더만 보인다).
+        configuration.setExposedHeaders(List.of(
+                com.earth.controller.GlobeController.OBSERVED_AT_HEADER,
+                com.earth.controller.GlobeController.SOURCES_HEADER));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

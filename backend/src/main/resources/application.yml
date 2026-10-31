@@ -78,8 +78,9 @@ earth:
   clouds:
     # 홈 지구본 실시간 구름(NOAA GMGSI). 출처는 docs/data-sources.md
     enabled: true
-    # 원본은 1시간마다 오지만 올라오는 시각이 일정하지 않아 목록만 자주 본다. 새 파일일 때만 받는다.
+    # 위성 다섯 기 직접 합성(10분). GMGSI(1시간)는 빈 지역을 채우는 바탕으로 같이 받는다. 새 영상일 때만 받는다.
     refresh-interval-ms: 600000
+    ring-enabled: true
 
 springdoc:
   # 운영에서는 API 명세 전체가 외부에 공개되지 않도록 기본적으로 끈다.

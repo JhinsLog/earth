@@ -16,6 +16,8 @@ public class GlobeController {
 
     /** 브라우저가 관측 시각을 표시할 수 있게 응답 헤더로 준다. CORS에서 노출 헤더로 열어 둔다. */
     public static final String OBSERVED_AT_HEADER = "X-Clouds-Observed-At";
+    /** 이 이미지에 쓰인 자료의 제공 기관(쉼표 구분). 화면 출처 표기에 쓴다. */
+    public static final String SOURCES_HEADER = "X-Clouds-Sources";
 
     private final CloudMapStore cloudMapStore;
 
@@ -35,9 +37,11 @@ public class GlobeController {
         return cloudMapStore.current()
                 .map(map -> ResponseEntity.ok()
                         .contentType(MediaType.IMAGE_JPEG)
-                        .cacheControl(CacheControl.maxAge(10, TimeUnit.MINUTES).cachePublic())
+                        // 10분마다 바뀌므로 그 절반만 캐시해, 프론트가 10분마다 다시 물을 때 새 이미지를 받게 한다.
+                        .cacheControl(CacheControl.maxAge(5, TimeUnit.MINUTES).cachePublic())
                         .lastModified(map.observedAt())
                         .header(OBSERVED_AT_HEADER, map.observedAt().toString())
+                        .header(SOURCES_HEADER, String.join(",", map.sources()))
                         .body(map.jpeg()))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }

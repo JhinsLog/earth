@@ -19,7 +19,8 @@ Earth가 쓰는 외부 데이터와 서비스를 정리한다. 각 항목마다 
 | 홈 지구 밤 불빛(설정에서 켤 때만) | NASA GIBS, VIIRS Black Marble | 빌드 | 고정 | NASA 공개 자료 | — |
 | 홈 지구 정적 구름 | NASA Visible Earth, Blue Marble cloud composite | 빌드 | 고정 | NASA 공개 자료 | — |
 | 홈 지구 육지/바다 마스크 | NASA GIBS `OSM_Land_Water_Map` (OpenStreetMap 기반) | 빌드 | 고정 | ODbL, © OpenStreetMap contributors | — |
-| **홈 지구 실시간 구름** | **NOAA GMGSI** (AWS 공개 버킷) | **서버** | **1시간** | 미국 정부 공개 자료 + Meteosat 부분은 EUMETSAT CC-BY-4.0(표기 필요) | 정적 구름으로 대체 |
+| **홈 지구 실시간 구름(본체)** | **NASA GIBS WMS**(GOES-East·West, Himawari) + **EUMETSAT EUMETView WMS**(Meteosat 0°·인도양) | **서버** | **10분**(인도양 15분) | NASA 공개 자료 / EUMETSAT Core, CC-BY-4.0(표기 필요) | 위성별 이전 영상, 빈 지역은 GMGSI |
+| 홈 지구 실시간 구름(바탕) | NOAA GMGSI (AWS 공개 버킷) | 서버 | 1시간 | 미국 정부 공개 자료 + Meteosat 부분은 EUMETSAT CC-BY-4.0(표기 필요) | 정적 구름으로 대체 |
 | 지도 저배율 위성 타일 | NASA GIBS, Blue Marble | 빌드 | 고정 | NASA 공개 자료 | — |
 | 지도 고배율 위성 타일 | Esri World Imagery | 브라우저 | Esri 측 | Esri 이용약관, 출처 표기 | 해당 줌에서 타일 없음 |
 | 지도 어두운 배경 | Esri World Dark Gray Base | 브라우저 | Esri 측 | Esri 이용약관 | 배경 없음 |
@@ -29,7 +30,78 @@ Earth가 쓰는 외부 데이터와 서비스를 정리한다. 각 항목마다 
 | 첫 화면 위치(IP 기반) | ipwho.is, geojs.io | 브라우저 | 요청마다 | 각 서비스 약관 | 기본 위치로 시작 |
 | 로그인 프로필 | Google OAuth2 | 로그인 시 | 로그인마다 | Google API 약관 | 로그인 실패 |
 
-## 실시간 구름: NOAA GMGSI
+## 실시간 구름: 정지궤도 위성 다섯 기 합성
+
+지구를 한 바퀴 두르는 정지궤도 기상위성 다섯 기의 적외선(약 10.4 µm) 영상을 10분마다 받아 한 장으로 합친다.
+원본 수치 파일이 아니라 각 기관이 웹 지도 서비스(WMS)로 공개하는 단일 채널 영상을 쓴다. 서버가 위경도 격자로
+재투영해 주고, 라이선스도 이쪽이 자유롭다(아래).
+
+| 위성 | 직하점 경도 | 받는 곳 | 레이어 | 간격 |
+| --- | --- | --- | --- | --- |
+| GOES-West | 137.2°W | NASA GIBS WMS | `GOES-West_ABI_Band13_Clean_Infrared` | 10분 |
+| GOES-East | 75.2°W | NASA GIBS WMS | `GOES-East_ABI_Band13_Clean_Infrared` | 10분 |
+| Meteosat-12 (MTG) | 0° | EUMETSAT EUMETView WMS | `mtg_fd:ir105_hrfi` | 10분 |
+| Meteosat IODC | 45.5°E | EUMETSAT EUMETView WMS | `msg_iodc:ir108` | 15분 |
+| Himawari | 140.7°E | NASA GIBS WMS | `Himawari_AHI_Band13_Clean_Infrared` | 10분 |
+
+```
+https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi           영상(GetMap, EPSG:4326, 2048×1024)
+https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/1.0.0/{레이어}/default/2km/all/{시작}--{끝}.xml   관측 시각 목록(DescribeDomains)
+https://gibs.earthdata.nasa.gov/colormaps/v1.3/Clean_Longwave_Infrared_Window_Band.xml          색 → 섭씨 표
+https://view.eumetsat.int/geoserver/ows                              영상(GetMap)
+```
+
+**처리 흐름** (`CloudMapRefreshScheduler`, 10분마다)
+
+```
+GeoRingFrames.refresh: 위성마다 이미 가진 것보다 새 영상이 있으면 받는다
+  GIBS      → 시각 목록에서 최신 시각 → 영상(빈 영상이면 최대 3번 다시)
+  EUMETView → 지금부터 관측 간격씩 거슬러 64×32로 있는지만 묻고, 있으면 전체 크기로
+  GIBS 색 → 가장 가까운 표 색의 섭씨 → 3×3 중앙값(점 잡음 제거)
+  3시간 넘은 영상은 버림
+CloudComposer.compose:
+  EUMETView 밝기 → 섭씨: 겹치는 GIBS 영상과 최소제곱 직선(실패하면 기본값)
+  칸마다 위성별 가중치 max(cos 천정각 - 0.15, 0)^3 으로 섭씨 평균 → 구름 밀도
+  어느 위성도 못 본 칸은 GMGSI로 채움
+→ JPEG → CloudMapStore → GET /api/globe/clouds (X-Clouds-Observed-At = 쓰인 영상 중 가장 오래된 관측 시각,
+  X-Clouds-Sources = 제공 기관)
+프론트: 10분마다 다시 받고, 관측 시각이 바뀌었을 때만 텍스처를 갈아 끼운다
+```
+
+**측정** (2026-10-31 04:49 UTC, LattePanda Alpha)
+
+| 항목 | 값 |
+| --- | --- |
+| 첫 수집(다섯 장) | 14.7초 |
+| 새 영상이 없을 때 확인 | 4.4초 |
+| 합성 | 0.5~0.7초 |
+| 결과 | 2048×1024 JPEG 364KB |
+| 받는 양 | 새 영상마다 GIBS 약 1.3MB, EUMETView 0.3~0.7MB. 10분에 약 5MB |
+| 영상 나이(측정 시점) | 19~39분. GMGSI만 쓸 때는 약 35분~1시간 45분 |
+| EUMETView 환산 | Meteosat-12: 온도 = -0.367 × 밝기 + 27.6 (겹침 3만 칸, RMS 6.6°C) / IODC: -0.249 × 밝기 + 22.7 (1.5만 칸, RMS 7.0°C) |
+
+**막혔던 점과 판단**
+- GIBS 영상의 색이 색상표와 정확히 일치하는 픽셀이 60%대였다. 원본 해상도 타일도 같았다(축소본에서 이웃
+  색이 섞인다). 가장 가까운 색으로 되돌리고 3×3 중앙값으로 점 잡음을 걷어냈다. 이 필터 하나로 EUMETView
+  환산 오차도 15°C → 6.5°C로 줄었다. 오차 대부분이 GIBS 쪽 잡음이었다.
+- GIBS는 같은 주소를 여러 번 물으면 빈 영상과 정상 영상이 섞여 왔다(GOES-West, 세 번 중 1~2번 정상).
+  작은 크기로 있는지만 묻는 방식은 거의 늘 빈 영상이라 쓸 수 없어서, 시각 목록(DescribeDomains)으로 최신 시각을
+  정하고 빈 영상이면 다시 묻는다.
+- EUMETView는 없는 시각을 물으면 HTTP 200에 XML 예외를 주고, 있는 시각이면 실제로 쓴 시각을 `Warning` 헤더에
+  준다("99 Nearest value used: time=...").
+- 위성마다 관측 시각이 최대 20분 다르다. 구름은 시속 30~60km로 움직여 20분이면 10~20km이고, 이미지 한 칸(약
+  20km) 안이라 위성마다 최신 영상을 그대로 쓴다.
+- 위성 원판 가장자리(천정각 81° 밖)는 쓰지 않는다. 비스듬히 보면 해상도가 떨어지고 구름이 두꺼워 보인다.
+
+**라이선스**
+- GIBS: NASA가 공개하는 영상. 출처 표기를 요청한다.
+- EUMETView: EUMETSAT 데이터 정책(2026-01판) 4조에서 SEVIRI·FCI의 Advanced Image Products를 Core로 분류하고,
+  정의에서 이를 "Web Map Services 등에 쓰이는 단일 채널 시각화, 원본 수치 미포함"이라 한다. Core는 5조에 따라
+  CC-BY-4.0으로 누구나 무료로 재배포할 수 있고, 6.3조의 표기("Contains modified EUMETSAT Meteosat data 연도")가
+  필요하다. 같은 Meteosat이라도 1시간 미만 지연의 원본 수치 파일은 유료(14조)라 쓰지 않는다.
+- EUMETView 자체의 이용 약관·호출 한도 문서는 찾지 못했다. 10분에 영상 두 장 정도만 받는다.
+
+## 실시간 구름 바탕: NOAA GMGSI
 
 **무엇** — Global Mosaic of Geostationary Satellite Imagery. NOAA가 정지궤도 기상위성 다섯 기
 (GOES-East·West, Himawari, Meteosat 두 기)의 장파 적외선(약 10.3~10.8 µm 대역) 영상을 이어 붙인
@@ -107,7 +179,8 @@ GET /api/globe/clouds → JPEG + X-Clouds-Observed-At 헤더 (없으면 404)
 
 | 출처 | 내용 | 갱신 | 장점 | 쓰지 않은 이유 |
 | --- | --- | --- | --- | --- |
-| NASA GIBS 정지궤도 레이어 (GOES-East/West, Himawari) | 적외선, GeoColor(컬러) | 수십 분 | 컬러 실사, 지금 쓰는 GIBS와 같은 방식 | Meteosat 레이어가 없어 유럽·아프리카·인도양이 빈다 |
+| 위성 원본 파일 (AWS `noaa-goes19`·`noaa-goes18` ABI-L2-CMIPF, `noaa-himawari9` AHI-L1b) | 정확한 밝기온도 | 10분, 관측 10~13분 뒤 | 가장 빠르고 정확 | 10분에 약 72MB. Himawari는 전용 바이너리(HSD) 해석기가 필요. Meteosat 원본은 1시간 미만 지연이 유료 |
+| EUMETView 전 지구 합성(`mumi:worldcloudmap_ir108`) | 적외선 전 지구 한 장 | 3시간 | 합성할 필요 없음 | 너무 드물다 |
 | NASA GIBS 극궤도 레이어 (MODIS, VIIRS TrueColor) | 하루 한 번 컬러 사진 | 1일 | 가장 실사 같은 색 | 궤도 사이에 빈 띠가 생기고, 지역마다 촬영 시각이 다르다 |
 | NOAA GFS | 예보 모델의 구름량 격자 | 6시간 | 전 지구, 예보까지 | 관측이 아니라 모델 계산값. GRIB2 처리가 무겁다 |
 | 상용 날씨 API (OpenWeatherMap 구름 타일 등) | 구름 타일 | 수십 분 | 붙이기 쉽다 | API 키·호출 한도·약관. 웹 메르카토르 타일이라 구 텍스처로 다시 합쳐야 한다 |
