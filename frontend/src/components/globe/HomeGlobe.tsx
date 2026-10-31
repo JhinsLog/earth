@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import Starfield from './Starfield'
-import { HOME_GLOBE_CLICK_TOLERANCE_PX, HOME_GLOBE_SPIN_RAD_PER_SEC } from './constants'
+import { HOME_GLOBE_CLICK_TOLERANCE_PX } from './constants'
 import type { GeoPoint } from '../../lib/geolocate'
 import { API_BASE_URL } from '../../lib/api'
 import { subsolarPoint } from '../../lib/sun'
@@ -27,8 +27,6 @@ const GLOBE_SCREEN_FRACTION = 0.72
 const FOV_DEG = 30
 const CLOUD_RADIUS = 1.006
 const ATMOSPHERE_RADIUS = 1.025
-// 태양 직하점은 0.25°/분씩 움직인다. 화면에서 구분되지 않으므로 매 프레임이 아니라 이 간격으로 다시 구한다.
-const SUN_UPDATE_INTERVAL_MS = 10_000
 // 도시 불빛 토글이 한 번에 켜지고 꺼지지 않고 이 시간 동안 번지듯 바뀐다.
 const CITY_LIGHTS_FADE_SEC = 0.6
 // 정적 구름 사진일 때만 지구보다 조금 빨리 흘려 정지 사진이 아니라는 느낌을 준다.
@@ -304,7 +302,9 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
       -HOME_TILT_LIMIT_RAD,
       HOME_TILT_LIMIT_RAD,
     )
-    spin.rotation.y = spinFacing(initialCenterRef.current.longitude)
+    // 자전은 실제 시각에서 바로 구한다: 태양 쪽 경도를 정면에서 늘 같은 각도에 둔다(아래 animate).
+    // 이 값은 '처음 정면에 둘 경도'와 '지금 태양 직하점 경도'의 차이이고, 사용자가 끌면 바뀐다.
+    let viewOffset = THREE.MathUtils.degToRad(subsolarPoint(new Date()).longitude - initialCenterRef.current.longitude)
 
     // 화면이 크면 4K 텍스처. 모바일이나 저사양 GPU에는 2K로 충분하고 로딩도 짧다.
     const useLarge =
@@ -440,7 +440,7 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
     const onPointerMove = (e: PointerEvent) => {
       if (dragging) {
         if (Math.hypot(e.clientX - downX, e.clientY - downY) > HOME_GLOBE_CLICK_TOLERANCE_PX) movedFar = true
-        spin.rotation.y += (e.clientX - lastX) * 0.005
+        viewOffset += (e.clientX - lastX) * 0.005
         tilt.rotation.x = THREE.MathUtils.clamp(tilt.rotation.x + (e.clientY - lastY) * 0.005, -MAX_TILT_RAD, MAX_TILT_RAD)
         lastX = e.clientX
         lastY = e.clientY
@@ -482,7 +482,6 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
 
     // 지구 좌표계에서의 태양 방향. 렌더할 때 지구의 현재 회전을 입혀 sunWorld로 만든다.
     const sunLocal = new THREE.Vector3()
-    let sunUpdatedAt = -Infinity
     const earthRotation = new THREE.Quaternion()
 
     const timer = new THREE.Timer()
@@ -491,13 +490,12 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
       timer.update(timestamp)
       // 탭이 백그라운드였다가 돌아오면 경과 시간이 한꺼번에 들어온다. 지구가 순간이동하지 않게 자른다.
       const dt = Math.min(timer.getDelta(), 0.1)
-      if (!dragging) spin.rotation.y += HOME_GLOBE_SPIN_RAD_PER_SEC * dt
-      const now = Date.now()
-      if (now - sunUpdatedAt >= SUN_UPDATE_INTERVAL_MS) {
-        const sun = subsolarPoint(new Date(now))
-        sunLocal.copy(toVector(sun.latitude, sun.longitude, 1))
-        sunUpdatedAt = now
-      }
+      // 실제 자전: 태양 직하점은 하루(24시간)에 한 바퀴 서쪽으로 돈다. 정면을 그만큼 따라 돌리면 화면에서 태양
+      // 방향은 고정되고, 지구가 그 아래에서 하루 한 바퀴 돌며 낮·밤 경계가 지표 위를 시간당 15°씩 지나간다.
+      // 경과 시간(dt)을 쌓지 않고 시각에서 바로 구하는 이유: 탭이 백그라운드였다 돌아와도 태양과 어긋나지 않는다.
+      const sun = subsolarPoint(new Date())
+      sunLocal.copy(toVector(sun.latitude, sun.longitude, 1))
+      spin.rotation.y = spinFacing(sun.longitude) + viewOffset
       spin.updateMatrixWorld()
       sunWorld.copy(sunLocal).applyQuaternion(earth.getWorldQuaternion(earthRotation))
       const lights = earthMaterial.uniforms.cityLights
