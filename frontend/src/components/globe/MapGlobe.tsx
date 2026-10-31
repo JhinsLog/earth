@@ -60,6 +60,9 @@ const DRAFT_CLICK_LAYER_IDS = ['drafts-aura-layer', 'drafts-white-core'] as cons
  * 화면에 보이는 지구 원판의 반지름(px). 중심에서 동쪽 대원을 따라 60~90° 떨어진 점들을 투영해 가장 먼 거리를
  * 쓴다. 원근 투영이라 테두리는 90°보다 조금 앞에 있고, 그 너머(뒷면) 점은 다시 안쪽으로 투영된다.
  */
+/** 마지막 확대·축소 입력 뒤 자동 자전을 다시 시작하기까지 기다리는 시간. */
+const ZOOM_INPUT_ROTATE_PAUSE_MS = 1000
+
 function globeRadiusOnScreen(map: MapLibreMap): number {
   const center = map.getCenter()
   const origin = map.project(center)
@@ -475,6 +478,8 @@ export default function MapGlobe({
     // MapLibre는 최소 줌에서 더 축소하려는 입력을 조용히 무시하고 이벤트도 내지 않는다.
     // 그래서 원본 입력(휠, 두 손가락 핀치)을 직접 보고, 최소 줌에 닿은 상태에서 더 밀어낸 양을 센다.
     let overscroll = 0
+    // 마지막 휠·핀치 입력 시각. 자동 자전이 이 직후에는 쉬게 하는 데 쓴다(아래 rotate).
+    let lastZoomInputAt = 0
     let pinchDistance: number | null = null
     const atMinZoom = () => map.getZoom() <= MIN_ZOOM + 0.01
     const exitIfFarEnough = (amount: number, threshold: number) => {
@@ -485,6 +490,7 @@ export default function MapGlobe({
       }
     }
     const onWheel = (e: WheelEvent) => {
+      lastZoomInputAt = performance.now()
       if (e.deltaY > 0 && atMinZoom()) exitIfFarEnough(e.deltaY, EXIT_TO_HOME_WHEEL_DELTA)
       else overscroll = 0
     }
@@ -493,6 +499,7 @@ export default function MapGlobe({
         pinchDistance = null
         return
       }
+      lastZoomInputAt = performance.now()
       const [a, b] = [e.touches[0], e.touches[1]]
       const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
       if (pinchDistance !== null && distance < pinchDistance && atMinZoom()) {
@@ -755,7 +762,18 @@ export default function MapGlobe({
       // 낮아지는데, 그때 자전이 setCenter를 호출하면 진행 중이던 이동이 통째로 취소된다.
       // (별을 클릭해도 확대되지 않던 원인이 이것이었다. 타이머로 자전을 멈추는 것만으로는
       //  애니메이션이 타이머보다 오래 걸릴 때 막지 못한다.)
-      if (!isInteractingRef.current && !map.isEasing() && map.getZoom() < AUTO_ROTATE_MAX_ZOOM) {
+      //
+      // 휠·핀치 확대 중에도 쉬어야 한다. setCenter가 진행 중인 휠 확대 애니메이션을 끊어, 축소가 1.4~1.6
+      // 언저리에서 멈추고 최소 줌에 닿지 못해 첫 화면으로 돌아가지 못했다(2026-10-31, 헤드리스에서 3번 중 3번 재현).
+      // 휠 사이 간격에는 isZooming()이 잠깐 false가 되므로 마지막 입력 뒤 잠시 더 기다린다.
+      const zoomedRecently = performance.now() - lastZoomInputAt < ZOOM_INPUT_ROTATE_PAUSE_MS
+      if (
+        !isInteractingRef.current &&
+        !map.isEasing() &&
+        !map.isZooming() &&
+        !zoomedRecently &&
+        map.getZoom() < AUTO_ROTATE_MAX_ZOOM
+      ) {
         const center = map.getCenter()
         center.lng -= AUTO_ROTATE_DEGREES_PER_FRAME
         map.setCenter(center)
