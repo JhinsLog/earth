@@ -19,7 +19,7 @@ Earth가 쓰는 외부 데이터와 서비스를 정리한다. 각 항목마다 
 | 홈 지구 밤 불빛(설정에서 켤 때만) | NASA GIBS, VIIRS Black Marble | 빌드 | 고정 | NASA 공개 자료 | — |
 | 홈 지구 정적 구름 | NASA Visible Earth, Blue Marble cloud composite | 빌드 | 고정 | NASA 공개 자료 | — |
 | 홈 지구 육지/바다 마스크 | NASA GIBS `OSM_Land_Water_Map` (OpenStreetMap 기반) | 빌드 | 고정 | ODbL, © OpenStreetMap contributors | — |
-| **홈 지구 실시간 구름** | **NOAA GMGSI** (AWS 공개 버킷) | **서버** | **1시간** | 미국 정부 공개 자료 | 정적 구름으로 대체 |
+| **홈 지구 실시간 구름** | **NOAA GMGSI** (AWS 공개 버킷) | **서버** | **1시간** | 미국 정부 공개 자료 + Meteosat 부분은 EUMETSAT CC-BY-4.0(표기 필요) | 정적 구름으로 대체 |
 | 지도 저배율 위성 타일 | NASA GIBS, Blue Marble | 빌드 | 고정 | NASA 공개 자료 | — |
 | 지도 고배율 위성 타일 | Esri World Imagery | 브라우저 | Esri 측 | Esri 이용약관, 출처 표기 | 해당 줌에서 타일 없음 |
 | 지도 어두운 배경 | Esri World Dark Gray Base | 브라우저 | Esri 측 | Esri 이용약관 | 배경 없음 |
@@ -80,7 +80,11 @@ GET /api/globe/clouds → JPEG + X-Clouds-Observed-At 헤더 (없으면 404)
 - 주소에 확장자를 붙이지 않는다. `.jpg`면 Cloudflare가 엣지에 캐시하는데, CORS 헤더 없이 캐시된 응답이
   다른 출처 요청에 나가면 브라우저가 텍스처를 거부한다.
 - 라이선스: NOAA가 NODD(Open Data Dissemination)로 공개 배포하는 미국 정부 자료다. 합성에 포함된
-  Meteosat(EUMETSAT) 자료의 재배포 조건은 EUMETSAT 정책을 따로 확인하는 것이 안전하다(미확인).
+  Meteosat 자료는 EUMETSAT 데이터 정책(2026-01판)을 따른다. 정각 기준의 시간 단위 Level 1 자료와
+  Web Map Service용 단일 채널 시각화(Advanced Image Product)는 Core로 분류되어 CC-BY-4.0으로 재배포가
+  허용되고, 6.3조에 따라 "[Contains modified] EUMETSAT Meteosat data [연도]" 표기가 필요하다. 그래서 실시간
+  구름일 때 출처 표기에 이 문구를 붙인다. 1시간 미만 지연의 비정각 Level 1 원본 수치 자료는 Recommended로,
+  유료 라이선스(최종 사용자 연 4,000유로부터)이며 원본 수치의 재배포가 금지된다(4·5·6·14조).
 
 **의존성** — HDF5 파일을 순수 자바로 읽으려고 `io.jhdf:jhdf:0.13.0`(MIT)을 쓴다. 네이티브 라이브러리가
 필요 없다. 이 파일의 루트 속성에는 원본 위성 파일 목록이 14KB 문자열로 들어 있어 jhdf가 루트 속성을

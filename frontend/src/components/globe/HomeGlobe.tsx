@@ -566,11 +566,12 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
         ref={containerRef}
         className={`home-globe__canvas${hoveringEarth ? ' home-globe__canvas--hover' : ''}`}
       />
-      {/* NASA 자료는 퍼블릭 도메인이지만 출처 표기를 요청한다. 지도 화면은 MapLibre 출처 표시가 맡는다. */}
+      {/* NASA 자료는 퍼블릭 도메인이지만 출처 표기를 요청한다. 지도 화면은 MapLibre 출처 표시가 맡는다.
+          GMGSI에는 유럽 위성(Meteosat) 자료가 섞여 있어 EUMETSAT 데이터 정책 6.3조의 표기를 붙인다. */}
       <span className="home-globe__credit">
         Imagery: NASA GIBS · Clouds:{' '}
         {cloudObservedAt
-          ? `NOAA GMGSI ${new Date(cloudObservedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`
+          ? `NOAA GMGSI ${new Date(cloudObservedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}, contains modified EUMETSAT Meteosat data ${new Date(cloudObservedAt).getUTCFullYear()}`
           : 'NASA Visible Earth'}{' '}
         · Water mask © OpenStreetMap contributors
       </span>
