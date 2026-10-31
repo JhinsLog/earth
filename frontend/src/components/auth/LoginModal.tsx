@@ -12,11 +12,9 @@ export const PENDING_REMEMBER_KEY = 'earth:pendingRemember'
 
 interface Props {
   onClose: () => void
-  /** 주면 "로그인 없이 둘러보기" 버튼이 나타난다. 홈 지구본에서 진입할 때 쓴다. */
-  onGuest?: () => void
 }
 
-export default function LoginModal({ onClose, onGuest }: Props) {
+export default function LoginModal({ onClose }: Props) {
   const [remember, setRemember] = useState(false)
 
   useEffect(() => {
@@ -48,11 +46,6 @@ export default function LoginModal({ onClose, onGuest }: Props) {
             ? '이 브라우저에서 7일 동안 로그인 상태가 유지됩니다. 공용 PC에서는 체크하지 마세요.'
             : '탭을 닫으면 로그아웃됩니다.'}
         </p>
-        {onGuest && (
-          <button className="login-modal__guest" onClick={onGuest}>
-            로그인 없이 둘러보기
-          </button>
-        )}
         <button className="login-modal__cancel" onClick={onClose}>
           닫기
         </button>

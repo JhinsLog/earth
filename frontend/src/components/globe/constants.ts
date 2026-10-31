@@ -86,4 +86,11 @@ export const GLOBE_TRANSITION_MS = 600
  * 최소 줌에 닿자마자 돌아가면, 그냥 지구 전체를 보려던 사람까지 화면이 바뀌어 버린다.
  */
 export const EXIT_TO_HOME_WHEEL_DELTA = 240
+/**
+ * 홈 지구본을 이만큼(처음 크기의 배수) 확대하면 지도로 넘어간다. 지구가 화면을 넘칠 만큼 커진 때라,
+ * 같은 위치·같은 크기의 지도로 겹쳐 바꾸면 계속 확대하는 것처럼 보인다.
+ */
+export const HOME_GLOBE_ENTER_ZOOM = 1.8
+/** 휠 한 칸(deltaY 100)에 약 16% 확대. 지도(MapLibre)의 휠 확대 속도와 비슷하게 맞췄다. */
+export const HOME_GLOBE_WHEEL_ZOOM_RATE = 0.0015
 export const EXIT_TO_HOME_PINCH_PX = 80

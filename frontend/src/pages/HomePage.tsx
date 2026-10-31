@@ -1,8 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import HomeGlobe from '../components/globe/HomeGlobe'
+import HomeGlobe, { type HandoffView } from '../components/globe/HomeGlobe'
 import { GLOBE_TRANSITION_MS } from '../components/globe/constants'
-import LoginModal from '../components/auth/LoginModal'
 import Navbar from '../components/layout/Navbar'
 import EventDetailPanel from '../components/panel/EventDetailPanel'
 import CreateEventModal from '../components/panel/CreateEventModal'
@@ -65,27 +64,53 @@ export default function HomePage() {
   const leavingTimerRef = useRef<number | undefined>(undefined)
   /** 지구본에서 클릭한 지점. 지도는 그곳으로 날아가며 시작한다. */
   const [enterPoint, setEnterPoint] = useState<GeoPoint | null>(null)
-  const [pendingEnterPoint, setPendingEnterPoint] = useState<GeoPoint | null>(null)
+  /** 지구본을 확대해 들어왔을 때 지도가 이어받을 화면. 있으면 지도는 어디로도 날아가지 않고 그 자리에서 시작한다. */
+  const [enterView, setEnterView] = useState<HandoffView | null>(null)
   const [globeCenter] = useState<GeoPoint>(() => ({ latitude: 20, longitude: approximateLongitudeFromTimezone() }))
+
+  // 지도로 들어갈 때는 지도가 준비될 때까지(타일 도착) 지구본을 그대로 두고 지도는 숨겨 둔다.
+  // 바로 겹쳐 바꾸면 그 사이 빈 우주만 보이는 순간이 생긴다(지도는 준비 전엔 투명하다).
+  const [waitingForMap, setWaitingForMap] = useState(false)
+  // 지도의 준비 알림은 등록 시점의 콜백으로 오므로 최신 대기 여부는 ref로 읽는다.
+  const waitingForMapRef = useRef(false)
+  const setWaiting = (waiting: boolean) => {
+    waitingForMapRef.current = waiting
+    setWaitingForMap(waiting)
+  }
+  const handleMapReady = () => {
+    if (!waitingForMapRef.current) return
+    setWaiting(false)
+    window.clearTimeout(leavingTimerRef.current)
+    leavingTimerRef.current = window.setTimeout(() => setLeaving(null), GLOBE_TRANSITION_MS)
+  }
 
   const switchView = (next: 'globe' | 'map') => {
     if (next === view) return
     window.clearTimeout(leavingTimerRef.current)
     setLeaving(view)
+    if (next === 'map') {
+      setWaiting(true)
+      setView(next)
+      return
+    }
+    setWaiting(false)
     setView(next)
     leavingTimerRef.current = window.setTimeout(() => setLeaving(null), GLOBE_TRANSITION_MS)
   }
   useEffect(() => () => window.clearTimeout(leavingTimerRef.current), [])
 
-  const enterMap = (point: GeoPoint | null) => {
-    setPendingEnterPoint(null)
+  // 비로그인도 그대로 들어간다. 다른 나라 별은 서버가 위치만 내려 주고 상세 요청은 거부하므로(restricted, 403),
+  // 입구에서 로그인을 물을 이유가 없다. 로그인은 오른쪽 위 버튼으로 한다(D-8: 제한은 상세만).
+  const handleGlobeClick = (point: GeoPoint) => {
+    setEnterView(null)
     setEnterPoint(point)
     switchView('map')
   }
 
-  const handleGlobeClick = (point: GeoPoint) => {
-    if (accessToken) enterMap(point)
-    else setPendingEnterPoint(point)
+  const handleGlobeZoomEnter = (view: HandoffView) => {
+    setEnterView(view)
+    setEnterPoint(null)
+    switchView('map')
   }
 
   const exitToGlobe = () => {
@@ -169,22 +194,23 @@ export default function HomePage() {
       />
 
       {(view === 'globe' || leaving === 'globe') && (
-        <div className={`home__layer${view === 'globe' ? ' home__layer--in' : ' home__layer--out'}`}>
-          <HomeGlobe events={events} center={globeCenter} onEnter={handleGlobeClick} />
+        <div
+          className={`home__layer${view === 'globe' ? ' home__layer--in' : waitingForMap ? ' home__layer--hold' : ' home__layer--out'}`}
+        >
+          <HomeGlobe events={events} center={globeCenter} onEnter={handleGlobeClick} onZoomEnter={handleGlobeZoomEnter} />
         </div>
       )}
 
-      {view === 'globe' && <div className="home__hint">지구를 <strong>클릭</strong>해 들어가 보세요</div>}
-
-      {pendingEnterPoint && (
-        <LoginModal
-          onClose={() => setPendingEnterPoint(null)}
-          onGuest={() => enterMap(pendingEnterPoint)}
-        />
+      {view === 'globe' && (
+        <div className="home__hint">
+          지구를 <strong>확대</strong>하거나 <strong>클릭</strong>해 들어가 보세요
+        </div>
       )}
 
       {(view === 'map' || leaving === 'map') && (
-        <div className={`home__layer${view === 'map' ? ' home__layer--in' : ' home__layer--out'}`}>
+        <div
+          className={`home__layer${view === 'map' ? (waitingForMap ? ' home__layer--waiting' : ' home__layer--in') : ' home__layer--out'}`}
+        >
           <Suspense fallback={null}>
             <MapGlobe
               onViewportChange={loadEvents}
@@ -202,8 +228,10 @@ export default function HomePage() {
                 removeDraft(id)
                 setSelectedDraftId((current) => (current === id ? null : current))
               }}
-              initialFocusLatLng={enterPoint ?? initialFocusLatLng}
+              initialFocusLatLng={enterView ? null : (enterPoint ?? initialFocusLatLng)}
+              initialView={enterView}
               onZoomOutBeyondMin={exitToGlobe}
+              onReady={handleMapReady}
               myLocation={myLocation}
               locating={locating}
               locateError={locateError}

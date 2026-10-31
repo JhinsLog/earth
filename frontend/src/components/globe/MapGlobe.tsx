@@ -42,6 +42,7 @@ import {
 } from '../../lib/geolocate'
 import { EVENT_CATEGORY_COLOR, RESTRICTED_STAR_COLOR, type DraftStar, type EarthEvent } from '../../types'
 import type { ViewportBounds } from '../../store/eventStore'
+import type { HandoffView } from './HomeGlobe'
 import './MapGlobe.css'
 
 const EVENTS_SOURCE_ID = 'earth-events-source'
@@ -55,6 +56,31 @@ const CONFIRM_BOOST_MAX = 10
 const EVENT_CLICK_LAYER_IDS = ['events-aura-layer', 'events-white-core'] as const
 const DRAFT_CLICK_LAYER_IDS = ['drafts-aura-layer', 'drafts-white-core'] as const
 
+/**
+ * 화면에 보이는 지구 원판의 반지름(px). 중심에서 동쪽 대원을 따라 60~90° 떨어진 점들을 투영해 가장 먼 거리를
+ * 쓴다. 원근 투영이라 테두리는 90°보다 조금 앞에 있고, 그 너머(뒷면) 점은 다시 안쪽으로 투영된다.
+ */
+function globeRadiusOnScreen(map: MapLibreMap): number {
+  const center = map.getCenter()
+  const origin = map.project(center)
+  let max = 0
+  for (let deg = 60; deg <= 90; deg += 0.5) {
+    const point = destinationPoint(center.lat, center.lng, 90, deg)
+    const p = map.project([point.lng, point.lat])
+    max = Math.max(max, Math.hypot(p.x - origin.x, p.y - origin.y))
+  }
+  return max
+}
+
+/** 지구 원판이 이 반지름으로 보이도록 줌을 맞춘다. 반지름은 줌에 대해 거의 2^z로 커지므로 두 번 보정하면 충분하다. */
+function matchGlobeRadius(map: MapLibreMap, radiusPx: number) {
+  for (let i = 0; i < 2; i++) {
+    const current = globeRadiusOnScreen(map)
+    if (!(current > 0)) return
+    map.jumpTo({ zoom: map.getZoom() + Math.log2(radiusPx / current) })
+  }
+}
+
 interface Props {
   events: EarthEvent[]
   selectedEventId: number | null
@@ -66,6 +92,11 @@ interface Props {
   onDraftSelect: (id: string) => void
   onDraftRemove: (id: string) => void
   initialFocusLatLng?: GeoPoint | null
+  /**
+   * 홈 지구본을 확대해 들어왔을 때 이어받을 화면. 주면 그 지점을 중앙에, 지구가 같은 크기로 보이는 줌에서
+   * 시작해 이어서 확대하는 것처럼 보이게 한다. 이때는 initialFocusLatLng로 날아가지 않는다(HomePage가 null로 준다).
+   */
+  initialView?: HandoffView | null
   /** 값이 바뀔 때마다 첫 화면(지구본 전체)으로 되돌아간다. 로고 클릭용. */
   resetViewToken?: number
   /** 내 위치. HomePage의 useMyLocation이 소유하며 여기서는 표시와 이동에만 쓴다. */
@@ -78,6 +109,8 @@ interface Props {
   onViewportChange?: (bounds: ViewportBounds) => void
   /** 최소 줌에서 더 축소하려 할 때. 홈 지구본으로 돌아가는 데 쓴다. */
   onZoomOutBeyondMin?: () => void
+  /** 스타일과 타일이 준비돼 화면에 나타났을 때. 홈 지구본은 이때까지 남아 있다가 겹쳐 사라진다. */
+  onReady?: () => void
 }
 
 /**
@@ -284,6 +317,7 @@ export default function MapGlobe({
   onDraftSelect,
   onDraftRemove,
   initialFocusLatLng,
+  initialView = null,
   resetViewToken = 0,
   myLocation,
   locating,
@@ -291,6 +325,7 @@ export default function MapGlobe({
   onLocateRequest,
   onViewportChange,
   onZoomOutBeyondMin,
+  onReady,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const haloRef = useRef<HTMLDivElement>(null)
@@ -305,6 +340,8 @@ export default function MapGlobe({
   /** 임시 별 위에서 우클릭한 경우, 전역 우클릭(=새 별 생성)까지 실행되지 않게 막는다. */
   const suppressNextContextMenuRef = useRef(false)
   const appliedInitialFocusRef = useRef(false)
+  // 지도는 한 번만 만든다. 그 시점의 값만 쓰므로 ref로 붙잡아 둔다.
+  const initialViewRef = useRef(initialView)
   /**
    * 첫 화면(지구본 전체)의 중심. 지도를 만드는 시점에는 네트워크 조회 결과를 기다릴 수
    * 없으므로 표준시로 추정한 경도를 먼저 쓰고, IP/GPS 위치가 도착하면 실제 값으로 교체한다.
@@ -322,6 +359,8 @@ export default function MapGlobe({
   onViewportChangeRef.current = onViewportChange
   const onZoomOutBeyondMinRef = useRef(onZoomOutBeyondMin)
   onZoomOutBeyondMinRef.current = onZoomOutBeyondMin
+  const onReadyRef = useRef(onReady)
+  onReadyRef.current = onReady
   const onDraftSelectRef = useRef(onDraftSelect)
   onDraftSelectRef.current = onDraftSelect
   const onDraftRemoveRef = useRef(onDraftRemove)
@@ -337,10 +376,11 @@ export default function MapGlobe({
   useEffect(() => {
     if (!containerRef.current) return
 
+    const startView = initialViewRef.current
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: createEarthMapStyle(detectLabelLanguage()),
-      center: homeCenterRef.current,
+      center: startView ? [startView.center.longitude, startView.center.latitude] : homeCenterRef.current,
       zoom: INITIAL_ZOOM,
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
@@ -358,6 +398,16 @@ export default function MapGlobe({
       maxTileCacheSize: 500,
     })
     mapRef.current = map
+    // 지구본 투영(globe)은 스타일에 들어 있어서, 스타일이 적용되기 전에는 평면 지도로 잰 크기가 나온다.
+    // 스타일이 준비된 첫 프레임에 맞춘다. 화면은 reveal 전이라 이 보정이 보이지 않는다.
+    if (startView) {
+      const matchOnStyle = () => {
+        if (!map.isStyleLoaded()) return
+        map.off('render', matchOnStyle)
+        matchGlobeRadius(map, startView.globeRadiusPx)
+      }
+      map.on('render', matchOnStyle)
+    }
 
     // 로딩 중에는 부분적으로만 채워진 타일과 대기광이 그대로 노출된다. 스타일과 타일이
     // 모두 준비된 뒤 한 번에 페이드인시킨다. 자동 자전이 매 프레임 setCenter를 호출해
@@ -376,6 +426,7 @@ export default function MapGlobe({
         .querySelector('.maplibregl-ctrl-attrib')
         ?.classList.remove('maplibregl-compact-show')
       rootRef.current?.classList.add('map-globe--ready')
+      onReadyRef.current?.()
     }
     function tryReveal() {
       if (map.isStyleLoaded() && map.areTilesLoaded()) reveal()

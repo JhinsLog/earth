@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import Starfield from './Starfield'
-import { HOME_GLOBE_CLICK_TOLERANCE_PX } from './constants'
+import { HOME_GLOBE_CLICK_TOLERANCE_PX, HOME_GLOBE_ENTER_ZOOM, HOME_GLOBE_WHEEL_ZOOM_RATE } from './constants'
 import type { GeoPoint } from '../../lib/geolocate'
 import { API_BASE_URL } from '../../lib/api'
 import { subsolarPoint } from '../../lib/sun'
@@ -15,6 +15,15 @@ interface Props {
   center: GeoPoint
   /** 지구 표면을 클릭했을 때. 클릭한 지점의 위경도를 넘긴다. */
   onEnter: (point: GeoPoint) => void
+  /** 충분히 확대했을 때. 지도가 같은 위치·같은 크기로 이어받도록 화면 중앙의 위경도와 지구 반지름(px)을 넘긴다. */
+  onZoomEnter: (view: HandoffView) => void
+}
+
+/** 홈 지구본 → 지도로 넘길 때의 화면 상태. */
+export interface HandoffView {
+  center: GeoPoint
+  /** 화면에 보이는 지구 원판의 반지름(CSS px). */
+  globeRadiusPx: number
 }
 
 const EARTH_RADIUS = 1
@@ -274,7 +283,7 @@ function cloudCredit(observedAt: string, sources: string[]): string {
   return `${time} ${names.join(' · ')}${meteosat ? `, contains modified EUMETSAT Meteosat data ${date.getUTCFullYear()}` : ''}`
 }
 
-export default function HomeGlobe({ events, center, onEnter }: Props) {
+export default function HomeGlobe({ events, center, onEnter, onZoomEnter }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
   const [hoveringEarth, setHoveringEarth] = useState(false)
@@ -283,9 +292,11 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
 
   // 장면을 만드는 effect는 한 번만 돌기 때문에, 그 안의 클릭 처리기는 이 ref로 최신 콜백을 읽는다.
   const onEnterRef = useRef(onEnter)
+  const onZoomEnterRef = useRef(onZoomEnter)
   useEffect(() => {
     onEnterRef.current = onEnter
-  }, [onEnter])
+    onZoomEnterRef.current = onZoomEnter
+  }, [onEnter, onZoomEnter])
   // 장면은 한 번만 만들고, 별 데이터만 바뀔 때마다 갈아 끼운다.
   const starsRef = useRef<{ geometry: THREE.BufferGeometry; points: THREE.Points } | null>(null)
   const initialCenterRef = useRef(center)
@@ -415,19 +426,29 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
     spin.add(stars)
     starsRef.current = { geometry: starGeometry, points: stars }
 
+    // 확대 배율. 1이 처음 크기이고 HOME_GLOBE_ENTER_ZOOM에 닿으면 지도로 넘어간다.
+    // 입력은 목표값만 바꾸고 화면은 매 프레임 그쪽으로 다가가 부드럽게 확대된다.
+    let zoom = 1
+    let zoomTarget = 1
+    let handedOff = false
+    const halfFov = THREE.MathUtils.degToRad(FOV_DEG / 2)
+    /** 지구 원판이 화면에서 보이는 각반지름의 탄젠트. 짧은 변 기준이라 세로 화면(모바일)에서 좌우가 잘리지 않는다. */
+    const globeTan = (scale: number) => Math.tan(halfFov) * Math.min(1, camera.aspect) * GLOBE_SCREEN_FRACTION * scale
+    const applyCamera = () => {
+      const t = globeTan(zoom)
+      // 각반지름 α에서 sin α = 1/거리, tan α = t → 거리 = sqrt(1 + 1/t²)
+      camera.position.set(0, 0, Math.sqrt(1 + 1 / (t * t)))
+      starMaterial.uniforms.frontDistance.value = camera.position.z - STAR_RADIUS
+      camera.lookAt(0, 0, 0)
+      camera.updateProjectionMatrix()
+    }
     const resize = () => {
       const width = container.clientWidth
       const height = container.clientHeight
       if (width === 0 || height === 0) return
       renderer.setSize(width, height, false)
       camera.aspect = width / height
-      // 짧은 변 기준으로 지구 크기를 맞춘다. 세로 화면(모바일)에서 좌우가 잘리지 않도록.
-      const halfFov = THREE.MathUtils.degToRad(FOV_DEG / 2)
-      const t = Math.tan(halfFov) * Math.min(1, camera.aspect) * GLOBE_SCREEN_FRACTION
-      camera.position.set(0, 0, Math.sqrt(1 + 1 / (t * t)))
-      starMaterial.uniforms.frontDistance.value = camera.position.z - STAR_RADIUS
-      camera.lookAt(0, 0, 0)
-      camera.updateProjectionMatrix()
+      applyCamera()
     }
     resize()
     const resizeObserver = new ResizeObserver(resize)
@@ -442,6 +463,32 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
       return raycaster.intersectObject(earth, false)[0] ?? null
     }
 
+    // 화면 중앙에 보이는 지점과 지구 반지름을 지도에 넘긴다. 반지름은 각반지름의 탄젠트를 화면 px로 바꾼 값.
+    const handOff = () => {
+      handedOff = true
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera)
+      const hit = raycaster.intersectObject(earth, false)[0]
+      if (!hit) return
+      const globeRadiusPx = (globeTan(zoom) / Math.tan(halfFov)) * (container.clientHeight / 2)
+      onZoomEnterRef.current({ center: toLatLng(earth.worldToLocal(hit.point.clone())), globeRadiusPx })
+    }
+    const zoomBy = (factor: number) => {
+      if (handedOff) return
+      zoomTarget = THREE.MathUtils.clamp(zoomTarget * factor, 1, HOME_GLOBE_ENTER_ZOOM)
+    }
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      zoomBy(Math.exp(-e.deltaY * HOME_GLOBE_WHEEL_ZOOM_RATE))
+    }
+
+    // 손가락 두 개면 핀치 확대, 하나면 돌리기. 두 손가락을 댄 동안은 돌리지도, 클릭으로 보지도 않는다.
+    const pointers = new Map<number, { x: number; y: number }>()
+    let pinchDistance = 0
+    const currentPinchDistance = () => {
+      const [a, b] = [...pointers.values()]
+      return Math.hypot(a.x - b.x, a.y - b.y)
+    }
+
     let dragging = false
     let downX = 0
     let downY = 0
@@ -450,6 +497,13 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
     let movedFar = false
     const canvas = renderer.domElement
     const onPointerDown = (e: PointerEvent) => {
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (pointers.size === 2) {
+        pinchDistance = currentPinchDistance()
+        dragging = false
+        movedFar = true
+        return
+      }
       dragging = true
       movedFar = false
       downX = lastX = e.clientX
@@ -457,10 +511,19 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
       canvas.setPointerCapture(e.pointerId)
     }
     const onPointerMove = (e: PointerEvent) => {
+      if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (pointers.size === 2) {
+        const distance = currentPinchDistance()
+        if (pinchDistance > 0) zoomBy(distance / pinchDistance)
+        pinchDistance = distance
+        return
+      }
       if (dragging) {
         if (Math.hypot(e.clientX - downX, e.clientY - downY) > HOME_GLOBE_CLICK_TOLERANCE_PX) movedFar = true
-        viewOffset += (e.clientX - lastX) * 0.005
-        tilt.rotation.x = THREE.MathUtils.clamp(tilt.rotation.x + (e.clientY - lastY) * 0.005, -MAX_TILT_RAD, MAX_TILT_RAD)
+        // 확대할수록 같은 손놀림에 덜 돌아야 손가락 아래 지점이 따라온다.
+        const rate = 0.005 / zoom
+        viewOffset += (e.clientX - lastX) * rate
+        tilt.rotation.x = THREE.MathUtils.clamp(tilt.rotation.x + (e.clientY - lastY) * rate, -MAX_TILT_RAD, MAX_TILT_RAD)
         lastX = e.clientX
         lastY = e.clientY
       } else if (e.pointerType === 'mouse') {
@@ -468,6 +531,8 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
       }
     }
     const onPointerUp = (e: PointerEvent) => {
+      pointers.delete(e.pointerId)
+      if (pointers.size < 2) pinchDistance = 0
       if (!dragging) return
       dragging = false
       canvas.releasePointerCapture(e.pointerId)
@@ -476,6 +541,7 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
       if (!hit) return
       onEnterRef.current(toLatLng(earth.worldToLocal(hit.point.clone())))
     }
+    canvas.addEventListener('wheel', onWheel, { passive: false })
     canvas.addEventListener('pointerdown', onPointerDown)
     canvas.addEventListener('pointermove', onPointerMove)
     canvas.addEventListener('pointerup', onPointerUp)
@@ -525,6 +591,12 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
       spin.rotation.y = spinFacing(sun.longitude) + viewOffset
       spin.updateMatrixWorld()
       sunWorld.copy(sunLocal).applyQuaternion(earth.getWorldQuaternion(earthRotation))
+      if (zoom !== zoomTarget) {
+        zoom += (zoomTarget - zoom) * Math.min(1, dt * 10)
+        if (Math.abs(zoomTarget - zoom) < 0.001) zoom = zoomTarget
+        applyCamera()
+        if (!handedOff && zoom >= HOME_GLOBE_ENTER_ZOOM * 0.995) handOff()
+      }
       const lights = earthMaterial.uniforms.cityLights
       const step = dt / CITY_LIGHTS_FADE_SEC
       lights.value += THREE.MathUtils.clamp(cityLightsTargetRef.current - lights.value, -step, step)
@@ -545,6 +617,7 @@ export default function HomeGlobe({ events, center, onEnter }: Props) {
       noLiveClouds.dispose()
       timer.dispose()
       resizeObserver.disconnect()
+      canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('pointerdown', onPointerDown)
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerup', onPointerUp)

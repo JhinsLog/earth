@@ -21,6 +21,17 @@
   pointer-events: none;
 }
 
+/* 지도가 준비될 때까지: 지구본은 그대로 보이되 조작은 막고, 지도는 투명하게 뒤에서 타일을 받는다. */
+.home__layer--hold {
+  pointer-events: none;
+}
+
+.home__layer--waiting {
+  animation: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
 @keyframes home-layer-in {
   from { opacity: 0; }
   to { opacity: 1; }
