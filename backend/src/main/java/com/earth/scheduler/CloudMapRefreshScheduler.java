@@ -50,7 +50,8 @@ public class CloudMapRefreshScheduler {
     private final CloudMapStore store;
     private final CloudProperties properties;
 
-    // 스케줄러는 fixedDelay라 앞 실행이 끝나야 다음이 돈다. 이 필드들은 그 한 스레드만 만진다.
+    // 같은 예약 작업은 겹쳐 돌지 않는다(fixedRate도 앞 실행이 늦으면 다음이 밀릴 뿐 동시에 돌지 않는다).
+    // 그래서 이 필드들은 한 번에 한 실행만 만진다.
     private byte[] gmgsiGray;
     private String gmgsiKey;
     private Instant gmgsiObservedAt;
@@ -64,7 +65,9 @@ public class CloudMapRefreshScheduler {
     }
 
     // 기동 직후 한 번 돈다(initialDelay 0). 스레드 풀은 SchedulingConfig.
-    @Scheduled(fixedDelayString = "${earth.clouds.refresh-interval-ms:600000}", initialDelay = 0)
+    // fixedRate: 시작 시각 기준 10분마다. 예전엔 fixedDelay(끝나고 10분 뒤)였는데, EUMETView를 조각으로 받으면서 한 번에
+    // 4~6분 걸려 갱신 간격이 14~16분으로 늘어났다(2026-11-06). 위성 영상 주기(10분)에 맞추려고 바꿨다.
+    @Scheduled(fixedRateString = "${earth.clouds.refresh-interval-ms:600000}", initialDelay = 0)
     public void refresh() {
         Instant now = Instant.now();
         long started = System.nanoTime();

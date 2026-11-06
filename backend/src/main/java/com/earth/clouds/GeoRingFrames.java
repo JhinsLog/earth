@@ -53,11 +53,6 @@ public class GeoRingFrames {
     static final int GIBS_ATTEMPTS = 3;
     /** 그 시각에 영상이 있는지만 볼 때의 크기. 전체 크기로 물으면 새 영상이 없을 때도 한 번에 30초 넘게 걸렸다. */
     static final int PROBE_WIDTH = 64;
-    /**
-     * EUMETView에서 받는 최대 가로 픽셀. 넓게 받으면 응답이 크게 느려진다(2026-11-06 측정: 2048은 41~72초,
-     * 4096은 200초를 넘겨도 끝나지 않음). 그보다 넓은 지구본 이미지가 필요하면 이 크기로 받아 늘려 쓴다.
-     */
-    static final int EUMETVIEW_MAX_WIDTH = 2048;
     static final Duration MAX_FRAME_AGE = Duration.ofHours(3);
     private static final Duration COLORMAP_TTL = Duration.ofHours(24);
     private static final Logger log = LoggerFactory.getLogger(GeoRingFrames.class);
@@ -119,15 +114,13 @@ public class GeoRingFrames {
             if (known != null && !observedAt.isAfter(known)) {
                 return Optional.empty();
             }
-            // 늘리기는 정수배일 때만 한다. 그 밖의 크기는 그대로 받는다.
-            int fetchWidth = width > EUMETVIEW_MAX_WIDTH && width % EUMETVIEW_MAX_WIDTH == 0 ? EUMETVIEW_MAX_WIDTH : width;
-            Optional<Fetched> fetched = fetch(satellite, observedAt, fetchWidth);
+            Optional<Fetched> fetched = fetch(satellite, observedAt, width);
             if (fetched.isEmpty()) {
                 continue;
             }
-            short[] values = decode(satellite, fetched.get().argb(), fetchWidth);
+            short[] values = decode(satellite, fetched.get().argb());
             if (values != null) {
-                return Optional.of(new SatelliteFrame(satellite, observedAt, width, upscale(values, fetchWidth, width)));
+                return Optional.of(new SatelliteFrame(satellite, observedAt, width, values));
             }
         }
         return Optional.empty();
@@ -142,7 +135,7 @@ public class GeoRingFrames {
         for (Instant time : times) {
             for (int attempt = 0; attempt < GIBS_ATTEMPTS; attempt++) {
                 Optional<Fetched> fetched = fetch(satellite, time, width);
-                short[] values = fetched.map(f -> decode(satellite, f.argb(), width)).orElse(null);
+                short[] values = fetched.map(f -> decode(satellite, f.argb())).orElse(null);
                 if (values != null) {
                     return Optional.of(new SatelliteFrame(satellite, time, width, values));
                 }
@@ -165,48 +158,6 @@ public class GeoRingFrames {
         }
     }
 
-    /**
-     * 등장방형 격자를 정수배로 늘린다. 이웃 네 칸을 거리에 따라 섞는다(쌍선형). 처음엔 가장 가까운 칸을 복사했는데,
-     * 2×2씩 같은 값이 되어 지도에서 구름이 계단처럼 보였다(2026-11-06 사용자 지적, 아프리카·인도양).
-     * 네 칸 중 빈 칸(NO_DATA)이 있으면 섞지 않고 가장 가까운 칸을 쓴다. 경도는 ±180°에서 이어 붙인다.
-     */
-    static short[] upscale(short[] values, int fromWidth, int toWidth) {
-        if (fromWidth == toWidth) {
-            return values;
-        }
-        int fromHeight = fromWidth / 2;
-        int toHeight = toWidth / 2;
-        double ratio = (double) fromWidth / toWidth;
-        short[] out = new short[toWidth * toHeight];
-        for (int r = 0; r < toHeight; r++) {
-            double sy = Math.clamp((r + 0.5) * ratio - 0.5, 0.0, fromHeight - 1.0);
-            int y0 = (int) Math.floor(sy);
-            int y1 = Math.min(y0 + 1, fromHeight - 1);
-            double fy = sy - y0;
-            for (int x = 0; x < toWidth; x++) {
-                double sx = (x + 0.5) * ratio - 0.5;
-                int x0 = Math.floorMod((int) Math.floor(sx), fromWidth);
-                int x1 = (x0 + 1) % fromWidth;
-                double fx = sx - Math.floor(sx);
-                short a = values[y0 * fromWidth + x0];
-                short b = values[y0 * fromWidth + x1];
-                short c = values[y1 * fromWidth + x0];
-                short d = values[y1 * fromWidth + x1];
-                if (a == SatelliteFrame.NO_DATA || b == SatelliteFrame.NO_DATA
-                        || c == SatelliteFrame.NO_DATA || d == SatelliteFrame.NO_DATA) {
-                    int nx = fx < 0.5 ? x0 : x1;
-                    int ny = fy < 0.5 ? y0 : y1;
-                    out[r * toWidth + x] = values[ny * fromWidth + nx];
-                    continue;
-                }
-                double top = a + (b - a) * fx;
-                double bottom = c + (d - c) * fx;
-                out[r * toWidth + x] = (short) Math.round(top + (bottom - top) * fy);
-            }
-        }
-        return out;
-    }
-
     private static boolean hasPixels(int[] argb) {
         for (int pixel : argb) {
             if (pixel >>> 24 >= 128) {
@@ -217,7 +168,7 @@ public class GeoRingFrames {
     }
 
     /** 유효한 픽셀이 하나도 없으면(빈 영상) null. */
-    private short[] decode(GeoSatellite satellite, int[] argb, int imageWidth) {
+    private short[] decode(GeoSatellite satellite, int[] argb) {
         short[] values = new short[argb.length];
         boolean any = false;
         for (int i = 0; i < argb.length; i++) {
@@ -234,7 +185,7 @@ public class GeoRingFrames {
         if (!any) {
             return null;
         }
-        return satellite.provider() == GeoSatellite.Provider.GIBS ? median3x3(values, imageWidth, imageWidth / 2) : values;
+        return satellite.provider() == GeoSatellite.Provider.GIBS ? median3x3(values, width, width / 2) : values;
     }
 
     /**

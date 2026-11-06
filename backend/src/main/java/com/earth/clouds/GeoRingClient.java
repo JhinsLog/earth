@@ -53,13 +53,74 @@ public class GeoRingClient implements GeoRingFrames.Fetcher {
 
     @Override
     public Optional<GeoRingFrames.Fetched> fetch(GeoSatellite satellite, Instant time, int width) {
+        if (satellite.provider() == GeoSatellite.Provider.EUMETVIEW && width > TILE_MIN_WIDTH) {
+            return fetchTiled(satellite, time, width);
+        }
+        return request(satellite, time, "-90,-180,90,180", width, width / 2);
+    }
+
+    /** 위성이 보는 범위만 조각으로 받는 최소 크기. 그보다 작은 요청(시각 확인용 64px)은 한 장으로 받는다. */
+    static final int TILE_MIN_WIDTH = 256;
+    /** 위성 직하점에서 이만큼(°)까지만 받는다. 합성은 천정각 약 81° 밖을 쓰지 않는다(CloudComposer). */
+    static final double TILE_REACH_DEG = 80.0;
+
+    /** 지구본 격자의 픽셀 범위 [c0, c1) × [r0, r1)와 그에 맞는 WMS BBOX. */
+    record Tile(int c0, int c1, int r0, int r1) {
+        String bbox(int width) {
+            double degPerPx = 360.0 / width;
+            return (90 - r1 * degPerPx) + "," + (-180 + c0 * degPerPx) + "," + (90 - r0 * degPerPx) + "," + (-180 + c1 * degPerPx);
+        }
+    }
+
+    /**
+     * EUMETView는 지구 전체처럼 거칠게(1픽셀 0.18°) 요청하면 미리 줄여 둔 자료로 그려 구름이 큰 사각형으로 나오고,
+     * 같은 범위를 촘촘하게 한 장으로 요청하면 수 분이 걸린다. 위성이 보는 범위(직하점 ±80°)를 2×2 조각으로 나눠
+     * 지구본과 같은 촘촘함으로 받는다(2026-11-06 측정: 4096 기준 조각 하나 약 10초, 원판 한 장 85초, 전체 200초 이상).
+     * 조각 경계를 지구본 픽셀 경계에 맞춰 그대로 이어 붙인다.
+     */
+    static java.util.List<Tile> tiles(double subLongitude, int width) {
+        int height = width / 2;
+        double degPerPx = 360.0 / width;
+        int c0 = Math.max(0, (int) Math.floor((subLongitude - TILE_REACH_DEG + 180) / degPerPx));
+        int c1 = Math.min(width, (int) Math.ceil((subLongitude + TILE_REACH_DEG + 180) / degPerPx));
+        int r0 = Math.max(0, (int) Math.floor((90 - TILE_REACH_DEG) / degPerPx));
+        int r1 = Math.min(height, (int) Math.ceil((90 + TILE_REACH_DEG) / degPerPx));
+        int cm = (c0 + c1) / 2;
+        int rm = (r0 + r1) / 2;
+        return java.util.List.of(new Tile(c0, cm, r0, rm), new Tile(cm, c1, r0, rm),
+                new Tile(c0, cm, rm, r1), new Tile(cm, c1, rm, r1));
+    }
+
+    /** 조각 하나라도 못 받으면 이 시각은 없는 것으로 본다. 빈 띠가 남은 영상보다 이전 영상이 낫다. */
+    private Optional<GeoRingFrames.Fetched> fetchTiled(GeoSatellite satellite, Instant time, int width) {
+        int[] argb = new int[width * (width / 2)]; // 0 = 투명 = 위성이 보지 않는 곳
+        Instant observedAt = null;
+        for (Tile tile : tiles(satellite.subLongitude(), width)) {
+            int w = tile.c1() - tile.c0();
+            int h = tile.r1() - tile.r0();
+            Optional<GeoRingFrames.Fetched> part = request(satellite, time, tile.bbox(width), w, h);
+            if (part.isEmpty()) {
+                return Optional.empty();
+            }
+            if (observedAt == null) {
+                observedAt = part.get().observedAt();
+            }
+            int[] src = part.get().argb();
+            for (int r = 0; r < h; r++) {
+                System.arraycopy(src, r * w, argb, (tile.r0() + r) * width + tile.c0(), w);
+            }
+        }
+        return Optional.of(new GeoRingFrames.Fetched(argb, observedAt));
+    }
+
+    private Optional<GeoRingFrames.Fetched> request(GeoSatellite satellite, Instant time, String bbox, int width, int height) {
         String base = satellite.provider() == GeoSatellite.Provider.GIBS
                 ? properties.gibsWmsUrl() : properties.eumetviewWmsUrl();
-        String url = base + "?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&CRS=EPSG:4326&BBOX=-90,-180,90,180"
-                + "&FORMAT=image/png&WIDTH=" + width + "&HEIGHT=" + width / 2
+        String url = base + "?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&CRS=EPSG:4326&BBOX=" + bbox
+                + "&FORMAT=image/png&WIDTH=" + width + "&HEIGHT=" + height
                 + "&LAYERS=" + encode(satellite.layer()) + "&STYLES=" + encode(satellite.style())
                 + "&TIME=" + DateTimeFormatter.ISO_INSTANT.format(time.truncatedTo(ChronoUnit.SECONDS));
-        return rest.get().uri(URI.create(url)).exchange((request, response) -> {
+        return rest.get().uri(URI.create(url)).exchange((req, response) -> {
             String type = response.getHeaders().getContentType() == null
                     ? "" : response.getHeaders().getContentType().toString();
             if (!response.getStatusCode().is2xxSuccessful() || !type.startsWith("image/png")) {
@@ -70,10 +131,10 @@ public class GeoRingClient implements GeoRingFrames.Fetcher {
             try (InputStream in = response.getBody()) {
                 image = ImageIO.read(new ByteArrayInputStream(readWithLimit(in)));
             }
-            if (image == null || image.getWidth() != width || image.getHeight() != width / 2) {
+            if (image == null || image.getWidth() != width || image.getHeight() != height) {
                 return Optional.empty();
             }
-            int[] argb = image.getRGB(0, 0, width, width / 2, null, 0, width);
+            int[] argb = image.getRGB(0, 0, width, height, null, 0, width);
             return Optional.of(new GeoRingFrames.Fetched(argb, observedAt));
         });
     }

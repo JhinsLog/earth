@@ -48,7 +48,7 @@ Earth가 쓰는 외부 데이터와 서비스를 정리한다. 각 항목마다 
 https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi           영상(GetMap, EPSG:4326, 4096×2048)
 https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/1.0.0/{레이어}/default/2km/all/{시작}--{끝}.xml   관측 시각 목록(DescribeDomains)
 https://gibs.earthdata.nasa.gov/colormaps/v1.3/Clean_Longwave_Infrared_Window_Band.xml          색 → 섭씨 표
-https://view.eumetsat.int/geoserver/ows                              영상(GetMap, 2048×1024 → 4096으로 늘림)
+https://view.eumetsat.int/geoserver/ows                              영상(GetMap, 직하점 ±80°를 2×2 조각으로, 조각당 약 910px)
 ```
 
 **처리 흐름** (`CloudMapRefreshScheduler`, 10분마다)
@@ -70,8 +70,10 @@ CloudComposer.compose:
 
 **해상도** (2026-11-06): 2048×1024(1픽셀 약 20km)에 잡음 제거(3×3 중앙값)까지 거치면 열대 소나기구름이 결 없는
 둥근 덩어리로 보였다. 히마와리 원본(약 2.5km)과 나란히 놓으면 차이가 분명해 4096×2048(약 10km)로 올렸다.
-EUMETView는 넓게 요청하면 크게 느려져(같은 날 2048은 41~72초, 4096은 200초 넘게 미완료) 2048로 받아 두 배로
-늘려 쓴다. 유럽·아프리카·인도양 서부는 예전 선명도이고, 끊긴 연결은 한 번 다시 묻는다. 읽기 제한은 120초.
+EUMETView는 지구 전체처럼 거칠게(1픽셀 0.18°, 2048) 요청하면 미리 줄여 둔 자료로 그려 구름이 큰 사각형으로 나오고
+(처음 합성을 넣을 때부터 있던 문제), 4096 한 장은 200초 넘게 걸린다. 위성이 보는 범위(직하점 ±80°)를 2×2 조각으로
+나눠 지구본과 같은 촘촘함으로 받는다. 조각 하나 MTG 약 10초, IODC 40~56초. 끊긴 연결은 한 번 다시 묻고, 읽기 제한은
+120초. 한 회차가 4~6분 걸려 스케줄을 '끝나고 10분 뒤'에서 '시작 기준 10분마다'로 바꿨다.
 
 **측정** (2026-10-31 04:49 UTC, LattePanda Alpha)
 
@@ -83,7 +85,7 @@ EUMETView는 넓게 요청하면 크게 느려져(같은 날 2048은 41~72초, 4
 | 결과 | 2048×1024 JPEG 364KB |
 | 받는 양 | 새 영상마다 GIBS 약 1.3MB, EUMETView 0.3~0.7MB. 10분에 약 5MB |
 | 영상 나이(측정 시점) | 19~39분. GMGSI만 쓸 때는 약 35분~1시간 45분 |
-| (2026-11-06) 4096×2048로 올린 뒤 | 첫 수집 129초(EUMETView가 느린 날), 합성 1.6초, JPEG 1,053KB(2048일 때 346KB), 합성 직후 힙 197MB(60MB) |
+| (2026-11-06) 4096×2048로 올린 뒤 | 첫 수집 337초(EUMETView 조각 요청 포함), 합성 1.6초, JPEG 약 1,050KB(2048일 때 346KB), 합성 직후 힙 197MB(60MB) |
 | EUMETView 환산 | Meteosat-12: 온도 = -0.367 × 밝기 + 27.6 (겹침 3만 칸, RMS 6.6°C) / IODC: -0.249 × 밝기 + 22.7 (1.5만 칸, RMS 7.0°C) |
 
 **막혔던 점과 판단**
