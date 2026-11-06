@@ -103,10 +103,24 @@ class CloudComposerTest {
     @Test
     @DisplayName("맑은 하늘 기준보다 차가울수록 짙고, 고위도는 기준을 낮춘다")
     void densityFollowsTemperature() {
-        assertThat(CloudComposer.density(20, CloudComposer.clearSkyCelsius(0))).isZero();
-        assertThat(CloudComposer.density(-40, CloudComposer.clearSkyCelsius(0))).isEqualTo(255);
-        assertThat(CloudComposer.density(-10, CloudComposer.clearSkyCelsius(0))).isBetween(100, 220);
+        assertThat(density(20, 0)).isZero();
+        assertThat(density(-60, 0)).isEqualTo(255);
+        assertThat(density(-10, 0)).isBetween(100, 220);
         // 같은 -10°C도 위도 70°에서는 지표일 수 있어 구름으로 보지 않는다.
-        assertThat(CloudComposer.density(-10, CloudComposer.clearSkyCelsius(70))).isZero();
+        assertThat(density(-10, 70)).isZero();
+    }
+
+    @Test
+    @DisplayName("열대는 대류권이 높아 같은 온도의 구름도 덜 짙고, 중위도는 예전(45°C 폭) 그대로다")
+    void tropicalCloudsSaturateLater() {
+        // 열대 소나기구름 중간쯤(-40°C)은 이제 최대가 아니다. 예전 식에서는 255였다.
+        assertThat(density(-40, 0)).isBetween(150, 240);
+        assertThat(CloudComposer.fullCloudDepth(0)).isCloseTo(65.25, within(0.01));
+        assertThat(CloudComposer.fullCloudDepth(60)).isEqualTo(45.0);
+        assertThat(CloudComposer.fullCloudDepth(80)).isEqualTo(45.0);
+    }
+
+    private static int density(double celsius, double latDeg) {
+        return CloudComposer.density(celsius, CloudComposer.clearSkyCelsius(latDeg), CloudComposer.fullCloudDepth(latDeg));
     }
 }

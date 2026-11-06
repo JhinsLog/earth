@@ -16,7 +16,10 @@ import java.util.Map;
  * 기본값을 쓴다.
  *
  * <p><b>구름 판정.</b> 밝기온도가 맑은 하늘 기준(적도 12°C, 위도 70° 이상 -18°C)보다 차가울수록 짙은 구름이다.
- * 45°C 더 차가우면 가장 짙다. 고위도는 지표 자체가 차가워 기준을 낮춘다.
+ * 고위도는 지표 자체가 차가워 기준을 낮춘다. 얼마나 더 차가워야 가장 짙은지({@link #fullCloudDepth})는 위도마다
+ * 다르다: 지표에서 대류권 꼭대기까지 온도 폭의 75%(최소 45°C). 처음엔 모든 위도에 45°C를 썼는데, 열대는 구름
+ * 꼭대기가 -60~-80°C까지 올라가 거의 모든 소나기구름이 단계 없이 새하얀 덩어리가 됐다(열대 구름 픽셀의 17~25%가
+ * 화면에서 완전 불투명, 중위도는 2~5%. 2026-11-06 측정).
  *
  * <p>어느 위성도 보지 못한 칸(위성 하나가 빠졌을 때)은 GMGSI 이미지로 채운다.
  */
@@ -83,6 +86,7 @@ public final class CloudComposer {
         long filled = 0;
         for (int r = 0; r < height; r++) {
             double clearSky = clearSkyCelsius(latDeg[r]);
+            double fullDepth = fullCloudDepth(latDeg[r]);
             boolean inBand = Math.abs(latDeg[r]) <= 60.0;
             for (int x = 0; x < width; x++) {
                 int i = r * width + x;
@@ -106,7 +110,7 @@ public final class CloudComposer {
                 }
                 if (weightSum > 0) {
                     covered++;
-                    out[i] = (byte) density(celsiusSum / weightSum, clearSky);
+                    out[i] = (byte) density(celsiusSum / weightSum, clearSky, fullDepth);
                 } else if (fallback != null) {
                     out[i] = fallback[i];
                     if (inBand) {
@@ -131,9 +135,20 @@ public final class CloudComposer {
         return 12.0 - 30.0 * k * k;
     }
 
+    /**
+     * 맑은 하늘 기준보다 이만큼(°C) 차가우면 가장 짙은 구름으로 본다. 대류권 꼭대기(구름이 더 올라가지 못하는 높이)의
+     * 온도는 적도 약 -75°C, 극 쪽 약 -55°C라 지표와의 폭이 열대에서 훨씬 넓다. 같은 45°C를 쓰면 열대 구름은 중간
+     * 높이만 돼도 최대가 된다. 폭의 75%를 쓰고, 중위도·고위도는 원래 값(45°C)보다 진해지지 않게 아래를 막는다.
+     */
+    static double fullCloudDepth(double latDeg) {
+        double k = Math.min(Math.abs(latDeg) / 70.0, 1.0);
+        double tropopause = -75.0 + 20.0 * k * k;
+        return Math.max(45.0, 0.75 * (clearSkyCelsius(latDeg) - tropopause));
+    }
+
     /** 0~255. 감마 0.8로 옅은 구름을 조금 살린다(GMGSI 변환과 같은 곡선). */
-    static int density(double celsius, double clearSky) {
-        double t = Math.clamp((clearSky - celsius) / 45.0, 0.0, 1.0);
+    static int density(double celsius, double clearSky, double fullDepth) {
+        double t = Math.clamp((clearSky - celsius) / fullDepth, 0.0, 1.0);
         return (int) Math.round(Math.pow(t, 0.8) * 255);
     }
 
