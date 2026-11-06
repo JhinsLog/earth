@@ -100,3 +100,11 @@ export const HOME_GLOBE_SCREEN_FRACTION = 0.72
 export function homeGlobeRadiusPx(width: number, height: number, scale: number): number {
   return Math.min(width, height) * HOME_GLOBE_SCREEN_FRACTION * scale / 2
 }
+
+/**
+ * 지도 위 실제 낮·밤·구름(mapDaylightLayer)의 세기. FULL 이하에서는 홈 지구본과 같은 모습이고, NONE에 다가갈수록
+ * 옅어져 그 위에서는 그리지 않는다. 홈 지구본에서 넘어오는 줌(화면 크기에 따라 약 3~3.6)에서 끊김이 없어야 하고,
+ * 나라 하나가 화면을 채우는 줌부터는 밤이어도 지도와 지명을 읽을 수 있어야 한다.
+ */
+export const MAP_DAYLIGHT_FULL_ZOOM = 4
+export const MAP_DAYLIGHT_NONE_ZOOM = 6

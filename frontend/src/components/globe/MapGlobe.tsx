@@ -10,6 +10,7 @@ import {
   createEarthMapStyle,
 } from './mapStyle'
 import { createStarFlareImageData } from './starFlareTexture'
+import { createDaylightLayer } from './mapDaylightLayer'
 import Starfield from './Starfield'
 import { detectLabelLanguage } from '../../lib/language'
 import { destinationPoint, haversineDistanceKm } from '../../lib/geo'
@@ -62,6 +63,7 @@ const DRAFT_CLICK_LAYER_IDS = ['drafts-aura-layer', 'drafts-white-core'] as cons
  */
 /** 마지막 확대·축소 입력 뒤 자동 자전을 다시 시작하기까지 기다리는 시간. */
 const ZOOM_INPUT_ROTATE_PAUSE_MS = 1000
+const DAYLIGHT_LAYER_ID = 'daylight'
 /** 휠·핀치 축소 입력 뒤 이 시간 안의 줌 변화까지 사용자의 축소로 본다. 휠 한 번의 확대·축소 애니메이션이 이 정도 걸린다. */
 const ZOOM_OUT_INPUT_WINDOW_MS = 400
 /**
@@ -402,7 +404,12 @@ export default function MapGlobe({
       touchPitch: false,
       // ⓘ 버튼 하나로 접히는 형태. 지구본 화면을 해치지 않으면서 출처 표기 의무를
       // 충족한다 — 특히 OpenStreetMap 파생 데이터는 ODbL상 표기가 의무다.
-      attributionControl: { compact: true },
+      attributionControl: {
+        compact: true,
+        // 구름은 타일 소스가 아니라 커스텀 레이어(mapDaylightLayer)라 표기를 직접 단다. EUMETSAT 표기는 CC BY 4.0
+        // 조건이다(docs/data-sources.md).
+        customAttribution: `Clouds: NASA GIBS · EUMETSAT · NOAA GMGSI, contains modified EUMETSAT Meteosat data ${new Date().getFullYear()}`,
+      },
       // 줌을 오갈 때 상위 줌 타일이 캐시에서 밀려나면 그 영역이 다시 빈 채로 그려진다.
       // 캐시를 넉넉히 잡아 되돌아왔을 때 재요청 없이 즉시 표시되게 한다.
       maxTileCacheSize: 500,
@@ -545,6 +552,11 @@ export default function MapGlobe({
     map.on('dragend', setInteractingFalse)
     map.on('zoomstart', setInteractingTrue)
     map.on('zoomend', setInteractingFalse)
+
+    // 실제 낮·밤과 실시간 구름. 국경선·지명·별보다 아래에 깔아 그것들은 밤에도 그대로 보이게 한다.
+    // 'load'는 타일까지 다 받은 뒤라 지도가 이미 보인 다음이다. 그때 붙이면 대낮 지구가 먼저 보였다가 바뀌므로
+    // 스타일이 준비되는 즉시 붙인다.
+    map.once('style.load', () => map.addLayer(createDaylightLayer(DAYLIGHT_LAYER_ID), 'country-boundaries'))
 
     map.on('load', () => {
       const imageData = createStarFlareImageData()
