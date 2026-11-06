@@ -115,16 +115,19 @@ class GeoRingFramesTest {
     }
 
     @Test
-    @DisplayName("작게 받은 영상을 정수배로 늘릴 때 빈 칸은 빈 칸끼리만 퍼진다")
-    void upscalesKeepingNoData() {
+    @DisplayName("작게 받은 영상을 늘릴 때 이웃 값을 섞어 계단이 생기지 않고, 빈 칸은 섞지 않는다")
+    void upscalesSmoothlyKeepingNoData() {
         short n = SatelliteFrame.NO_DATA;
-        short[] small = {1, 2, n, 4, 5, 6, 7, 8}; // 4×2
+        short[] small = {0, 100, 200, 100, 0, 100, 200, 100}; // 4×2, 위아래 같은 줄
         short[] big = GeoRingFrames.upscale(small, 4, 8); // 8×4
 
-        assertThat(big).hasSize(32);
-        assertThat(java.util.Arrays.copyOfRange(big, 0, 8)).containsExactly(1, 1, 2, 2, n, n, 4, 4);
-        assertThat(java.util.Arrays.copyOfRange(big, 8, 16)).containsExactly(1, 1, 2, 2, n, n, 4, 4);
-        assertThat(java.util.Arrays.copyOfRange(big, 24, 32)).containsExactly(5, 5, 6, 6, 7, 7, 8, 8);
+        // 0과 100 사이의 새 칸들은 그 사이 값이다(예전처럼 0,0,100,100으로 복사하지 않는다).
+        assertThat(java.util.Arrays.copyOfRange(big, 0, 8)).containsExactly(25, 25, 75, 125, 175, 175, 125, 75); // 첫 칸은 ±180°를 넘어 마지막 칸(100)과 섞인다
+
+        short[] withHole = {0, 100, n, 100, 0, 100, n, 100};
+        short[] filled = GeoRingFrames.upscale(withHole, 4, 8);
+        assertThat(filled[4]).isEqualTo(n);
+        assertThat(filled[3]).isEqualTo((short) 100); // 빈 칸과 맞닿은 칸은 가장 가까운 값
     }
 
     @Test

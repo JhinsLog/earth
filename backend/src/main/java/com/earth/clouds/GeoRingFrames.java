@@ -165,18 +165,43 @@ public class GeoRingFrames {
         }
     }
 
-    /** 등장방형 격자를 정수배로 늘린다(가장 가까운 칸). 빈 칸(NO_DATA)이 이웃과 섞이지 않는다. */
+    /**
+     * 등장방형 격자를 정수배로 늘린다. 이웃 네 칸을 거리에 따라 섞는다(쌍선형). 처음엔 가장 가까운 칸을 복사했는데,
+     * 2×2씩 같은 값이 되어 지도에서 구름이 계단처럼 보였다(2026-11-06 사용자 지적, 아프리카·인도양).
+     * 네 칸 중 빈 칸(NO_DATA)이 있으면 섞지 않고 가장 가까운 칸을 쓴다. 경도는 ±180°에서 이어 붙인다.
+     */
     static short[] upscale(short[] values, int fromWidth, int toWidth) {
         if (fromWidth == toWidth) {
             return values;
         }
-        int scale = toWidth / fromWidth;
+        int fromHeight = fromWidth / 2;
         int toHeight = toWidth / 2;
+        double ratio = (double) fromWidth / toWidth;
         short[] out = new short[toWidth * toHeight];
         for (int r = 0; r < toHeight; r++) {
-            int src = (r / scale) * fromWidth;
+            double sy = Math.clamp((r + 0.5) * ratio - 0.5, 0.0, fromHeight - 1.0);
+            int y0 = (int) Math.floor(sy);
+            int y1 = Math.min(y0 + 1, fromHeight - 1);
+            double fy = sy - y0;
             for (int x = 0; x < toWidth; x++) {
-                out[r * toWidth + x] = values[src + x / scale];
+                double sx = (x + 0.5) * ratio - 0.5;
+                int x0 = Math.floorMod((int) Math.floor(sx), fromWidth);
+                int x1 = (x0 + 1) % fromWidth;
+                double fx = sx - Math.floor(sx);
+                short a = values[y0 * fromWidth + x0];
+                short b = values[y0 * fromWidth + x1];
+                short c = values[y1 * fromWidth + x0];
+                short d = values[y1 * fromWidth + x1];
+                if (a == SatelliteFrame.NO_DATA || b == SatelliteFrame.NO_DATA
+                        || c == SatelliteFrame.NO_DATA || d == SatelliteFrame.NO_DATA) {
+                    int nx = fx < 0.5 ? x0 : x1;
+                    int ny = fy < 0.5 ? y0 : y1;
+                    out[r * toWidth + x] = values[ny * fromWidth + nx];
+                    continue;
+                }
+                double top = a + (b - a) * fx;
+                double bottom = c + (d - c) * fx;
+                out[r * toWidth + x] = (short) Math.round(top + (bottom - top) * fy);
             }
         }
         return out;
