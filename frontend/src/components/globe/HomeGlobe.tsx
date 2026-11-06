@@ -13,6 +13,7 @@ import { API_BASE_URL } from '../../lib/api'
 import { subsolarPoint } from '../../lib/sun'
 import { useSettingsStore } from '../../store/settingsStore'
 import { EVENT_CATEGORY_COLOR, RESTRICTED_STAR_COLOR, type EarthEvent } from '../../types'
+import './GlobeHalo.css'
 import './HomeGlobe.css'
 
 interface Props {
@@ -297,6 +298,7 @@ function cloudCredit(observedAt: string, sources: string[]): string {
 
 export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initialView = null }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const haloRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
   const [hoveringEarth, setHoveringEarth] = useState(false)
   // 실시간 구름의 관측 시각과 출처. 없으면 정적 구름 사진을 쓰는 중이다.
@@ -465,6 +467,16 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
       starMaterial.uniforms.frontDistance.value = camera.position.z - STAR_RADIUS
       camera.lookAt(0, 0, 0)
       camera.updateProjectionMatrix()
+      // 지구 바깥 광채(GlobeHalo.css). 지도 화면과 같은 것을 같은 크기 규칙으로 둘러, 확대해 넘어갈 때 이어진다.
+      // 지구는 늘 화면 가운데에 있으므로 반지름만 맞춘다.
+      const halo = haloRef.current
+      if (halo) {
+        const radius = homeGlobeRadiusPx(container.clientWidth, container.clientHeight, zoom)
+        halo.style.width = `${radius * 2}px`
+        halo.style.height = `${radius * 2}px`
+        halo.style.left = `${container.clientWidth / 2}px`
+        halo.style.top = `${container.clientHeight / 2}px`
+      }
     }
     const resize = () => {
       const width = container.clientWidth
@@ -696,6 +708,7 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
         ref={containerRef}
         className={`home-globe__canvas${hoveringEarth ? ' home-globe__canvas--hover' : ''}`}
       />
+      <div ref={haloRef} className="globe-halo home-globe__halo" />
       {/* NASA 자료는 퍼블릭 도메인이지만 출처 표기를 요청한다. 지도 화면은 MapLibre 출처 표시가 맡는다.
           EUMETSAT 영상과 GMGSI(Meteosat 포함)를 쓰면 EUMETSAT 데이터 정책 6.3조의 표기를 붙인다. */}
       <span className="home-globe__credit">
