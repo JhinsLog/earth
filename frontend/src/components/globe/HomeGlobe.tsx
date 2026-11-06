@@ -600,7 +600,10 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
     const animate = (timestamp: number) => {
       timer.update(timestamp)
       // 탭이 백그라운드였다가 돌아오면 경과 시간이 한꺼번에 들어온다. 지구가 순간이동하지 않게 자른다.
-      const dt = Math.min(timer.getDelta(), 0.1)
+      // 음수도 막는다: 큰 텍스처를 준비하느라 화면이 수 초 멈추면 첫 프레임의 timestamp(프레임 시작 시각)가
+      // 타이머를 만든 시각보다 앞서 dt가 -3초처럼 나온다. 그러면 도시 불빛 페이드가 거꾸로 돌아 꺼진 불빛이 5배로
+      // 켜지고, 확대 보간이 반대로 튀어 카메라 거리가 깨지며 지구가 사라졌다(2026-11-06, 지도에 다녀온 뒤 재현).
+      const dt = THREE.MathUtils.clamp(timer.getDelta(), 0, 0.1)
       // 실제 자전: 태양 직하점은 하루(24시간)에 한 바퀴 서쪽으로 돈다. 정면을 그만큼 따라 돌리면 화면에서 태양
       // 방향은 고정되고, 지구가 그 아래에서 하루 한 바퀴 돌며 낮·밤 경계가 지표 위를 시간당 15°씩 지나간다.
       // 경과 시간(dt)을 쌓지 않고 시각에서 바로 구하는 이유: 탭이 백그라운드였다 돌아와도 태양과 어긋나지 않는다.
@@ -648,6 +651,8 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
         disposable.dispose()
       }
       renderer.dispose()
+      // 지도와 오갈 때마다 새 컨텍스트를 만든다. GC를 기다리지 않고 바로 놓아 GPU 메모리와 브라우저의 컨텍스트 수 제한에 걸리지 않게 한다.
+      renderer.forceContextLoss()
       container.removeChild(canvas)
     }
   }, [])
