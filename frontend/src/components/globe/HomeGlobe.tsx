@@ -83,6 +83,9 @@ async function loadLiveClouds(signal: AbortSignal): Promise<({ texture: THREE.Te
 // 실시간 구름은 원본이 위도 약 72°까지만 있어서 60~70°에서 정적 사진으로 넘겨 극지방을 채운다.
 // 정적 구름 사진에는 촬영 구획 단위의 옅은 연무(밝기 5~10%)가 사각형으로 남아 있어 문턱 0.12를 둔다.
 // 실시간 구름은 백엔드가 이미 지표를 걸러 0으로 만들어 오므로, 같은 문턱을 또 걸면 얇은 구름까지 지워진다.
+// 실시간 구름의 진하기는 0~1 전 구간을 그대로 쓴다. 예전엔 0.8에서 이미 완전 불투명이라, 백엔드가 넘겨준 짙은
+// 구름 속 단계가 화면에서 모두 흰색으로 묻혔다(2026-11-06, 열대 구름이 흰 덩어리로 보이던 문제).
+// 지도(mapDaylightLayer.ts)도 같은 규칙을 쓴다. 한쪽을 고치면 다른 쪽도 맞춘다.
 const CLOUD_DENSITY = /* glsl */ `
   uniform sampler2D cloudMap;
   uniform sampler2D liveCloudMap;
@@ -92,7 +95,7 @@ const CLOUD_DENSITY = /* glsl */ `
     float live = texture2D(liveCloudMap, uv).r;
     float latitude = abs(uv.y - 0.5) * 180.0;
     float liveWeight = liveClouds * (1.0 - smoothstep(60.0, 70.0, latitude));
-    return mix(smoothstep(0.12, 1.0, fallback), smoothstep(0.0, 0.8, live), liveWeight);
+    return mix(smoothstep(0.12, 1.0, fallback), smoothstep(0.0, 1.0, live), liveWeight);
   }
 `
 
@@ -208,8 +211,11 @@ const CLOUD_FRAGMENT = /* glsl */ `
     float light = max(dot(n, sunWorld), 0.0);
     // 가장자리에서는 구름이 대기에 묻혀 흐려진다.
     float edgeFade = smoothstep(0.0, 0.35, dot(n, viewDir));
-    float alpha = cloudDensity(vUv, vUv) * edgeFade;
-    vec3 color = vec3(1.0) * (light * 1.5 + 0.015);
+    float density = cloudDensity(vUv, vUv);
+    float alpha = density * edgeFade;
+    // 옅은 구름은 빛을 덜 되돌려 회색빛으로, 짙은 구름만 새하얗게. 모든 구름이 같은 흰색이면 반투명한 구름도
+    // 어두운 바다 위에서 흰 덩어리처럼 보인다.
+    vec3 color = vec3(1.0) * (light * 1.5 + 0.015) * mix(0.55, 1.0, density);
     gl_FragColor = vec4(color, alpha);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>

@@ -46,7 +46,8 @@ public class GeoRingClient implements GeoRingFrames.Fetcher {
         this.properties = properties;
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build());
-        factory.setReadTimeout(Duration.ofSeconds(60));
+        // EUMETView는 느린 날 2048 영상 하나에 70초 넘게 걸린다(2026-11-06). 60초면 그날 그 위성이 통째로 빠졌다.
+        factory.setReadTimeout(Duration.ofSeconds(120));
         this.rest = RestClient.builder().requestFactory(factory).build();
     }
 

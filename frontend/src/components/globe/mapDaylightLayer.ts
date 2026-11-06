@@ -57,7 +57,7 @@ float cloudDensity(vec2 uv) {
   float live = texture(u_live_clouds, uv).r;
   float latitude = abs(uv.y - 0.5) * 180.0;
   float liveWeight = u_live * (1.0 - smoothstep(60.0, 70.0, latitude));
-  return mix(smoothstep(0.12, 1.0, fallback), smoothstep(0.0, 0.8, live), liveWeight);
+  return mix(smoothstep(0.12, 1.0, fallback), smoothstep(0.0, 1.0, live), liveWeight);
 }
 
 vec3 toGamma(vec3 linear) { return pow(clamp(linear, 0.0, 1.0), vec3(1.0 / 2.2)); }
@@ -83,7 +83,7 @@ void main() {
   // 아래 지도 색을 알 수 없으므로 일정한 값으로 둔다.
   vec3 add = vec3(0.35, 0.45, 0.8) * 0.06 * (1.0 - dayMix) * (1.0 - cloud);
   add += toGamma(texture(u_night, uv).rgb * vec3(1.0, 0.85, 0.6) * 1.4) * (1.0 - dayMix) * u_city_lights * (1.0 - cloud);
-  add += toGamma(vec3(light * 1.5 + 0.015)) * cloud;
+  add += toGamma(vec3(light * 1.5 + 0.015) * mix(0.55, 1.0, cloud)) * cloud;
 
   float a = 1.0 - keep;
   fragColor = vec4(add, a) * u_strength;

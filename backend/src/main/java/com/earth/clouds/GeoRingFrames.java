@@ -4,6 +4,7 @@ import com.earth.config.CloudProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -52,6 +53,11 @@ public class GeoRingFrames {
     static final int GIBS_ATTEMPTS = 3;
     /** 그 시각에 영상이 있는지만 볼 때의 크기. 전체 크기로 물으면 새 영상이 없을 때도 한 번에 30초 넘게 걸렸다. */
     static final int PROBE_WIDTH = 64;
+    /**
+     * EUMETView에서 받는 최대 가로 픽셀. 넓게 받으면 응답이 크게 느려진다(2026-11-06 측정: 2048은 41~72초,
+     * 4096은 200초를 넘겨도 끝나지 않음). 그보다 넓은 지구본 이미지가 필요하면 이 크기로 받아 늘려 쓴다.
+     */
+    static final int EUMETVIEW_MAX_WIDTH = 2048;
     static final Duration MAX_FRAME_AGE = Duration.ofHours(3);
     private static final Duration COLORMAP_TTL = Duration.ofHours(24);
     private static final Logger log = LoggerFactory.getLogger(GeoRingFrames.class);
@@ -105,7 +111,7 @@ public class GeoRingFrames {
             if (known != null && !slot.isAfter(known)) {
                 return Optional.empty();
             }
-            Optional<Fetched> probe = fetcher.fetch(satellite, slot, PROBE_WIDTH);
+            Optional<Fetched> probe = fetch(satellite, slot, PROBE_WIDTH);
             if (probe.isEmpty() || !hasPixels(probe.get().argb())) {
                 continue;
             }
@@ -113,13 +119,15 @@ public class GeoRingFrames {
             if (known != null && !observedAt.isAfter(known)) {
                 return Optional.empty();
             }
-            Optional<Fetched> fetched = fetcher.fetch(satellite, observedAt, width);
+            // 늘리기는 정수배일 때만 한다. 그 밖의 크기는 그대로 받는다.
+            int fetchWidth = width > EUMETVIEW_MAX_WIDTH && width % EUMETVIEW_MAX_WIDTH == 0 ? EUMETVIEW_MAX_WIDTH : width;
+            Optional<Fetched> fetched = fetch(satellite, observedAt, fetchWidth);
             if (fetched.isEmpty()) {
                 continue;
             }
-            short[] values = decode(satellite, fetched.get().argb());
+            short[] values = decode(satellite, fetched.get().argb(), fetchWidth);
             if (values != null) {
-                return Optional.of(new SatelliteFrame(satellite, observedAt, width, values));
+                return Optional.of(new SatelliteFrame(satellite, observedAt, width, upscale(values, fetchWidth, width)));
             }
         }
         return Optional.empty();
@@ -133,14 +141,45 @@ public class GeoRingFrames {
                 .toList();
         for (Instant time : times) {
             for (int attempt = 0; attempt < GIBS_ATTEMPTS; attempt++) {
-                Optional<Fetched> fetched = fetcher.fetch(satellite, time, width);
-                short[] values = fetched.map(f -> decode(satellite, f.argb())).orElse(null);
+                Optional<Fetched> fetched = fetch(satellite, time, width);
+                short[] values = fetched.map(f -> decode(satellite, f.argb(), width)).orElse(null);
                 if (values != null) {
                     return Optional.of(new SatelliteFrame(satellite, time, width, values));
                 }
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * 연결이 끊겨 실패하면 한 번 더 묻는다. EUMETView는 쉬던 연결을 서버 쪽에서 닫아 두는 일이 잦아, 그 연결을
+     * 다시 쓴 요청이 "closed"로 실패한다(2026-11-06 운영에서 IODC가 한 회차 통째로 빠짐). 다시 물으면 새 연결로 받는다.
+     * 서버가 계속 실패하면 두 번째 예외가 그대로 올라가 그 위성만 이번 회차에서 빠진다.
+     */
+    private Optional<Fetched> fetch(GeoSatellite satellite, Instant time, int requestWidth) {
+        try {
+            return fetcher.fetch(satellite, time, requestWidth);
+        } catch (ResourceAccessException e) {
+            log.debug("{} 연결이 끊겨 다시 요청합니다: {}", satellite.label(), e.getMessage());
+            return fetcher.fetch(satellite, time, requestWidth);
+        }
+    }
+
+    /** 등장방형 격자를 정수배로 늘린다(가장 가까운 칸). 빈 칸(NO_DATA)이 이웃과 섞이지 않는다. */
+    static short[] upscale(short[] values, int fromWidth, int toWidth) {
+        if (fromWidth == toWidth) {
+            return values;
+        }
+        int scale = toWidth / fromWidth;
+        int toHeight = toWidth / 2;
+        short[] out = new short[toWidth * toHeight];
+        for (int r = 0; r < toHeight; r++) {
+            int src = (r / scale) * fromWidth;
+            for (int x = 0; x < toWidth; x++) {
+                out[r * toWidth + x] = values[src + x / scale];
+            }
+        }
+        return out;
     }
 
     private static boolean hasPixels(int[] argb) {
@@ -153,7 +192,7 @@ public class GeoRingFrames {
     }
 
     /** 유효한 픽셀이 하나도 없으면(빈 영상) null. */
-    private short[] decode(GeoSatellite satellite, int[] argb) {
+    private short[] decode(GeoSatellite satellite, int[] argb, int imageWidth) {
         short[] values = new short[argb.length];
         boolean any = false;
         for (int i = 0; i < argb.length; i++) {
@@ -170,7 +209,7 @@ public class GeoRingFrames {
         if (!any) {
             return null;
         }
-        return satellite.provider() == GeoSatellite.Provider.GIBS ? median3x3(values, width, width / 2) : values;
+        return satellite.provider() == GeoSatellite.Provider.GIBS ? median3x3(values, imageWidth, imageWidth / 2) : values;
     }
 
     /**

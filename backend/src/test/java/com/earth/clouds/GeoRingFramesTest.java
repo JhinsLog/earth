@@ -33,12 +33,17 @@ class GeoRingFramesTest {
         final Map<GeoSatellite, Set<Instant>> available = new HashMap<>();
         final Map<GeoSatellite, Integer> emptyBeforeSuccess = new HashMap<>();
         final Set<GeoSatellite> broken = new HashSet<>();
+        /** 첫 요청 한 번만 연결이 끊긴다(서버가 닫아 둔 연결을 다시 쓴 경우). */
+        final Set<GeoSatellite> dropOnce = new HashSet<>();
         final List<String> fullRequests = new ArrayList<>();
 
         @Override
         public Optional<GeoRingFrames.Fetched> fetch(GeoSatellite satellite, Instant time, int width) {
             if (broken.contains(satellite)) {
                 throw new IllegalStateException("연결 실패");
+            }
+            if (dropOnce.remove(satellite)) {
+                throw new org.springframework.web.client.ResourceAccessException("I/O error: closed");
             }
             if (width == WIDTH) {
                 fullRequests.add(satellite + "@" + time);
@@ -107,6 +112,33 @@ class GeoRingFramesTest {
 
         assertThat(ring.current()).singleElement()
                 .extracting(SatelliteFrame::observedAt).isEqualTo(at("04:30"));
+    }
+
+    @Test
+    @DisplayName("작게 받은 영상을 정수배로 늘릴 때 빈 칸은 빈 칸끼리만 퍼진다")
+    void upscalesKeepingNoData() {
+        short n = SatelliteFrame.NO_DATA;
+        short[] small = {1, 2, n, 4, 5, 6, 7, 8}; // 4×2
+        short[] big = GeoRingFrames.upscale(small, 4, 8); // 8×4
+
+        assertThat(big).hasSize(32);
+        assertThat(java.util.Arrays.copyOfRange(big, 0, 8)).containsExactly(1, 1, 2, 2, n, n, 4, 4);
+        assertThat(java.util.Arrays.copyOfRange(big, 8, 16)).containsExactly(1, 1, 2, 2, n, n, 4, 4);
+        assertThat(java.util.Arrays.copyOfRange(big, 24, 32)).containsExactly(5, 5, 6, 6, 7, 7, 8, 8);
+    }
+
+    @Test
+    @DisplayName("연결이 한 번 끊기면 다시 물어 그 회차에 받는다")
+    void retriesDroppedConnection() {
+        FakeServer server = new FakeServer();
+        server.available.put(GeoSatellite.IODC, Set.of(at("04:45")));
+        server.dropOnce.add(GeoSatellite.IODC);
+        GeoRingFrames ring = ring(server);
+
+        ring.refresh(NOW);
+
+        assertThat(ring.current()).singleElement()
+                .extracting(SatelliteFrame::observedAt).isEqualTo(at("04:45"));
     }
 
     @Test

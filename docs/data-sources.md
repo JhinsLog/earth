@@ -45,10 +45,10 @@ Earth가 쓰는 외부 데이터와 서비스를 정리한다. 각 항목마다 
 | Himawari | 140.7°E | NASA GIBS WMS | `Himawari_AHI_Band13_Clean_Infrared` | 10분 |
 
 ```
-https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi           영상(GetMap, EPSG:4326, 2048×1024)
+https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi           영상(GetMap, EPSG:4326, 4096×2048)
 https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/1.0.0/{레이어}/default/2km/all/{시작}--{끝}.xml   관측 시각 목록(DescribeDomains)
 https://gibs.earthdata.nasa.gov/colormaps/v1.3/Clean_Longwave_Infrared_Window_Band.xml          색 → 섭씨 표
-https://view.eumetsat.int/geoserver/ows                              영상(GetMap)
+https://view.eumetsat.int/geoserver/ows                              영상(GetMap, 2048×1024 → 4096으로 늘림)
 ```
 
 **처리 흐름** (`CloudMapRefreshScheduler`, 10분마다)
@@ -68,6 +68,11 @@ CloudComposer.compose:
 프론트: 10분마다 다시 받고, 관측 시각이 바뀌었을 때만 텍스처를 갈아 끼운다
 ```
 
+**해상도** (2026-11-06): 2048×1024(1픽셀 약 20km)에 잡음 제거(3×3 중앙값)까지 거치면 열대 소나기구름이 결 없는
+둥근 덩어리로 보였다. 히마와리 원본(약 2.5km)과 나란히 놓으면 차이가 분명해 4096×2048(약 10km)로 올렸다.
+EUMETView는 넓게 요청하면 크게 느려져(같은 날 2048은 41~72초, 4096은 200초 넘게 미완료) 2048로 받아 두 배로
+늘려 쓴다. 유럽·아프리카·인도양 서부는 예전 선명도이고, 끊긴 연결은 한 번 다시 묻는다. 읽기 제한은 120초.
+
 **측정** (2026-10-31 04:49 UTC, LattePanda Alpha)
 
 | 항목 | 값 |
@@ -78,6 +83,7 @@ CloudComposer.compose:
 | 결과 | 2048×1024 JPEG 364KB |
 | 받는 양 | 새 영상마다 GIBS 약 1.3MB, EUMETView 0.3~0.7MB. 10분에 약 5MB |
 | 영상 나이(측정 시점) | 19~39분. GMGSI만 쓸 때는 약 35분~1시간 45분 |
+| (2026-11-06) 4096×2048로 올린 뒤 | 첫 수집 129초(EUMETView가 느린 날), 합성 1.6초, JPEG 1,053KB(2048일 때 346KB), 합성 직후 힙 197MB(60MB) |
 | EUMETView 환산 | Meteosat-12: 온도 = -0.367 × 밝기 + 27.6 (겹침 3만 칸, RMS 6.6°C) / IODC: -0.249 × 밝기 + 22.7 (1.5만 칸, RMS 7.0°C) |
 
 **막혔던 점과 판단**

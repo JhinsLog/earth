@@ -21,7 +21,7 @@ public record CloudProperties(
         @DefaultValue("true") boolean enabled,
         @DefaultValue("https://noaa-gmgsi-pds.s3.amazonaws.com") String bucketUrl,
         @DefaultValue("GMGSI_LW") String product,
-        @DefaultValue("2048") int width,
+        @DefaultValue("4096") int width,
         @DefaultValue("true") boolean ringEnabled,
         @DefaultValue("https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi") String gibsWmsUrl,
         @DefaultValue("https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/1.0.0") String gibsDomainsUrl,
