@@ -39,7 +39,6 @@ const EARTH_RADIUS = 1
 // 별을 지표면에 딱 붙이면 지구와 깊이가 같아 깜빡이며 가려진다(z-fighting). 살짝 띄운다.
 const STAR_RADIUS = 1.012
 const MAX_TILT_RAD = (60 * Math.PI) / 180
-const HOME_TILT_LIMIT_RAD = (30 * Math.PI) / 180
 const FOV_DEG = 30
 const CLOUD_RADIUS = 1.006
 const ATMOSPHERE_RADIUS = 1.025
@@ -315,6 +314,12 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
   const starsRef = useRef<{ geometry: THREE.BufferGeometry; points: THREE.Points } | null>(null)
   const initialCenterRef = useRef(initialView?.center ?? center)
   const initialViewRef = useRef(initialView)
+  // 접속 위치는 지구본이 뜬 뒤에 도착한다(IP 조회 약 0.5초). 처음에는 표준시로 짐작한 경도를 보다가, 위치가 오면
+  // 렌더 루프가 그쪽으로 돌린다. 지도에서 돌아온 경우는 지도가 보던 자리를 지키고, 사용자가 먼저 만지면 그만둔다.
+  const focusTargetRef = useRef<GeoPoint | null>(null)
+  useEffect(() => {
+    if (!initialViewRef.current) focusTargetRef.current = center
+  }, [center])
   // 설정의 도시 불빛. 장면 effect는 한 번만 돌기 때문에 렌더 루프가 이 ref를 읽어 서서히 맞춘다.
   const cityLights = useSettingsStore((state) => state.cityLights)
   const cityLightsTargetRef = useRef(cityLights ? 1 : 0)
@@ -342,12 +347,11 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
     const spin = new THREE.Group()
     tilt.add(spin)
     scene.add(tilt)
-    // 첫 접속은 극지방이 정면에 오지 않게 30°로 막고, 지도에서 돌아올 때는 지도가 보던 위도를 그대로 따른다(끌 때 한도와 같다).
-    const tiltLimit = initialViewRef.current ? MAX_TILT_RAD : HOME_TILT_LIMIT_RAD
+    // 접속 위치나 지도가 보던 위도를 정면에 둔다. 한도는 끌 때와 같다.
     tilt.rotation.x = THREE.MathUtils.clamp(
       THREE.MathUtils.degToRad(initialCenterRef.current.latitude),
-      -tiltLimit,
-      tiltLimit,
+      -MAX_TILT_RAD,
+      MAX_TILT_RAD,
     )
     // 자전은 실제 시각에서 바로 구한다: 태양 쪽 경도를 정면에서 늘 같은 각도에 둔다(아래 animate).
     // 이 값은 '처음 정면에 둘 경도'와 '지금 태양 직하점 경도'의 차이이고, 사용자가 끌면 바뀐다.
@@ -360,7 +364,14 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
     const size = useLarge ? 4096 : 2048
     // 텍스처가 오기 전에는 검은 구만 보이므로, 둘 다 도착한 뒤에 페이드인한다.
     // 전역 DefaultLoadingManager를 쓰면 다른 로더와 신호가 섞이므로 전용 관리자를 둔다.
-    const loader = new THREE.TextureLoader(new THREE.LoadingManager(() => setReady(true)))
+    // 텍스처가 오기 전(화면에 아직 안 보일 때) 접속 위치가 오면 돌아가는 모습 없이 바로 맞춘다.
+    let texturesReady = false
+    const loader = new THREE.TextureLoader(
+      new THREE.LoadingManager(() => {
+        texturesReady = true
+        setReady(true)
+      }),
+    )
     const dayMap = loader.load(`/textures/day_${size}.jpg`)
     const nightMap = loader.load(`/textures/night_${size}.jpg`)
     // 구름은 밝기 자체가 밀도라 색 공간 변환을 하지 않는다.
@@ -514,6 +525,7 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
     }
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
+      focusTargetRef.current = null
       zoomBy(Math.exp(-e.deltaY * HOME_GLOBE_WHEEL_ZOOM_RATE))
     }
 
@@ -533,6 +545,7 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
     let movedFar = false
     const canvas = renderer.domElement
     const onPointerDown = (e: PointerEvent) => {
+      focusTargetRef.current = null
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
       if (pointers.size === 2) {
         pinchDistance = currentPinchDistance()
@@ -626,6 +639,20 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
       // 방향은 고정되고, 지구가 그 아래에서 하루 한 바퀴 돌며 낮·밤 경계가 지표 위를 시간당 15°씩 지나간다.
       // 경과 시간(dt)을 쌓지 않고 시각에서 바로 구하는 이유: 탭이 백그라운드였다 돌아와도 태양과 어긋나지 않는다.
       const sun = subsolarPoint(new Date())
+      const focus = focusTargetRef.current
+      if (focus) {
+        const k = texturesReady ? Math.min(1, dt * 3) : 1
+        // 경도 차는 -180°~180°로 접어 짧은 쪽으로 돈다.
+        const offsetDelta = THREE.MathUtils.euclideanModulo(
+          THREE.MathUtils.degToRad(sun.longitude - focus.longitude) - viewOffset + Math.PI,
+          Math.PI * 2,
+        ) - Math.PI
+        const tiltDelta =
+          THREE.MathUtils.clamp(THREE.MathUtils.degToRad(focus.latitude), -MAX_TILT_RAD, MAX_TILT_RAD) - tilt.rotation.x
+        viewOffset += offsetDelta * k
+        tilt.rotation.x += tiltDelta * k
+        if (Math.abs(offsetDelta) < 1e-4 && Math.abs(tiltDelta) < 1e-4) focusTargetRef.current = null
+      }
       sunLocal.copy(toVector(sun.latitude, sun.longitude, 1))
       spin.rotation.y = spinFacing(sun.longitude) + viewOffset
       spin.updateMatrixWorld()

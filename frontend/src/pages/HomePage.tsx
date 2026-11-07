@@ -203,7 +203,7 @@ export default function HomePage() {
         >
           <HomeGlobe
             events={events}
-            center={globeCenter}
+            center={initialFocusLatLng ?? globeCenter}
             initialView={returnView}
             onEnter={handleGlobeClick}
             onZoomEnter={handleGlobeZoomEnter}
