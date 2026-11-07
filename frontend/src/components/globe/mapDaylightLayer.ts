@@ -2,14 +2,15 @@ import type { CustomLayerInterface, CustomRenderMethodInput, Map as MapLibreMap 
 import { API_BASE_URL } from '../../lib/api'
 import { subsolarPoint } from '../../lib/sun'
 import { useSettingsStore } from '../../store/settingsStore'
-import { MAP_DAYLIGHT_FULL_ZOOM, MAP_DAYLIGHT_NONE_ZOOM } from './constants'
+import { MAP_CLOUDS_NONE_ZOOM, MAP_DAYLIGHT_FULL_ZOOM, MAP_DAYLIGHT_NONE_ZOOM } from './constants'
 
 /**
  * 지도(MapLibre 지구본) 위에 홈 지구본(HomeGlobe)과 같은 실제 낮·밤, 실시간 구름, 도시 불빛을 얹는 커스텀 레이어.
  *
  * 지도는 위성사진 타일을 그대로 붙여 그려서 지구 전체가 대낮처럼 보였고, 홈 지구본에서 확대해 넘어오는 순간
  * 품질 차이가 컸다. 타일 위에 이 레이어를 한 장 덮어 같은 효과를 낸다. 지도는 확대해 읽는 화면이므로
- * 지구가 작을 때만 진하게 보이고, 확대할수록 옅어져 줌 MAP_DAYLIGHT_NONE_ZOOM부터는 그리지 않는다.
+ * 지구가 작을 때만 진하게 보이고, 확대할수록 옅어진다. 낮·밤은 줌 MAP_DAYLIGHT_NONE_ZOOM에서, 구름은 위성사진이
+ * 끝나는 MAP_CLOUDS_NONE_ZOOM에서 사라진다.
  *
  * 홈 지구본의 바다 햇빛 반사·가장자리 대기 산란은 옮기지 않았다. 둘 다 카메라 방향이 필요한데, MapLibre가
  * 넘겨주는 것은 투영 행렬뿐이라 별도 계산이 필요하고, 지구본 바깥 대기광은 이미 GlobeHalo가 그린다.
@@ -50,6 +51,7 @@ uniform sampler2D u_night;
 uniform float u_live;
 uniform float u_city_lights;
 uniform float u_strength;
+uniform float u_cloud_strength;
 uniform vec3 u_sun;
 uniform vec3 u_flash;
 uniform float u_flash_strength;
@@ -77,12 +79,16 @@ void main() {
   float sunDot = dot(n, u_sun);
   float light = max(sunDot, 0.0);
   float dayMix = smoothstep(-0.1, 0.2, sunDot);
-  float cloud = cloudDensity(uv);
+  // 낮·밤(u_strength)과 구름(u_cloud_strength)은 따로 옅어진다. 낮·밤이 걷힌 배율에서도 위성사진이 보이는 동안은
+  // 구름을 남기되, 확대할수록 옅게 한다(구름 자료 한 칸이 약 10km라 확대할수록 뭉개지고, 땅을 보려고 확대한 것이므로).
+  float cloud = cloudDensity(uv) * u_cloud_strength;
+  // 낮·밤이 걷힌 만큼 구름은 낮처럼 비춘다. 밝은 위성사진 위에 밤의 회색 구름만 남지 않게.
+  float cloudLight = mix(0.8, light, u_strength);
 
   // 아래 지도에 곱할 밝기: 태양 고도에 따른 명암 × 구름 그림자 × 구름에 가려진 만큼.
   // 밤 쪽 바닥값은 화면으로 맞췄다. 홈 지구본은 톤 매핑(ACES)이 어두운 값을 더 눌러 밤이 거의 검은데,
   // 같은 식(0.01)을 감마로만 바꾸면 0.12가 되어 지도의 밤이 남색으로 떠 보였다.
-  float shade = max(toGamma(vec3(light * 1.7)).r, 0.05) * (1.0 - cloud * 0.4 * light);
+  float shade = mix(1.0, max(toGamma(vec3(light * 1.7)).r, 0.05) * (1.0 - cloud * 0.4 * light), u_strength);
   float keep = shade * (1.0 - cloud);
   // 손전등: 비추는 자리만 밤의 어두움을 걷어 아래 위성사진을 드러낸다. 구름은 그대로 덮는다.
   float flashCos = cos(${FLASHLIGHT_RADIUS_RAD.toFixed(2)});
@@ -93,10 +99,10 @@ void main() {
   // 아래 지도 색을 알 수 없으므로 일정한 값으로 둔다.
   vec3 add = vec3(0.35, 0.45, 0.8) * 0.06 * (1.0 - dayMix) * (1.0 - cloud);
   add += toGamma(texture(u_night, uv).rgb * vec3(1.0, 0.85, 0.6) * 1.4) * (1.0 - dayMix) * u_city_lights * (1.0 - cloud);
-  add += toGamma(vec3(light * 1.5 + 0.015) * mix(0.55, 1.0, cloud)) * cloud;
+  add *= u_strength;
+  add += toGamma(vec3(cloudLight * 1.5 + 0.015) * mix(0.55, 1.0, cloud)) * cloud;
 
-  float a = 1.0 - keep;
-  fragColor = vec4(add, a) * u_strength;
+  fragColor = vec4(add, 1.0 - keep);
 }`
 
 interface GridMesh {
@@ -175,7 +181,6 @@ function sunVector(): [number, number, number] {
   return [Math.cos(lat) * Math.cos(lng), Math.sin(lat), Math.cos(lat) * Math.sin(lng)]
 }
 
-/** 줌에 따른 효과 세기. FULL 이하에서 1, NONE 이상에서 0. */
 /** 해가 진 곳인가(태양이 지평선 아래). 손전등은 여기서만 켠다. */
 export function isNight(longitude: number, latitude: number): boolean {
   const [x, y, z] = toVector(longitude, latitude)
@@ -189,8 +194,9 @@ function toVector(longitude: number, latitude: number): [number, number, number]
   return [Math.cos(lat) * Math.cos(lng), Math.sin(lat), Math.cos(lat) * Math.sin(lng)]
 }
 
-function strengthAt(zoom: number): number {
-  const t = Math.min(1, Math.max(0, (zoom - MAP_DAYLIGHT_FULL_ZOOM) / (MAP_DAYLIGHT_NONE_ZOOM - MAP_DAYLIGHT_FULL_ZOOM)))
+/** from 이하에서 1, to 이상에서 0으로 부드럽게 줄어드는 세기. */
+function fade(zoom: number, from: number, to: number): number {
+  const t = Math.min(1, Math.max(0, (zoom - from) / (to - from)))
   return 1 - t * t * (3 - 2 * t)
 }
 
@@ -241,6 +247,7 @@ export function createDaylightLayer(id: string): DaylightLayer {
       'u_live',
       'u_city_lights',
       'u_strength',
+      'u_cloud_strength',
       'u_sun',
       'u_flash',
       'u_flash_strength',
@@ -316,9 +323,11 @@ export function createDaylightLayer(id: string): DaylightLayer {
     },
     render(context, options) {
       if (!map) return
-      const strength = strengthAt(map.getZoom())
+      const zoom = map.getZoom()
+      const strength = fade(zoom, MAP_DAYLIGHT_FULL_ZOOM, MAP_DAYLIGHT_NONE_ZOOM)
+      const cloudStrength = fade(zoom, MAP_DAYLIGHT_NONE_ZOOM, MAP_CLOUDS_NONE_ZOOM)
       // 지구본에서 평면 지도로 바뀌는 높은 줌에서는 어차피 세기가 0이다.
-      if (strength <= 0 || options.defaultProjectionData.projectionTransition < 0.999) return
+      if (cloudStrength <= 0 || options.defaultProjectionData.projectionTransition < 0.999) return
       const c = context as WebGL2RenderingContext
       const { program, uniforms } = programFor(options.shaderData)
       const projection = options.defaultProjectionData
@@ -331,6 +340,7 @@ export function createDaylightLayer(id: string): DaylightLayer {
       c.uniform1f(uniforms.u_live, hasLive ? 1 : 0)
       c.uniform1f(uniforms.u_city_lights, useSettingsStore.getState().cityLights ? 1 : 0)
       c.uniform1f(uniforms.u_strength, strength)
+      c.uniform1f(uniforms.u_cloud_strength, cloudStrength)
       c.uniform3f(uniforms.u_sun, ...sunVector())
       const now = performance.now()
       const dt = (now - flashTime) / 1000

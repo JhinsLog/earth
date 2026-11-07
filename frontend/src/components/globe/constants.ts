@@ -117,3 +117,9 @@ export function homeGlobeRadiusPx(width: number, height: number, scale: number):
  */
 export const MAP_DAYLIGHT_FULL_ZOOM = 4
 export const MAP_DAYLIGHT_NONE_ZOOM = 6
+/**
+ * 지도 위 구름이 다 사라지는 줌. 구름은 MAP_DAYLIGHT_NONE_ZOOM부터 옅어지기 시작해 여기서 0이 된다.
+ * 위성사진이 어두운 지도로 다 바뀌는 줌(mapStyle의 DARK_BASE_OPACITY 끝, 10.5)과 맞췄다 — 위성사진이 보이는
+ * 동안은 실제 구름을 보여 주고, 어두운 지도 위에는 구름을 얹지 않는다.
+ */
+export const MAP_CLOUDS_NONE_ZOOM = 10.5
