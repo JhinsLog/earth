@@ -258,32 +258,49 @@ const STAR_VERTEX = /* glsl */ `
   uniform float pixelRatio;
   uniform float frontDistance;
   varying vec3 vColor;
-  varying float vTwinkle;
+  varying float vWave;
+  varying float vFlash;
   void main() {
     vColor = color;
-    // 별마다 위상과 속도를 달리해 동시에 깜빡이지 않게 한다.
-    vTwinkle = 0.55 + 0.45 * sin(time * (1.6 + phase * 0.7) + phase * 6.2831);
+    // 별마다 위상과 속도를 달리해 동시에 깜빡이지 않게 한다. 지도 별(MapGlobe updateTwinkle)과 같은 모양의 파동:
+    // 양수 쪽만 제곱해 짧게 번쩍이고 대부분은 은은하다.
+    vWave = sin(time * (1.1 + phase * 1.4) + phase * 6.2831);
+    vFlash = pow(max(vWave, 0.0), 2.0);
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    // 정면(카메라에서 가장 가까운 지표) 기준으로 20~30px. 가장자리로 갈수록 멀어져 조금 작아진다.
+    // 정면(카메라에서 가장 가까운 지표) 기준 44px. 긴 광선이 이 칸 끝까지 뻗는다. 가장자리로 갈수록 멀어져 조금 작아진다.
     // 거리로만 나누면 카메라가 멀어 별이 5px 남짓이 되어 밝은 낮 지역에서 보이지 않았다.
-    gl_PointSize = scale * (20.0 + 10.0 * vTwinkle) * pixelRatio * frontDistance / -mv.z;
+    gl_PointSize = scale * 44.0 * pixelRatio * frontDistance / -mv.z;
     gl_Position = projectionMatrix * mv;
   }
 `
 
-// 둥근 빛 + 십자 광선. MapLibre 쪽 별(starFlareTexture)과 비슷한 인상을 준다.
+// 지도 별(starFlareTexture)과 같은 구성: 색 빛무리, 대각선 짧은 광선, 색 테두리를 두른 흰 코어, 반짝이는 상하좌우 긴 광선.
+// 광선은 가운데가 굵고 끝으로 갈수록 가늘어지며 사라진다(거리에 비례해 폭을 좁힌다).
 const STAR_FRAGMENT = /* glsl */ `
   varying vec3 vColor;
-  varying float vTwinkle;
+  varying float vWave;
+  varying float vFlash;
+
+  // a 방향으로 뻗는 광선. b는 광선에 수직인 거리.
+  float ray(float a, float b, float len, float width) {
+    float along = abs(a);
+    return exp(-abs(b) * width * (1.0 + 7.0 * along / len)) * (1.0 - smoothstep(0.0, len, along));
+  }
+
   void main() {
     vec2 p = gl_PointCoord - 0.5;
-    float r = length(p);
-    float core = exp(-r * r * 90.0);
-    float glow = exp(-r * r * 14.0) * 0.55;
-    float spikes = (exp(-abs(p.x) * 60.0) + exp(-abs(p.y) * 60.0)) * exp(-r * 6.0) * 0.5;
-    float a = (core + glow + spikes) * (0.45 + 0.55 * vTwinkle);
-    if (a < 0.01) discard;
-    gl_FragColor = vec4(mix(vColor, vec3(1.0), core * 0.7) * a, a);
+    float r2 = dot(p, p);
+    float glow = exp(-r2 * 45.0) * 0.45;
+    float rim = exp(-r2 * 260.0) * 0.8;
+    float core = exp(-r2 * 900.0);
+    vec2 q = vec2(p.x + p.y, p.x - p.y) * 0.70710678;
+    float shortRays = (ray(q.x, q.y, 0.26, 70.0) + ray(q.y, q.x, 0.26, 70.0)) * 0.55;
+    float longRays = (ray(p.x, p.y, 0.5, 60.0) + ray(p.y, p.x, 0.5, 60.0)) * (0.2 + 0.8 * vFlash);
+    vec3 col = vColor * (glow + rim + shortRays * 0.7 + longRays * 0.6)
+             + vec3(1.0) * (core + shortRays * 0.35 + longRays * 0.55);
+    col *= 0.9 + 0.1 * vWave;
+    if (max(col.r, max(col.g, col.b)) < 0.004) discard;
+    gl_FragColor = vec4(col, 1.0);
   }
 `
 
