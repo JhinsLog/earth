@@ -105,7 +105,8 @@ interface Props {
   selectionToken: number
   onSelect: (id: number | null) => void
   draftStars: DraftStar[]
-  onDraftCreate: (latitude: number, longitude: number) => void
+  /** zoom은 찍은 순간의 줌. 너무 멀리서 찍었는지는 받는 쪽이 판단해 안내한다. */
+  onDraftCreate: (latitude: number, longitude: number, zoom: number) => void
   onDraftSelect: (id: string) => void
   onDraftRemove: (id: string) => void
   initialFocusLatLng?: GeoPoint | null
@@ -720,7 +721,7 @@ export default function MapGlobe({
       // globe 투영에서 지구본 바깥(우주)을 클릭하면 좌표가 유효 범위를 벗어날 수 있다.
       // 그대로 두면 백엔드 검증(-90~90 / -180~180)에서 걸리므로 여기서 걸러낸다.
       if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90) return
-      onDraftCreateRef.current(lat, lng)
+      onDraftCreateRef.current(lat, lng, map.getZoom())
     })
 
     // 지구본 가장자리 대기광 — MapLibre의 네이티브 Sky/atmosphere는 pitch가 있는 3D 지형용이라

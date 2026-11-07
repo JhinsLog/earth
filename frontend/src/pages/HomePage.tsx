@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import HomeGlobe, { type HandoffView } from '../components/globe/HomeGlobe'
-import { GLOBE_TRANSITION_MS } from '../components/globe/constants'
+import { DRAFT_MIN_ZOOM, GLOBE_TRANSITION_MS } from '../components/globe/constants'
 import Navbar from '../components/layout/Navbar'
 import EventDetailPanel from '../components/panel/EventDetailPanel'
 import CreateEventModal from '../components/panel/CreateEventModal'
@@ -192,9 +192,13 @@ export default function HomePage() {
   // 수명이 다해 목록에서 빠지면 selectedDraft도 자연히 null이 되어 모달이 닫힌다.
   const selectedDraft = drafts.find((d) => d.id === selectedDraftId) ?? null
 
-  const handleDraftCreate = (latitude: number, longitude: number) => {
+  const handleDraftCreate = (latitude: number, longitude: number, zoom: number) => {
     if (!user) {
       flashLoginHint('별을 남기려면 로그인이 필요합니다')
+      return
+    }
+    if (zoom < DRAFT_MIN_ZOOM) {
+      flashLoginHint('더 확대해야 별을 남길 수 있습니다')
       return
     }
     addDraft(latitude, longitude)
@@ -269,7 +273,7 @@ export default function HomePage() {
       {view === 'map' && !loginHint && user && (
         <div className="home__hint">
           {drafts.length === 0 ? (
-            <>지구본을 <strong>우클릭</strong>해 별을 남겨보세요</>
+            <>확대한 뒤 <strong>우클릭</strong>해 별을 남겨보세요</>
           ) : (
             <>
               임시 별 {drafts.length}개 · 클릭해 내용 입력, <strong>우클릭</strong>하면 삭제

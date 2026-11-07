@@ -41,6 +41,13 @@ export const COUNTRY_LABEL_MAX_DISTANCE_KM = 3000
 /** 내용을 입력해 등록하지 않은 임시 별이 지도에서 사라지기까지의 시간. */
 export const DRAFT_STAR_LIFETIME_MS = 5 * 60 * 1000
 
+/**
+ * 우클릭으로 별을 남길 수 있는 최소 줌 — 시·구 단위가 구분되는 정도.
+ *
+ * 나라 전체가 보이는 배율에서 찍으면 화면 1px이 수 km라 의도한 곳과 크게 어긋난 자리에 별이 생긴다.
+ */
+export const DRAFT_MIN_ZOOM = 10.0
+
 /** 임시 별 색상 — 등록된 별(카테고리 색)과 구분되도록 중립적인 하늘색을 쓴다. */
 export const DRAFT_STAR_COLOR = '#9fd6ff'
 

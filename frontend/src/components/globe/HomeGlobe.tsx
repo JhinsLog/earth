@@ -45,6 +45,13 @@ const CLOUD_RADIUS = 1.006
 const ATMOSPHERE_RADIUS = 1.025
 // 도시 불빛 토글이 한 번에 켜지고 꺼지지 않고 이 시간 동안 번지듯 바뀐다.
 const CITY_LIGHTS_FADE_SEC = 0.6
+/**
+ * 우클릭 손전등. 밤 지역은 실제처럼 거의 검어서 대륙을 찾기 어렵다. 평소 화면은 그대로 두고, 우클릭하는 동안만
+ * 그 주변을 낮 사진으로 비춘다(현실 지구 우선 원칙). 반지름은 지구 중심에서 본 각도(rad)다.
+ */
+const FLASHLIGHT_RADIUS_RAD = 0.22
+const FLASHLIGHT_FADE_IN_SEC = 0.15
+const FLASHLIGHT_FADE_OUT_SEC = 1.0
 // 정적 구름 사진일 때만 지구보다 조금 빨리 흘려 정지 사진이 아니라는 느낌을 준다.
 // 실시간 구름은 실제 위치가 의미라 흘리지 않는다.
 const CLOUD_DRIFT_RAD_PER_SEC = 0.004
@@ -158,6 +165,9 @@ const EARTH_FRAGMENT = /* glsl */ `
   uniform vec3 sunWorld;
   uniform float cloudOffset;
   uniform float cityLights;
+  uniform vec3 flashWorld;
+  uniform float flashStrength;
+  uniform float flashCos;
   varying vec2 vUv;
   varying vec3 vWorldNormal;
   varying vec3 vWorldPos;
@@ -175,6 +185,9 @@ const EARTH_FRAGMENT = /* glsl */ `
     vec3 color = day * (light * 1.7 + 0.01) * (1.0 - cloudShadow * 0.4 * light);
     color += day * vec3(0.35, 0.45, 0.8) * 0.12 * (1.0 - dayMix);
     color += night * vec3(1.0, 0.85, 0.6) * 1.4 * (1.0 - dayMix) * cityLights;
+    // 손전등. 가장자리를 부드럽게 흐리고, 낮 지역은 이미 밝으니 밤인 만큼만 더한다.
+    float spot = smoothstep(flashCos, mix(flashCos, 1.0, 0.7), dot(n, flashWorld));
+    color += day * 0.9 * spot * flashStrength * (1.0 - dayMix);
 
     // 바다에만 햇빛 반사. 처음엔 '어둡고 푸른 픽셀'을 바다로 봤는데, 위성 사진의 섬 주변에 남은 JPEG
     // 압축 블록에서 판정이 뒤집혀 반사광 속에 사각형 얼룩이 생겼다. 육지/바다 마스크를 따로 쓴다.
@@ -434,6 +447,9 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
         sunWorld: { value: sunWorld },
         cloudOffset: { value: 0 },
         cityLights: { value: cityLightsTargetRef.current },
+        flashWorld: { value: new THREE.Vector3() },
+        flashStrength: { value: 0 },
+        flashCos: { value: Math.cos(FLASHLIGHT_RADIUS_RAD) },
       },
       vertexShader: EARTH_VERTEX,
       fragmentShader: EARTH_FRAGMENT,
@@ -572,8 +588,26 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
     let lastY = 0
     let movedFar = false
     const canvas = renderer.domElement
+    // 우클릭 손전등. 비추는 지점은 지구 좌표로 들고 있어야 자전해도 같은 땅을 비춘다.
+    const flashLocal = new THREE.Vector3()
+    let flashOn = false
+    let flashPointerId: number | null = null
+    const aimFlashlight = (clientX: number, clientY: number) => {
+      const hit = hitEarth(clientX, clientY)
+      if (!hit) return false
+      flashLocal.copy(earth.worldToLocal(hit.point.clone())).normalize()
+      return true
+    }
+    const onContextMenu = (e: MouseEvent) => e.preventDefault()
     const onPointerDown = (e: PointerEvent) => {
       focusTargetRef.current = null
+      // 우클릭은 돌리기·진입과 섞지 않는다. 지구 밖에서 눌러도 누른 채 지구 위로 오면 비춘다.
+      if (e.pointerType === 'mouse' && e.button === 2) {
+        flashPointerId = e.pointerId
+        flashOn = aimFlashlight(e.clientX, e.clientY)
+        canvas.setPointerCapture(e.pointerId)
+        return
+      }
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
       if (pointers.size === 2) {
         pinchDistance = currentPinchDistance()
@@ -588,6 +622,10 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
       canvas.setPointerCapture(e.pointerId)
     }
     const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerId === flashPointerId) {
+        flashOn = aimFlashlight(e.clientX, e.clientY)
+        return
+      }
       if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
       if (pointers.size === 2) {
         const distance = currentPinchDistance()
@@ -608,6 +646,12 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
       }
     }
     const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerId === flashPointerId) {
+        flashPointerId = null
+        flashOn = false
+        canvas.releasePointerCapture(e.pointerId)
+        return
+      }
       pointers.delete(e.pointerId)
       if (pointers.size < 2) pinchDistance = 0
       if (!dragging) return
@@ -623,6 +667,7 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
     canvas.addEventListener('pointermove', onPointerMove)
     canvas.addEventListener('pointerup', onPointerUp)
     canvas.addEventListener('pointercancel', onPointerUp)
+    canvas.addEventListener('contextmenu', onContextMenu)
 
     const liveCloudsRequest = new AbortController()
     let liveCloudMap: THREE.Texture | null = null
@@ -694,6 +739,11 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
       const lights = earthMaterial.uniforms.cityLights
       const step = dt / CITY_LIGHTS_FADE_SEC
       lights.value += THREE.MathUtils.clamp(cityLightsTargetRef.current - lights.value, -step, step)
+      const flash = earthMaterial.uniforms.flashStrength
+      flash.value = flashOn
+        ? Math.min(1, flash.value + dt / FLASHLIGHT_FADE_IN_SEC)
+        : Math.max(0, flash.value - dt / FLASHLIGHT_FADE_OUT_SEC)
+      if (flash.value > 0) earthMaterial.uniforms.flashWorld.value.copy(flashLocal).applyQuaternion(earthRotation)
       if (cloudUniforms.liveClouds.value === 0) clouds.rotation.y += CLOUD_DRIFT_RAD_PER_SEC * dt
       // 구름 구를 a만큼 돌리면 텍스처의 u가 a/2π만큼 밀린다. 그림자도 같은 만큼 밀어 읽는다.
       earthMaterial.uniforms.cloudOffset.value = clouds.rotation.y / (2 * Math.PI)
@@ -716,6 +766,7 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerup', onPointerUp)
       canvas.removeEventListener('pointercancel', onPointerUp)
+      canvas.removeEventListener('contextmenu', onContextMenu)
       starsRef.current = null
       for (const disposable of [
         earthGeometry, earthMaterial, cloudGeometry, cloudMaterial, atmosphereGeometry, atmosphereMaterial,
