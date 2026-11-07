@@ -204,8 +204,17 @@ export default function HomePage() {
     addDraft(latitude, longitude)
   }
 
+  // 이 화면의 우클릭은 별 남기기와 달빛 비춰 보기다. 지도·지구본은 각자 브라우저 메뉴를 막지만, 이벤트가 그쪽에
+  // 닿지 않으면(위에 겹친 요소에서 눌린 경우 등) 크롬 메뉴가 떴다(2026-11-08). 그래서 페이지 전체에서 막는다.
+  // 글을 입력하거나 복사하려는 경우(입력창 안, 글자를 선택한 상태)는 브라우저 메뉴를 그대로 둔다.
+  const blockBrowserMenu = (e: { target: EventTarget; preventDefault: () => void }) => {
+    if (e.target instanceof Element && e.target.closest('input, textarea, [contenteditable="true"]')) return
+    if (window.getSelection()?.toString()) return
+    e.preventDefault()
+  }
+
   return (
-    <div className={`home${selectedEvent ? ' home--panel-open' : ''}`}>
+    <div className={`home${selectedEvent ? ' home--panel-open' : ''}`} onContextMenu={blockBrowserMenu}>
       <Navbar
         onBrandClick={() => exitToGlobe(null)}
       />
