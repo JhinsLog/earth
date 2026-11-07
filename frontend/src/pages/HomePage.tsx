@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import HomeGlobe, { type HandoffView } from '../components/globe/HomeGlobe'
 import { DRAFT_MIN_ZOOM, GLOBE_TRANSITION_MS } from '../components/globe/constants'
@@ -7,6 +7,7 @@ import EventDetailPanel from '../components/panel/EventDetailPanel'
 import CreateEventModal from '../components/panel/CreateEventModal'
 import { useEventStore } from '../store/eventStore'
 import { useAuthStore } from '../store/authStore'
+import { useSettingsStore } from '../store/settingsStore'
 import { useDraftStars } from '../hooks/useDraftStars'
 import { useMyLocation } from '../hooks/useMyLocation'
 import { api } from '../lib/api'
@@ -46,6 +47,12 @@ export default function HomePage() {
     pruneExpired,
   } = useEventStore()
   const { accessToken, user, setUser } = useAuthStore()
+  const publicStars = useSettingsStore((s) => s.publicStars)
+  // 화면에서만 거른다(docs/decisions.md). 제한 응답은 출처를 담지 않으므로 스위치와 무관하게 남는다.
+  const visibleEvents = useMemo(
+    () => (publicStars ? events : events.filter((e) => e.restricted || e.origin !== 'API')),
+    [events, publicStars],
+  )
   const { drafts, addDraft, removeDraft, soonestRemainingMs } = useDraftStars()
   // 내 위치는 여기서만 소유하고 필요한 두 곳에만 내려보낸다. 서버로는 나가지 않는다.
   const { myLocation, locating, locateError, locate } = useMyLocation()
@@ -185,11 +192,11 @@ export default function HomePage() {
     api.get<EarthUser>('/api/users/me').then(({ data }) => setUser(data))
   }, [accessToken, setUser])
 
-  const found = events.find((e) => e.id === selectedEventId)
+  const found = visibleEvents.find((e) => e.id === selectedEventId)
   const selectedEvent = found && !found.restricted ? found : null
 
   const handleSelect = (id: number | null) => {
-    const target = id == null ? null : events.find((e) => e.id === id)
+    const target = id == null ? null : visibleEvents.find((e) => e.id === id)
     // 위치만 아는 별은 서버가 상세를 주지 않는다(403). 열지 않고 이유를 알려 준다.
     if (target?.restricted) {
       flashLoginHint('로그인하면 다른 나라의 별도 자세히 볼 수 있습니다')
@@ -233,7 +240,7 @@ export default function HomePage() {
         >
           <HomeGlobe
             key={globeKey}
-            events={events}
+            events={visibleEvents}
             center={initialFocusLatLng ?? globeCenter}
             initialView={returnView}
             onZoomEnter={handleGlobeZoomEnter}
@@ -255,7 +262,7 @@ export default function HomePage() {
             <MapGlobe
               key={mapKey}
               onViewportChange={loadEvents}
-              events={events}
+              events={visibleEvents}
               selectedEventId={selectedEventId}
               selectionToken={selectionToken}
               onSelect={handleSelect}

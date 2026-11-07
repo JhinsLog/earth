@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useSettingsStore } from '../../store/settingsStore'
 import './SettingsMenu.css'
 
-/** 화면 표시 설정. 지금은 홈 지구본의 도시 불빛 하나뿐이다. */
+/** 화면 표시 설정. 브라우저에만 기억한다. */
 export default function SettingsMenu() {
-  const { cityLights, setCityLights } = useSettingsStore()
+  const { cityLights, setCityLights, publicStars, setPublicStars } = useSettingsStore()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -55,6 +55,19 @@ export default function SettingsMenu() {
               className="settings__switch"
               checked={cityLights}
               onChange={(e) => setCityLights(e.target.checked)}
+            />
+          </label>
+          <label className="settings__row">
+            <span className="settings__label">
+              공공데이터 별
+              <span className="settings__desc">교통 돌발정보처럼 공공데이터로 자동으로 만든 별을 표시합니다</span>
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              className="settings__switch"
+              checked={publicStars}
+              onChange={(e) => setPublicStars(e.target.checked)}
             />
           </label>
         </div>
