@@ -9,7 +9,7 @@ import {
   ESRI_OPACITY,
   createEarthMapStyle,
 } from './mapStyle'
-import { createStarFlareImageData } from './starFlareTexture'
+import { STAR_SPRITE_PIXEL_RATIO, createStarBodyImage, createStarSparkleImage } from './starFlareTexture'
 import { createDaylightLayer } from './mapDaylightLayer'
 import Starfield from './Starfield'
 import { detectLabelLanguage } from '../../lib/language'
@@ -48,14 +48,19 @@ import './MapGlobe.css'
 
 const EVENTS_SOURCE_ID = 'earth-events-source'
 const DRAFTS_SOURCE_ID = 'earth-drafts-source'
-const STAR_FLARE_IMAGE_ID = 'earth-star-flare-sdf'
+const STAR_BODY_IMAGE_PREFIX = 'earth-star-body-'
+const STAR_SPARKLE_IMAGE_PREFIX = 'earth-star-sparkle-'
+/** 별 색은 이것뿐이다. 색마다 스프라이트를 한 장씩 미리 올린다(starFlareTexture). */
+const STAR_COLORS = [...new Set([...Object.values(EVENT_CATEGORY_COLOR), RESTRICTED_STAR_COLOR, DRAFT_STAR_COLOR])]
+/** 반짝임 갱신 간격. 매 프레임 바꿀 만큼 빠른 변화가 아니고, 바꿀 때마다 레이어 스타일을 다시 계산한다. */
+const TWINKLE_INTERVAL_MS = 50
 /** 내 위치 표시. 이 좌표는 브라우저 안에만 머무르며 서버로 나가지 않는다. */
 const MY_LOCATION_SOURCE_ID = 'earth-my-location-source'
 /** 공감이 이 수를 넘어도 별이 더 커지지는 않는다. 하나가 화면을 뒤덮지 않도록. */
 const CONFIRM_BOOST_MAX = 10
 /** 클릭 판정을 받는 레이어 — 넓은 오라와 중앙 코어만으로 충분하다. */
-const EVENT_CLICK_LAYER_IDS = ['events-aura-layer', 'events-white-core'] as const
-const DRAFT_CLICK_LAYER_IDS = ['drafts-aura-layer', 'drafts-white-core'] as const
+const EVENT_CLICK_LAYER_IDS = ['events-aura-layer', 'events-star'] as const
+const DRAFT_CLICK_LAYER_IDS = ['drafts-aura-layer', 'drafts-star'] as const
 
 /**
  * 화면에 보이는 지구 원판의 반지름(px). 중심에서 동쪽 대원을 따라 60~90° 떨어진 점들을 투영해 가장 먼 거리를
@@ -209,6 +214,10 @@ function toEventGeoJson(events: EarthEvent[]) {
         // 목격자가 많을수록 밝고 크게. 신뢰도를 지구본 위에서 바로 읽을 수 있게 한다.
         // 상한을 두는 이유는 공감이 많은 별 하나가 화면을 뒤덮지 않게 하기 위함이다.
         confirmBoost: event.restricted ? 0 : Math.min(event.confirmCount, CONFIRM_BOOST_MAX),
+        // 별마다 반짝이는 박자를 다르게 한다. 같으면 화면의 별이 한꺼번에 깜빡여 신호등처럼 보인다.
+        // id에서 정해지므로 새로고침해도 같은 별은 같은 박자다.
+        phase: (event.id * 2.399963) % (Math.PI * 2),
+        speed: 1.1 + ((event.id * 0.618034) % 1) * 1.4,
       },
     })),
   }
@@ -226,12 +235,9 @@ function toDraftGeoJson(drafts: DraftStar[]) {
 }
 
 /**
- * 별 하나를 이루는 4개 레이어(오라 → 헤일로 → 색 성광 → 백색 코어)를 한 번에 얹는다.
- * 등록된 이벤트와 임시 별이 같은 생김새를 공유하되 색과 밝기만 달라지도록 공통화했다.
- */
-/**
- * 별 한 벌(오라 → 헤일로 → 성광 → 백색 코어)을 얹는다.
+ * 별 한 벌(빛무리 → 본체 → 반짝이는 긴 광선)을 얹는다. 등록된 별과 임시 별이 생김새를 공유하고 색과 밝기만 다르다.
  *
+ * @param color          색. 등록된 별은 분류마다 달라 ['get', 'color'], 임시 별은 고정 색 문자열
  * @param boostByConfirm 공감 수만큼 크기를 키울지. 등록된 별에만 적용하고 임시 별에는
  *                       쓰지 않는다 — 임시 별은 아직 아무도 확인하지 않은 상태이므로.
  */
@@ -261,61 +267,47 @@ function addStarLayers(
       boostByConfirm ? ['+', size, ['*', ['coalesce', ['get', 'confirmBoost'], 0], perConfirm]] : size
     return ['interpolate', ['linear'], ['zoom'], zoomLow, withBoost(sizeLow), zoomHigh, withBoost(sizeHigh)]
   }
+  const image = (prefixId: string): unknown =>
+    typeof color === 'string' ? `${prefixId}${color}` : ['concat', prefixId, color]
 
+  // 넓고 옅은 빛무리. 클릭 판정 범위도 겸한다(스프라이트의 투명한 가장자리는 클릭에 잡히지 않는다).
   map.addLayer({
     id: `${prefix}-aura-layer`,
     type: 'circle',
     source: sourceId,
     paint: {
-      'circle-radius': zoomRamp([1, 7], [10, 16], 0.9) as never,
+      'circle-radius': zoomRamp([1, 7], [10, 15], 0.9) as never,
       'circle-color': color as string,
-      'circle-opacity': 0.4 * opacityScale,
-      'circle-blur': 0.85,
+      'circle-opacity': 0.22 * opacityScale,
+      'circle-blur': 1,
     },
   })
 
   map.addLayer({
-    id: `${prefix}-halo-layer`,
-    type: 'circle',
-    source: sourceId,
-    paint: {
-      'circle-radius': zoomRamp([1, 3.5], [10, 8], 0.45) as never,
-      'circle-color': color as string,
-      'circle-opacity': 0.8 * opacityScale,
-      'circle-blur': 0.25,
-    },
-  })
-
-  map.addLayer({
-    id: `${prefix}-color-flare`,
+    id: `${prefix}-star`,
     type: 'symbol',
     source: sourceId,
     layout: {
-      'icon-image': STAR_FLARE_IMAGE_ID,
-      'icon-size': zoomRamp([1, 0.18], [10, 0.38], 0.022) as never,
+      'icon-image': image(STAR_BODY_IMAGE_PREFIX) as never,
+      'icon-size': zoomRamp([1, 0.42], [10, 0.8], 0.04) as never,
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },
-    paint: {
-      'icon-color': color as string,
-      'icon-opacity': 0.95 * opacityScale,
-    },
+    paint: { 'icon-opacity': opacityScale },
   })
 
+  // 긴 광선만 따로 둔다. 투명도는 반짝임 루프가 바꾼다(MapGlobe의 updateTwinkle).
   map.addLayer({
-    id: `${prefix}-white-core`,
+    id: `${prefix}-sparkle`,
     type: 'symbol',
     source: sourceId,
     layout: {
-      'icon-image': STAR_FLARE_IMAGE_ID,
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 1, 0.09, 10, 0.2],
+      'icon-image': image(STAR_SPARKLE_IMAGE_PREFIX) as never,
+      'icon-size': zoomRamp([1, 0.5], [10, 0.95], 0.05) as never,
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },
-    paint: {
-      'icon-color': '#ffffff',
-      'icon-opacity': 1.0 * opacityScale,
-    },
+    paint: { 'icon-opacity': 0.6 * opacityScale },
   })
 }
 
@@ -562,9 +554,15 @@ export default function MapGlobe({
     map.once('style.load', () => map.addLayer(createDaylightLayer(DAYLIGHT_LAYER_ID), 'country-boundaries'))
 
     map.on('load', () => {
-      const imageData = createStarFlareImageData()
-      if (!map.hasImage(STAR_FLARE_IMAGE_ID)) {
-        map.addImage(STAR_FLARE_IMAGE_ID, imageData, { sdf: true })
+      for (const starColor of STAR_COLORS) {
+        if (!map.hasImage(STAR_BODY_IMAGE_PREFIX + starColor)) {
+          map.addImage(STAR_BODY_IMAGE_PREFIX + starColor, createStarBodyImage(starColor), {
+            pixelRatio: STAR_SPRITE_PIXEL_RATIO,
+          })
+          map.addImage(STAR_SPARKLE_IMAGE_PREFIX + starColor, createStarSparkleImage(starColor), {
+            pixelRatio: STAR_SPRITE_PIXEL_RATIO,
+          })
+        }
       }
 
       map.addSource(EVENTS_SOURCE_ID, {
@@ -782,10 +780,25 @@ export default function MapGlobe({
 
     // 임시 별은 부드럽게 명멸시켜 "아직 등록되지 않은, 곧 사라질 상태"임을 드러낸다.
     const updateDraftPulse = () => {
-      if (!hasDraftsRef.current || !map.getLayer('drafts-white-core')) return
+      if (!hasDraftsRef.current || !map.getLayer('drafts-star')) return
       const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 400)
-      map.setPaintProperty('drafts-white-core', 'icon-opacity', pulse)
-      map.setPaintProperty('drafts-color-flare', 'icon-opacity', pulse * 0.8)
+      map.setPaintProperty('drafts-star', 'icon-opacity', pulse * 0.85)
+      map.setPaintProperty('drafts-sparkle', 'icon-opacity', pulse * 0.5)
+    }
+
+    // 등록된 별의 긴 광선을 별마다 다른 박자(phase, speed)로 반짝인다. 시각만 바꾼 식을 넣으면 MapLibre가 별마다
+    // 계산하므로 별 수만큼 자바스크립트로 돌지 않는다. sin의 양수 쪽만 제곱해 짧게 번쩍이고 대부분은 은은하게 둔다.
+    let lastTwinkle = 0
+    const updateTwinkle = () => {
+      const now = performance.now()
+      if (now - lastTwinkle < TWINKLE_INTERVAL_MS || !map.getLayer('events-sparkle')) return
+      lastTwinkle = now
+      const t = now / 1000
+      const wave = ['sin', ['+', ['*', t, ['coalesce', ['get', 'speed'], 1]], ['coalesce', ['get', 'phase'], 0]]]
+      map.setPaintProperty('events-sparkle', 'icon-opacity', [
+        '+', 0.18, ['*', 0.82, ['^', ['max', 0, wave], 2]],
+      ] as never)
+      map.setPaintProperty('events-star', 'icon-opacity', ['+', 0.88, ['*', 0.12, wave]] as never)
     }
 
     let rafId: number
@@ -812,6 +825,7 @@ export default function MapGlobe({
       }
       updateHalo()
       updateDraftPulse()
+      updateTwinkle()
       rafId = requestAnimationFrame(rotate)
     }
     rafId = requestAnimationFrame(rotate)
