@@ -51,6 +51,22 @@
   margin: 0 0 14px;
 }
 
+/* 생성 주체 배지. 사람이 남긴 별과 공공데이터 별을 한눈에 가른다. */
+.event-panel__origin {
+  display: inline-block;
+  padding: 1px 6px;
+  margin-right: 2px;
+  border-radius: 8px;
+  font-size: 11px;
+  background: rgba(124, 138, 160, 0.18);
+  color: #a9b6c9;
+}
+
+.event-panel__origin--api {
+  background: rgba(77, 163, 255, 0.18);
+  color: #8cc4ff;
+}
+
 .event-panel__content {
   font-size: 14px;
   line-height: 1.6;

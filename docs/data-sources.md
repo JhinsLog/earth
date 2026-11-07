@@ -21,6 +21,7 @@ Earth가 쓰는 외부 데이터와 서비스를 정리한다. 각 항목마다 
 | 홈 지구 육지/바다 마스크 | NASA GIBS `OSM_Land_Water_Map` (OpenStreetMap 기반) | 빌드 | 고정 | ODbL, © OpenStreetMap contributors | — |
 | **홈 지구 실시간 구름(본체)** | **NASA GIBS WMS**(GOES-East·West, Himawari) + **EUMETSAT EUMETView WMS**(Meteosat 0°·인도양) | **서버** | **10분**(인도양 15분) | NASA 공개 자료 / EUMETSAT Core, CC-BY-4.0(표기 필요) | 위성별 이전 영상, 빈 지역은 GMGSI |
 | 홈 지구 실시간 구름(바탕) | NOAA GMGSI (AWS 공개 버킷) | 서버 | 1시간 | 미국 정부 공개 자료 + Meteosat 부분은 EUMETSAT CC-BY-4.0(표기 필요) | 정적 구름으로 대체 |
+| **서울 교통 돌발 별** | **서울특별시 실시간 돌발정보**(서울 열린데이터광장 OA-13315, TOPIS) | **서버** | **10분** | 공공누리 1유형(출처 표시) | 떠 있는 별은 유지, 유예(20분)가 지나면 스스로 사라짐 |
 | 지도 저배율 위성 타일 | NASA GIBS, Blue Marble | 빌드 | 고정 | NASA 공개 자료 | — |
 | 지도 고배율 위성 타일 | Esri World Imagery | 브라우저 | Esri 측 | Esri 이용약관, 출처 표기 | 해당 줌에서 타일 없음 |
 | 지도 어두운 배경 | Esri World Dark Gray Base | 브라우저 | Esri 측 | Esri 이용약관 | 배경 없음 |
@@ -218,3 +219,28 @@ GET /api/globe/clouds → JPEG + X-Clouds-Observed-At 헤더 (없으면 404)
   구체적으로 답한 쪽을 쓰고, 제공자마다 4초 안에 답이 없으면 끊는다. 둘 다 실패하면 기본 위치로 시작한다. 비로그인 공개 범위를 정하는
   접속 국가는 이 값이 아니라 서버가 받는 Cloudflare 헤더로 판정한다(클라이언트가 국가를 주장하게 두면
   그대로 우회된다).
+
+## 서울시 실시간 돌발정보 → 별
+
+```
+SeoulIncidentScheduler (10분, fixedRate)
+  → SeoulIncidentClient: http://openapi.seoul.go.kr:8088/{키}/xml/AccInfo/{시작}/{끝}/  (XML만 됨, 1,000건씩)
+      총 건수(list_total_count) = 받은 행 수일 때만 "완전한 목록"
+  → SeoulIncidents: 유형 고르기 → 중부원점 TM(EPSG:5181) → 위경도 → 서울 범위 밖이면 버림
+  → ExternalEventSyncService.sync: 처음 보는 acc_id는 생성, 있으면 갱신(끝났던 별은 되살림),
+      완전한 목록일 때만 빠진 별을 종료 → EventChanged → 커밋 후 Redis → /topic/events
+```
+
+- **작성자**: 시스템 계정 `서울시 교통정보`(provider SYSTEM, 로그인 경로 없음). 별의 `origin`은 `API`이고 상세 화면에
+  "공공데이터 · 서울시 교통정보"로 보인다. 공공누리 1유형의 출처 표시를 이 자리에서 한다.
+- **넣는 유형**: 교통사고·차량고장·보행사고·낙하물(사고, 차량화재는 화재), 하루 안에 끝나는 공사(기타),
+  행사 통제 10B01(군중). 장기 공사(2030년까지인 건도 있다)와 집회·행진(10B02), 모르는 유형은 넣지 않는다.
+  유형 코드 전체 목록은 운영 키로 확인해 보강해야 한다.
+- **수명**: 종료 예정 시각. 단 목록에 있는 동안은 적어도 수집 두 번(20분) 뒤까지 산다. 공감해도 늘지 않는다.
+- **중복**: `(source, external_id)` 유니크 인덱스(V8). 동시에 네 번 동기화해도 별은 하나(ExternalEventSyncTest).
+- **좌표**: `grs80tm_x/y`. 원점 38°N·127°E, 가산 x 200,000 / y 500,000(EPSG:5181). 실제 응답 5건을 풀어 봉은교·청계천
+  등 설명된 장소에 떨어지는 것을 확인했다. 변환은 `KoreaTm`(Snyder 공식, 왕복 오차 1cm 미만).
+- **보안**: HTTPS가 없어 인증키가 평문으로 오간다(공개 데이터 읽기 전용, 재발급 가능). 예외 메시지에 실리는 요청
+  주소에서 키를 지우고 로그에 남긴다. 응답 XML은 DTD를 막아 읽는다(XXE).
+- **실제 응답에서 확인한 함정**: 시각이 `1000`(HHmm)과 `130000`(HHmmss)으로 섞여 온다. JSON을 요청하면 오류다.
+  공개 샘플키는 한 번에 5건까지라 로컬은 `page-size: 5`.

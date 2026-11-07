@@ -2,6 +2,7 @@ package com.earth.dto;
 
 import com.earth.domain.event.Event;
 import com.earth.domain.event.EventCategory;
+import com.earth.domain.event.EventOrigin;
 import com.earth.domain.event.EventStatus;
 
 import java.time.Instant;
@@ -34,7 +35,9 @@ public record EventResponse(
          * 위치와 존재만 담긴 응답인지. 비로그인 사용자가 접속 국가 밖의 별을 볼 때 true이고, 이때 제목·내용·
          * 분류·작성자·공감 수는 비어 있다. 화면은 이 별을 중립색으로 그리고 상세를 열지 않는다.
          */
-        boolean restricted
+        boolean restricted,
+        /** 별을 만든 주체(사용자·외부 데이터). 제한된 응답에서는 null. */
+        EventOrigin origin
 ) {
     /** 실시간 전파처럼 "누가 보는지" 알 수 없는 자리에서 쓴다. */
     public static EventResponse from(Event event) {
@@ -58,7 +61,8 @@ public record EventResponse(
                 event.getConfirmCount(),
                 confirmedByMe,
                 event.getCountryCode(),
-                false
+                false,
+                event.getOrigin()
         );
     }
 
@@ -68,6 +72,6 @@ public record EventResponse(
      */
     public EventResponse toRestricted() {
         return new EventResponse(id, null, null, null, status, latitude, longitude, null, null,
-                null, null, expiresAt, 0, false, countryCode, true);
+                null, null, expiresAt, 0, false, countryCode, true, null);
     }
 }

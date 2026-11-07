@@ -80,6 +80,8 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?구글 OAuth 클라이언트 ID가 필요하다}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?구글 OAuth 시크릿이 필요하다}
       JWT_SECRET: ${JWT_SECRET:?JWT 서명 키가 필요하다}
+      # 서울시 실시간 돌발정보(서울 열린데이터광장) 인증키. 없으면 백엔드가 뜨지 않는다(기본값 없음).
+      SEOUL_OPENAPI_KEY: ${SEOUL_OPENAPI_KEY:?서울 열린데이터 인증키가 필요하다}
       # 프론트는 다른 오리진(Pages)에 있다. CORS 허용 대상이자 OAuth 성공 후 돌아갈 곳이다.
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?프론트엔드 주소가 필요하다}
       OAUTH_REDIRECT_URL: ${FRONTEND_ORIGIN}/oauth2/redirect

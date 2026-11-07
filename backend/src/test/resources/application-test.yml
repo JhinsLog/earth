@@ -10,6 +10,10 @@ earth:
   clouds:
     # 테스트가 외부(NOAA)에 나가지 않게 수집을 끈다.
     enabled: false
+  incidents:
+    seoul:
+      # 외부(서울 열린데이터광장)에 나가지 않게 끈다. 동기화는 서비스를 직접 불러 검증한다.
+      enabled: false
 
 spring:
   security:

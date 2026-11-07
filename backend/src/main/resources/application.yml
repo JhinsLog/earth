@@ -75,6 +75,13 @@ earth:
     # 만료된 별을 정리하고 실시간으로 알리는 주기. 조회는 이미 expires_at으로
     # 걸러지므로 이 값이 커도 만료된 별이 보이지는 않는다.
     expiration-scan-interval-ms: 30000
+  incidents:
+    seoul:
+      # 서울시 실시간 돌발정보 → 별. 출처·이용조건은 docs/data-sources.md
+      enabled: true
+      # 폴백 기본값을 두지 않는다. 켜져 있는데 비어 있으면 SeoulIncidentScheduler가 기동을 막는다.
+      api-key: ${SEOUL_OPENAPI_KEY:}
+      refresh-interval-ms: 600000
   clouds:
     # 홈 지구본 실시간 구름(NOAA GMGSI). 출처는 docs/data-sources.md
     enabled: true

@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 
 /**
  * 지구본 위에 별로 표시되는 이벤트.
@@ -74,6 +75,18 @@ public class Event {
     @Column(name = "confirm_count", nullable = false)
     private int confirmCount = 0;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private EventOrigin origin = EventOrigin.USER;
+
+    /** 외부 데이터의 출처(예: SEOUL_TOPIS). 사용자 별은 null. */
+    @Column(length = 30)
+    private String source;
+
+    /** 출처에서의 고유 ID. (source, externalId)는 유니크다(V8). */
+    @Column(name = "external_id", length = 64)
+    private String externalId;
+
     public Event(User author, String title, String content, EventCategory category,
                  double latitude, double longitude, String countryCode, Duration ttl) {
         this.author = author;
@@ -85,6 +98,55 @@ public class Event {
         this.countryCode = countryCode;
         this.createdAt = Instant.now();
         this.expiresAt = this.createdAt.plus(ttl);
+    }
+
+    /**
+     * 외부 데이터로 만든 별. 수명은 출처가 알려 준 종료 예정 시각이고, 이후 동기화가 갱신하거나 끝낸다.
+     */
+    public static Event external(User systemAuthor, String source, String externalId, String title, String content,
+                                 EventCategory category, double latitude, double longitude, String countryCode,
+                                 Instant expiresAt) {
+        Event event = new Event(systemAuthor, title, content, category, latitude, longitude, countryCode, Duration.ZERO);
+        event.origin = EventOrigin.API;
+        event.source = source;
+        event.externalId = externalId;
+        event.expiresAt = expiresAt;
+        return event;
+    }
+
+    /**
+     * 출처의 최신 내용으로 맞춘다. 끝났던 별이 목록에 다시 나타나면 되살린다(출처가 잠깐 목록에서 뺐다가 다시 준 경우).
+     *
+     * @return 화면에 보이는 내용이 바뀌었으면 true. 바뀐 것만 전파한다.
+     */
+    public boolean syncExternal(String title, String content, EventCategory category,
+                                double latitude, double longitude, Instant expiresAt) {
+        boolean changed = !this.title.equals(title) || !Objects.equals(this.content, content)
+                || this.category != category || this.latitude != latitude || this.longitude != longitude
+                || !this.expiresAt.equals(expiresAt) || this.status != EventStatus.ACTIVE;
+        if (!changed) {
+            return false;
+        }
+        this.title = title;
+        this.content = content;
+        this.category = category;
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.expiresAt = expiresAt;
+        this.status = EventStatus.ACTIVE;
+        this.updatedAt = Instant.now();
+        return true;
+    }
+
+    /** 출처 목록에서 빠졌다 — 현실의 상황이 끝났다. */
+    public void markEndedAtSource() {
+        this.status = EventStatus.EXPIRED;
+        this.expiresAt = Instant.now();
+        this.updatedAt = this.expiresAt;
+    }
+
+    public boolean isExternal() {
+        return origin != EventOrigin.USER;
     }
 
     @PrePersist

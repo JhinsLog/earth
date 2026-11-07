@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -76,6 +77,12 @@ public interface EventRepository extends JpaRepository<Event, Long> {
               and e.expiresAt <= :now
             """)
     List<Event> findDueForExpiration(@Param("now") Instant now);
+
+    /** 한 출처에서 온 별 중 지금 목록에 있는 것들. 동기화가 있으면 갱신, 없으면 생성을 가른다. */
+    List<Event> findBySourceAndExternalIdIn(String source, Collection<String> externalIds);
+
+    /** 한 출처에서 온, 아직 보이는 별. 이번 목록에 없으면 동기화가 끝낸다. */
+    List<Event> findBySourceAndStatus(String source, EventStatus status);
 
     /**
      * 특정 시각 이후 이 사용자가 만든 이벤트 수. 등록 빈도 제한에 쓰인다.

@@ -210,9 +210,11 @@ public class EventService {
 
         // 실제로 늘어난 시간을 기록해 둔다. 상한에 걸리면 요청한 5분보다 짧으므로,
         // 취소할 때 5분을 그냥 빼면 자기가 준 것보다 많이 회수하게 된다.
-        Duration granted = event.applyConfirmation(
-                Duration.ofMinutes(eventProperties.confirmExtensionMinutes()),
-                Duration.ofHours(eventProperties.maxLifetimeHours()));
+        // 외부 데이터로 만든 별은 공감 수만 오르고 수명은 늘지 않는다. 출처가 끝났다고 하면 별도 끝나야 한다.
+        Duration extension = event.isExternal()
+                ? Duration.ZERO
+                : Duration.ofMinutes(eventProperties.confirmExtensionMinutes());
+        Duration granted = event.applyConfirmation(extension, Duration.ofHours(eventProperties.maxLifetimeHours()));
         confirmationRepository.save(new EventConfirmation(event, user, granted));
 
         EventResponse response = EventResponse.from(event, true);

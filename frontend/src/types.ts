@@ -1,5 +1,7 @@
 export type EventCategory = 'FIRE' | 'ACCIDENT' | 'WEATHER' | 'CROWD' | 'ETC'
 export type EventStatus = 'ACTIVE' | 'CLOSED' | 'EXPIRED' | 'DELETED'
+/** 별을 만든 주체. USER는 사용자가 직접, API는 공공데이터 등 외부 데이터에서 만든 별. */
+export type EventOrigin = 'USER' | 'API'
 
 /**
  * 별 하나. 서버가 상세를 줄 수 있는지에 따라 두 모양 중 하나로 온다.
@@ -40,6 +42,7 @@ export interface DetailedEvent {
   /** 별이 속한 국가(ISO 3166-1 alpha-2). 공해 등은 null. */
   countryCode: string | null
   restricted: false
+  origin: EventOrigin
 }
 
 /**
@@ -85,6 +88,12 @@ export const EVENT_CATEGORY_LABEL: Record<EventCategory, string> = {
   WEATHER: '기상',
   CROWD: '군중/혼잡',
   ETC: '기타',
+}
+
+/** 상세 화면의 생성 주체 표시. 외부 데이터 별은 작성자 이름 자리에 출처 이름(예: 서울시 교통정보)이 온다. */
+export const EVENT_ORIGIN_LABEL: Record<EventOrigin, string> = {
+  USER: '관측자',
+  API: '공공데이터',
 }
 
 /** 위치만 아는 별의 색. 분류를 모르므로 어느 분류 색과도 겹치지 않는 중립색을 쓴다. */

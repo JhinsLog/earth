@@ -13,3 +13,10 @@ springdoc:
     enabled: true
   api-docs:
     enabled: true
+
+earth:
+  incidents:
+    seoul:
+      # 서울시가 공개한 샘플키(한 번에 5건). 비밀이 아니라 로컬에서만 기본값으로 둔다. 운영은 SEOUL_OPENAPI_KEY.
+      api-key: ${SEOUL_OPENAPI_KEY:sample}
+      page-size: 5

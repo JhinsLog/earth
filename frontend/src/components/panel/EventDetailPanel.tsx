@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { useAuthStore } from '../../store/authStore'
-import { EVENT_CATEGORY_LABEL, type DetailedEvent } from '../../types'
+import { EVENT_CATEGORY_LABEL, EVENT_ORIGIN_LABEL, type DetailedEvent } from '../../types'
 import ChatRoom from './ChatRoom'
 import './EventDetailPanel.css'
 
@@ -80,6 +80,9 @@ export default function EventDetailPanel({ event, onClose, onConfirmed }: Props)
       <span className="event-panel__category">{EVENT_CATEGORY_LABEL[event.category]}</span>
       <h2 className="event-panel__title">{event.title}</h2>
       <p className="event-panel__meta">
+        <span className={`event-panel__origin event-panel__origin--${event.origin.toLowerCase()}`}>
+          {EVENT_ORIGIN_LABEL[event.origin]}
+        </span>{' '}
         {event.authorNickname} · {formatCreatedAt(event.createdAt)}
       </p>
       {event.content && <p className="event-panel__content">{event.content}</p>}
