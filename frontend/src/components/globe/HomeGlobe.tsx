@@ -267,9 +267,10 @@ const STAR_VERTEX = /* glsl */ `
     vWave = sin(time * (1.1 + phase * 1.4) + phase * 6.2831);
     vFlash = pow(max(vWave, 0.0), 2.0);
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    // 정면(카메라에서 가장 가까운 지표) 기준 44px. 긴 광선이 이 칸 끝까지 뻗는다. 가장자리로 갈수록 멀어져 조금 작아진다.
+    // 정면(카메라에서 가장 가까운 지표) 기준 26px. 긴 광선이 이 칸 끝까지 뻗는다. 가장자리로 갈수록 멀어져 조금 작아진다.
     // 거리로만 나누면 카메라가 멀어 별이 5px 남짓이 되어 밝은 낮 지역에서 보이지 않았다.
-    gl_PointSize = scale * 44.0 * pixelRatio * frontDistance / -mv.z;
+    // 44px였을 때는 서울의 별 수십 개가 첫 화면 배율에서 한 점에 겹치고, 더하기 합성이라 거대한 빛덩이 하나로 보였다.
+    gl_PointSize = scale * 26.0 * pixelRatio * frontDistance / -mv.z;
     gl_Position = projectionMatrix * mv;
   }
 `
@@ -290,7 +291,8 @@ const STAR_FRAGMENT = /* glsl */ `
   void main() {
     vec2 p = gl_PointCoord - 0.5;
     float r2 = dot(p, p);
-    float glow = exp(-r2 * 45.0) * 0.45;
+    // 겹치면 더해지므로 빛무리는 옅게 둔다. 진하면 몇 개만 겹쳐도 하얗게 포화된다.
+    float glow = exp(-r2 * 45.0) * 0.3;
     float rim = exp(-r2 * 260.0) * 0.8;
     float core = exp(-r2 * 900.0);
     vec2 q = vec2(p.x + p.y, p.x - p.y) * 0.70710678;
