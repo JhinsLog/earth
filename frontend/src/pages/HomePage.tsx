@@ -86,10 +86,19 @@ export default function HomePage() {
     leavingTimerRef.current = window.setTimeout(() => setLeaving(null), GLOBE_TRANSITION_MS)
   }
 
+  // 전환할 때마다 들어가는 쪽을 새 인스턴스로 띄운다. 빠지는 쪽이 아직 사라지는 중(GLOBE_TRANSITION_MS)에 되돌아오면
+  // React가 그 인스턴스를 그대로 다시 쓰는데, 지도는 '준비됨' 알림을 처음 한 번만 보내므로 다시 기다리던 화면이 영영
+  // 풀리지 않았다(지구본은 조작 막힘, 지도는 투명 — 휠로 확대·축소를 빠르게 오가면 재현, 2026-11-07). 지구본도 이미
+  // 넘겨준(handedOff) 상태와 처음 화면 값을 들고 있어 같은 문제가 있다. 키를 바꾸면 이전 것은 내려가고 새로 시작한다.
+  const [globeKey, setGlobeKey] = useState(0)
+  const [mapKey, setMapKey] = useState(0)
+
   const switchView = (next: 'globe' | 'map') => {
     if (next === view) return
     window.clearTimeout(leavingTimerRef.current)
     setLeaving(view)
+    if (next === 'map') setMapKey((key) => key + 1)
+    else setGlobeKey((key) => key + 1)
     if (next === 'map') {
       setWaiting(true)
       setView(next)
@@ -202,6 +211,7 @@ export default function HomePage() {
           className={`home__layer${view === 'globe' ? ' home__layer--in' : waitingForMap ? ' home__layer--hold' : ' home__layer--out'}`}
         >
           <HomeGlobe
+            key={globeKey}
             events={events}
             center={initialFocusLatLng ?? globeCenter}
             initialView={returnView}
@@ -223,6 +233,7 @@ export default function HomePage() {
         >
           <Suspense fallback={null}>
             <MapGlobe
+              key={mapKey}
               onViewportChange={loadEvents}
               events={events}
               selectedEventId={selectedEventId}
