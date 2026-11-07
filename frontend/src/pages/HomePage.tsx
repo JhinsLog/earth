@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import HomeGlobe, { type HandoffView } from '../components/globe/HomeGlobe'
 import { DRAFT_MIN_ZOOM, GLOBE_TRANSITION_MS } from '../components/globe/constants'
 import Navbar from '../components/layout/Navbar'
@@ -62,12 +62,20 @@ export default function HomePage() {
     loginHintTimerRef.current = window.setTimeout(() => setLoginHint(null), 3000)
   }
 
-  // 첫 화면은 감상용 3D 지구본(HomeGlobe), 클릭하면 탐색용 지도(MapGlobe)로 들어간다.
+  // 첫 화면은 감상용 3D 지구본(HomeGlobe), 확대하면 탐색용 지도(MapGlobe)로 들어간다.
   // 로그인하고 돌아온 경우(OAuthRedirectPage가 state.enter를 붙인다)는 지구본을 건너뛴다.
   const location = useLocation()
+  const navigate = useNavigate()
   const [view, setView] = useState<'globe' | 'map'>(
     (location.state as { enter?: boolean } | null)?.enter ? 'map' : 'globe',
   )
+  // state.enter는 한 번 읽고 지운다. 라우터 state는 브라우저 기록(history.state)에 남아 새로고침해도 그대로라,
+  // 지우지 않으면 로그인한 뒤로는 새로고침할 때마다 첫 화면을 건너뛰고 지도로 들어갔다(2026-11-08).
+  useEffect(() => {
+    if ((location.state as { enter?: boolean } | null)?.enter) {
+      navigate(location.pathname, { replace: true, state: null })
+    }
+  }, [location.state, location.pathname, navigate])
   // 교차 페이드 동안 사라지는 쪽도 잠깐 남겨 둔다. 그 뒤 언마운트해 WebGL 컨텍스트를 하나만 유지한다.
   const [leaving, setLeaving] = useState<'globe' | 'map' | null>(null)
   const leavingTimerRef = useRef<number | undefined>(undefined)
