@@ -62,8 +62,6 @@ export default function HomePage() {
   // 교차 페이드 동안 사라지는 쪽도 잠깐 남겨 둔다. 그 뒤 언마운트해 WebGL 컨텍스트를 하나만 유지한다.
   const [leaving, setLeaving] = useState<'globe' | 'map' | null>(null)
   const leavingTimerRef = useRef<number | undefined>(undefined)
-  /** 지구본에서 클릭한 지점. 지도는 그곳으로 날아가며 시작한다. */
-  const [enterPoint, setEnterPoint] = useState<GeoPoint | null>(null)
   /** 지구본을 확대해 들어왔을 때 지도가 이어받을 화면. 있으면 지도는 어디로도 날아가지 않고 그 자리에서 시작한다. */
   const [enterView, setEnterView] = useState<HandoffView | null>(null)
   /** 지도에서 축소해 돌아왔을 때 홈 지구본이 이어받을 화면. 없으면 처음 화면(globeCenter, 배율 1)으로 시작한다. */
@@ -112,15 +110,8 @@ export default function HomePage() {
 
   // 비로그인도 그대로 들어간다. 다른 나라 별은 서버가 위치만 내려 주고 상세 요청은 거부하므로(restricted, 403),
   // 입구에서 로그인을 물을 이유가 없다. 로그인은 오른쪽 위 버튼으로 한다(D-8: 제한은 상세만).
-  const handleGlobeClick = (point: GeoPoint) => {
-    setEnterView(null)
-    setEnterPoint(point)
-    switchView('map')
-  }
-
   const handleGlobeZoomEnter = (view: HandoffView) => {
     setEnterView(view)
-    setEnterPoint(null)
     switchView('map')
   }
 
@@ -219,7 +210,6 @@ export default function HomePage() {
             events={events}
             center={initialFocusLatLng ?? globeCenter}
             initialView={returnView}
-            onEnter={handleGlobeClick}
             onZoomEnter={handleGlobeZoomEnter}
           />
         </div>
@@ -227,7 +217,7 @@ export default function HomePage() {
 
       {view === 'globe' && (
         <div className="home__hint">
-          지구를 <strong>확대</strong>하거나 <strong>클릭</strong>해 들어가 보세요
+          지구를 <strong>확대</strong>해 들어가 보세요 · <strong>우클릭</strong>으로 비춰 보기
         </div>
       )}
 
@@ -253,7 +243,7 @@ export default function HomePage() {
                 removeDraft(id)
                 setSelectedDraftId((current) => (current === id ? null : current))
               }}
-              initialFocusLatLng={enterView ? null : (enterPoint ?? initialFocusLatLng)}
+              initialFocusLatLng={enterView ? null : initialFocusLatLng}
               initialView={enterView}
               onZoomOutToHome={exitToGlobe}
               onReady={handleMapReady}

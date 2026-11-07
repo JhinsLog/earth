@@ -14,6 +14,9 @@
   cursor: grab;
   /* 모바일에서 끌어 돌릴 때 페이지가 스크롤·확대되지 않게 한다. */
   touch-action: none;
+  /* 길게 누르기(손전등) 때 휴대폰이 텍스트 선택·저장 메뉴를 띄우지 않게 한다. */
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 
 .home-globe--ready .home-globe__canvas {
@@ -27,10 +30,6 @@
 /* 지구가 페이드인할 때 함께 나타난다. 그 전에는 빈 원 둘레만 빛나 보인다. */
 .home-globe--ready .home-globe__halo {
   opacity: 1;
-}
-
-.home-globe__canvas--hover {
-  cursor: pointer;
 }
 
 .home-globe__canvas canvas {

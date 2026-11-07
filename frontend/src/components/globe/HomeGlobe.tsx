@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import Starfield from './Starfield'
 import {
-  HOME_GLOBE_CLICK_TOLERANCE_PX,
+  HOME_GLOBE_LONG_PRESS_MS,
+  HOME_GLOBE_LONG_PRESS_TOLERANCE_PX,
   HOME_GLOBE_ENTER_ZOOM,
   HOME_GLOBE_SCREEN_FRACTION,
   HOME_GLOBE_WHEEL_ZOOM_RATE,
@@ -20,8 +21,6 @@ interface Props {
   events: EarthEvent[]
   /** 처음 화면 정면에 둘 지점. 접속 지역의 대륙이 보이도록 HomePage가 정한다. */
   center: GeoPoint
-  /** 지구 표면을 클릭했을 때. 클릭한 지점의 위경도를 넘긴다. */
-  onEnter: (point: GeoPoint) => void
   /** 충분히 확대했을 때. 지도가 같은 위치·같은 크기로 이어받도록 화면 중앙의 위경도와 지구 반지름(px)을 넘긴다. */
   onZoomEnter: (view: HandoffView) => void
   /** 지도에서 축소해 돌아왔을 때 이어받을 화면. 주면 그 지점을 정면에, 지구를 같은 크기로 보이게 시작한다. */
@@ -328,11 +327,10 @@ function cloudCredit(observedAt: string, sources: string[]): string {
   return `${time} ${names.join(' · ')}${meteosat ? `, contains modified EUMETSAT Meteosat data ${date.getUTCFullYear()}` : ''}`
 }
 
-export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initialView = null }: Props) {
+export default function HomeGlobe({ events, center, onZoomEnter, initialView = null }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const haloRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
-  const [hoveringEarth, setHoveringEarth] = useState(false)
   // 출처 표기는 처음엔 펼쳐 두고, 5초가 지나거나 지구를 만지면 ⓘ로 접는다. OpenStreetMap 표기 지침이 접기를
   // 허용하는 조건이 이것이다(osmfoundation.org/wiki/Licence/Attribution_Guidelines). 접은 뒤에도 ⓘ로 다시 본다.
   const [creditOpen, setCreditOpen] = useState(true)
@@ -344,13 +342,11 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
   // 실시간 구름의 관측 시각과 출처. 없으면 정적 구름 사진을 쓰는 중이다.
   const [liveClouds, setLiveClouds] = useState<LiveClouds | null>(null)
 
-  // 장면을 만드는 effect는 한 번만 돌기 때문에, 그 안의 클릭 처리기는 이 ref로 최신 콜백을 읽는다.
-  const onEnterRef = useRef(onEnter)
+  // 장면을 만드는 effect는 한 번만 돌기 때문에, 그 안의 처리기는 이 ref로 최신 콜백을 읽는다.
   const onZoomEnterRef = useRef(onZoomEnter)
   useEffect(() => {
-    onEnterRef.current = onEnter
     onZoomEnterRef.current = onZoomEnter
-  }, [onEnter, onZoomEnter])
+  }, [onZoomEnter])
   // 장면은 한 번만 만들고, 별 데이터만 바뀔 때마다 갈아 끼운다.
   const starsRef = useRef<{ geometry: THREE.BufferGeometry; points: THREE.Points } | null>(null)
   const initialCenterRef = useRef(initialView?.center ?? center)
@@ -573,7 +569,7 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
       zoomBy(Math.exp(-e.deltaY * HOME_GLOBE_WHEEL_ZOOM_RATE))
     }
 
-    // 손가락 두 개면 핀치 확대, 하나면 돌리기. 두 손가락을 댄 동안은 돌리지도, 클릭으로 보지도 않는다.
+    // 손가락 두 개면 핀치 확대, 하나면 돌리기. 하나로 움직이지 않고 오래 누르면 손전등(휴대폰의 우클릭).
     const pointers = new Map<number, { x: number; y: number }>()
     let pinchDistance = 0
     const currentPinchDistance = () => {
@@ -587,6 +583,8 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
     let lastX = 0
     let lastY = 0
     let movedFar = false
+    let longPressId = 0
+    const cancelLongPress = () => window.clearTimeout(longPressId)
     const canvas = renderer.domElement
     // 우클릭 손전등. 비추는 지점은 지구 좌표로 들고 있어야 자전해도 같은 땅을 비춘다.
     const flashLocal = new THREE.Vector3()
@@ -610,6 +608,7 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
       }
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
       if (pointers.size === 2) {
+        cancelLongPress()
         pinchDistance = currentPinchDistance()
         dragging = false
         movedFar = true
@@ -620,6 +619,18 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
       downX = lastX = e.clientX
       downY = lastY = e.clientY
       canvas.setPointerCapture(e.pointerId)
+      if (e.pointerType === 'touch') {
+        const { pointerId } = e
+        cancelLongPress()
+        longPressId = window.setTimeout(() => {
+          if (movedFar || pointers.size !== 1 || !aimFlashlight(lastX, lastY)) return
+          // 이 손가락은 이제 돌리기가 아니라 손전등을 끈다.
+          pointers.delete(pointerId)
+          dragging = false
+          flashPointerId = pointerId
+          flashOn = true
+        }, HOME_GLOBE_LONG_PRESS_MS)
+      }
     }
     const onPointerMove = (e: PointerEvent) => {
       if (e.pointerId === flashPointerId) {
@@ -634,15 +645,16 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
         return
       }
       if (dragging) {
-        if (Math.hypot(e.clientX - downX, e.clientY - downY) > HOME_GLOBE_CLICK_TOLERANCE_PX) movedFar = true
+        if (Math.hypot(e.clientX - downX, e.clientY - downY) > HOME_GLOBE_LONG_PRESS_TOLERANCE_PX) {
+          movedFar = true
+          cancelLongPress()
+        }
         // 확대할수록 같은 손놀림에 덜 돌아야 손가락 아래 지점이 따라온다.
         const rate = 0.005 / zoom
         viewOffset += (e.clientX - lastX) * rate
         tilt.rotation.x = THREE.MathUtils.clamp(tilt.rotation.x + (e.clientY - lastY) * rate, -MAX_TILT_RAD, MAX_TILT_RAD)
         lastX = e.clientX
         lastY = e.clientY
-      } else if (e.pointerType === 'mouse') {
-        setHoveringEarth(hitEarth(e.clientX, e.clientY) !== null)
       }
     }
     const onPointerUp = (e: PointerEvent) => {
@@ -652,15 +664,12 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
         canvas.releasePointerCapture(e.pointerId)
         return
       }
+      cancelLongPress()
       pointers.delete(e.pointerId)
       if (pointers.size < 2) pinchDistance = 0
       if (!dragging) return
       dragging = false
       canvas.releasePointerCapture(e.pointerId)
-      if (movedFar) return
-      const hit = hitEarth(e.clientX, e.clientY)
-      if (!hit) return
-      onEnterRef.current(toLatLng(earth.worldToLocal(hit.point.clone())))
     }
     canvas.addEventListener('wheel', onWheel, { passive: false })
     canvas.addEventListener('pointerdown', onPointerDown)
@@ -755,6 +764,7 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
 
     return () => {
       cancelAnimationFrame(rafId)
+      cancelLongPress()
       liveCloudsRequest.abort()
       window.clearInterval(liveCloudsTimer)
       liveCloudMap?.dispose()
@@ -818,7 +828,7 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
       <Starfield />
       <div
         ref={containerRef}
-        className={`home-globe__canvas${hoveringEarth ? ' home-globe__canvas--hover' : ''}`}
+        className="home-globe__canvas"
       />
       <div ref={haloRef} className="globe-halo home-globe__halo" />
       {/* NASA 자료는 퍼블릭 도메인이지만 출처 표기를 요청한다. 지도 화면은 MapLibre 출처 표시가 맡는다.

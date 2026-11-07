@@ -83,8 +83,10 @@ export const MY_LOCATION_MIN_ZOOM = 11.0
 /** 내 위치 표시 색 — 별(이벤트)과 혼동되지 않도록 채도가 다른 청록을 쓴다. */
 export const MY_LOCATION_COLOR = '#4dd2ff'
 
-/** 이 거리(px) 이상 끌면 클릭이 아니라 회전으로 본다. 진입하려다 살짝 밀린 클릭을 놓치지 않도록. */
-export const HOME_GLOBE_CLICK_TOLERANCE_PX = 5
+/** 첫 화면에서 손가락을 이 거리(px) 이상 끌면 길게 누르기가 아니라 돌리기로 본다. 누르다 살짝 밀린 손가락은 봐준다. */
+export const HOME_GLOBE_LONG_PRESS_TOLERANCE_PX = 8
+/** 휴대폰에서 이만큼 누르고 있으면 손전등을 켠다(우클릭 대신). */
+export const HOME_GLOBE_LONG_PRESS_MS = 450
 /** 홈 지구본과 지도를 오갈 때의 교차 페이드 시간. HomePage.css의 transition과 맞춘다. */
 export const GLOBE_TRANSITION_MS = 600
 
