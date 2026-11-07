@@ -24,8 +24,8 @@ const GRID_STEP_DEG = 2
 // 극점에서는 메르카토르 y가 무한대라 바로 앞에서 멈춘다. 0.1°면 화면에서 구별되지 않는다.
 const MAX_LATITUDE = 89.9
 const LIVE_CLOUDS_REFRESH_MS = 10 * 60 * 1000
-// 우클릭 손전등. 홈 지구본(HomeGlobe)의 FLASHLIGHT_* 와 같은 값이다.
-const FLASHLIGHT_RADIUS_RAD = 0.22
+// 우클릭 달빛 비춰 보기. 홈 지구본(HomeGlobe)의 FLASHLIGHT_* 와 같은 값이다.
+const FLASHLIGHT_RADIUS_RAD = 0.26
 const FLASHLIGHT_FADE_IN_SEC = 0.15
 const FLASHLIGHT_FADE_OUT_SEC = 1.0
 
@@ -90,15 +90,17 @@ void main() {
   // 같은 식(0.01)을 감마로만 바꾸면 0.12가 되어 지도의 밤이 남색으로 떠 보였다.
   float shade = mix(1.0, max(toGamma(vec3(light * 1.7)).r, 0.05) * (1.0 - cloud * 0.4 * light), u_strength);
   float keep = shade * (1.0 - cloud);
-  // 손전등: 비추는 자리만 밤의 어두움을 걷어 아래 위성사진을 드러낸다. 구름은 그대로 덮는다.
+  // 달빛: 비추는 자리의 밤 어두움을 절반쯤 걷어 아래 위성사진을 드러내고 푸른 은빛을 얹는다. 구름은 그대로 덮는다.
+  // 아래 지도 색을 읽을 수 없어 홈 지구본처럼 색을 빼지는 못하고, 덜 걷고 푸른빛을 더해 비슷하게 맞춘다.
   float flashCos = cos(${FLASHLIGHT_RADIUS_RAD.toFixed(2)});
-  float spot = smoothstep(flashCos, mix(flashCos, 1.0, 0.7), dot(n, u_flash));
-  keep = mix(keep, 0.9 * (1.0 - cloud), spot * u_flash_strength * (1.0 - dayMix));
+  float spot = smoothstep(flashCos, mix(flashCos, 1.0, 0.9), dot(n, u_flash)) * u_flash_strength * (1.0 - dayMix);
+  keep = mix(keep, 0.55 * (1.0 - cloud), spot);
 
   // 밤 지역에서도 대륙 윤곽이 보이도록 남기는 옅은 푸른빛. 위성사진(낮)의 밝기에 비례하게 하려고
   // 아래 지도 색을 알 수 없으므로 일정한 값으로 둔다.
   vec3 add = vec3(0.35, 0.45, 0.8) * 0.06 * (1.0 - dayMix) * (1.0 - cloud);
   add += toGamma(texture(u_night, uv).rgb * vec3(1.0, 0.85, 0.6) * 1.4) * (1.0 - dayMix) * u_city_lights * (1.0 - cloud);
+  add += vec3(0.05, 0.08, 0.16) * spot * (1.0 - cloud);
   add *= u_strength;
   add += toGamma(vec3(cloudLight * 1.5 + 0.015) * mix(0.55, 1.0, cloud)) * cloud;
 

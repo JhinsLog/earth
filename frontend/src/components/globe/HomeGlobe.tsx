@@ -16,6 +16,7 @@ import { useSettingsStore } from '../../store/settingsStore'
 import { EVENT_CATEGORY_COLOR, RESTRICTED_STAR_COLOR, type EarthEvent } from '../../types'
 import './GlobeHalo.css'
 import './HomeGlobe.css'
+import { MOON_CURSOR } from './moonCursor'
 
 interface Props {
   events: EarthEvent[]
@@ -45,10 +46,11 @@ const ATMOSPHERE_RADIUS = 1.025
 // 도시 불빛 토글이 한 번에 켜지고 꺼지지 않고 이 시간 동안 번지듯 바뀐다.
 const CITY_LIGHTS_FADE_SEC = 0.6
 /**
- * 우클릭 손전등. 밤 지역은 실제처럼 거의 검어서 대륙을 찾기 어렵다. 평소 화면은 그대로 두고, 우클릭하는 동안만
- * 그 주변을 낮 사진으로 비춘다(현실 지구 우선 원칙). 반지름은 지구 중심에서 본 각도(rad)다.
+ * 우클릭 달빛 비춰 보기(코드에서는 flash/flashlight). 밤 지역은 실제처럼 거의 검어서 대륙을 찾기 어렵다. 평소 화면은
+ * 그대로 두고, 우클릭하는 동안만 그 주변을 달빛처럼 푸른 은빛으로 비춘다(현실 지구 우선 원칙).
+ * 반지름은 지구 중심에서 본 각도(rad)다. 손전등처럼 또렷한 원이 아니라 넓게 번지도록 가장자리를 길게 흐린다.
  */
-const FLASHLIGHT_RADIUS_RAD = 0.22
+const FLASHLIGHT_RADIUS_RAD = 0.26
 const FLASHLIGHT_FADE_IN_SEC = 0.15
 const FLASHLIGHT_FADE_OUT_SEC = 1.0
 // 정적 구름 사진일 때만 지구보다 조금 빨리 흘려 정지 사진이 아니라는 느낌을 준다.
@@ -184,9 +186,10 @@ const EARTH_FRAGMENT = /* glsl */ `
     vec3 color = day * (light * 1.7 + 0.01) * (1.0 - cloudShadow * 0.4 * light);
     color += day * vec3(0.35, 0.45, 0.8) * 0.12 * (1.0 - dayMix);
     color += night * vec3(1.0, 0.85, 0.6) * 1.4 * (1.0 - dayMix) * cityLights;
-    // 손전등. 가장자리를 부드럽게 흐리고, 낮 지역은 이미 밝으니 밤인 만큼만 더한다.
-    float spot = smoothstep(flashCos, mix(flashCos, 1.0, 0.7), dot(n, flashWorld));
-    color += day * 0.9 * spot * flashStrength * (1.0 - dayMix);
+    // 달빛. 낮 사진의 색을 대부분 빼고 푸른 은빛을 입혀 낮보다 어둡게 비춘다. 낮 지역은 이미 밝으니 밤인 만큼만 더한다.
+    float spot = smoothstep(flashCos, mix(flashCos, 1.0, 0.9), dot(n, flashWorld));
+    vec3 moon = mix(vec3(dot(day, vec3(0.299, 0.587, 0.114))), day, 0.3) * vec3(0.7, 0.82, 1.1);
+    color += moon * 0.75 * spot * flashStrength * (1.0 - dayMix);
 
     // 바다에만 햇빛 반사. 처음엔 '어둡고 푸른 픽셀'을 바다로 봤는데, 위성 사진의 섬 주변에 남은 JPEG
     // 압축 블록에서 판정이 뒤집혀 반사광 속에 사각형 얼룩이 생겼다. 육지/바다 마스크를 따로 쓴다.
@@ -607,6 +610,7 @@ export default function HomeGlobe({ events, center, onZoomEnter, initialView = n
       if (e.pointerType === 'mouse' && e.button === 2) {
         flashPointerId = e.pointerId
         flashOn = aimFlashlight(e.clientX, e.clientY)
+        canvas.style.cursor = MOON_CURSOR
         canvas.setPointerCapture(e.pointerId)
         return
       }
@@ -665,6 +669,7 @@ export default function HomeGlobe({ events, center, onZoomEnter, initialView = n
       if (e.pointerId === flashPointerId) {
         flashPointerId = null
         flashOn = false
+        canvas.style.cursor = ''
         canvas.releasePointerCapture(e.pointerId)
         return
       }

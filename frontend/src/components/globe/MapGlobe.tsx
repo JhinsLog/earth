@@ -11,6 +11,7 @@ import {
 } from './mapStyle'
 import { STAR_SPRITE_PIXEL_RATIO, createStarBodyImage, createStarSparkleImage } from './starFlareTexture'
 import { createDaylightLayer, isNight } from './mapDaylightLayer'
+import { MOON_CURSOR } from './moonCursor'
 import Starfield from './Starfield'
 import { detectLabelLanguage } from '../../lib/language'
 import { destinationPoint, haversineDistanceKm } from '../../lib/geo'
@@ -575,6 +576,7 @@ export default function MapGlobe({
     map.on('mousedown', (e: MapMouseEvent) => {
       if (e.originalEvent.button !== 2 || !flashlightZoom()) return
       flashing = true
+      map.getCanvas().style.cursor = MOON_CURSOR
       aimFlashlight(e.lngLat)
     })
     map.on('mousemove', (e: MapMouseEvent) => {
@@ -584,6 +586,7 @@ export default function MapGlobe({
     const stopFlashlight = (e: MouseEvent) => {
       if (e.button !== 2 || !flashing) return
       flashing = false
+      map.getCanvas().style.cursor = ''
       daylightLayer.setFlashlight(null)
     }
     window.addEventListener('mouseup', stopFlashlight)
