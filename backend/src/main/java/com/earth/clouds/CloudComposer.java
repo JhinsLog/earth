@@ -1,5 +1,6 @@
 package com.earth.clouds;
 
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,14 @@ import java.util.Map;
  * 꼭대기가 -60~-80°C까지 올라가 거의 모든 소나기구름이 단계 없이 새하얀 덩어리가 됐다(열대 구름 픽셀의 17~25%가
  * 화면에서 완전 불투명, 중위도는 2~5%. 2026-11-06 측정).
  *
+ * <p><b>바다의 맑은 날 온도.</b> 바다 칸은 위도 기준 대신 그 칸의 최근 최고 온도에서 {@link #SEA_MARGIN}을 뺀 값을
+ * 기준으로 쓴다(둘 중 높은 쪽). 이유는 {@link ClearSkyBackground}.
+ *
+ * <p><b>진하기 곡선.</b> 기준보다 {@link #KNEE}°C 차가우면 0.5, 거기서 "가장 짙은 온도"(위도 기준 - 폭)까지 1로
+ * 곧게 오른다. 예전 곡선(폭 전체에 감마 0.8)에서는 바다보다 15°C 차가운 낮은 구름이 0.3 남짓이라 화면에서 거의
+ * 보이지 않았다. 가시광 사진에서는 하얗게 보이는 구름이다. 가장 짙은 온도는 위도 기준에 묶어 두어, 바다 기준이
+ * 올라가도 열대 소나기구름이 다시 일찍 새하얘지지 않는다.
+ *
  * <p>어느 위성도 보지 못한 칸(위성 하나가 빠졌을 때)은 GMGSI 이미지로 채운다.
  */
 public final class CloudComposer {
@@ -28,6 +37,9 @@ public final class CloudComposer {
     /** 정지궤도 반지름 ÷ 지구 반지름(42,164km ÷ 6,378km). */
     static final double ORBIT_RADIUS = 6.6107;
     static final double MIN_COS_ZENITH = 0.15;
+    /** 바다 기준을 최근 최고 온도보다 이만큼 낮춘다. 맑은 바다의 밤 냉각·측정 잡음이 구름으로 잡히지 않게. */
+    static final double SEA_MARGIN = 3.0;
+    static final double KNEE = 15.0;
 
     /** 온도 = slope × 밝기 + intercept. */
     public record Calibration(double slope, double intercept, int samples, double rmsCelsius, boolean fitted) {
@@ -37,9 +49,10 @@ public final class CloudComposer {
      * @param gray      등장방형 흑백 픽셀(행 우선). 밝을수록 구름이 짙다
      * @param satelliteCoverage 위성 영상으로 채운 칸의 비율(0~1). 극지방은 어느 위성도 못 봐 1이 되지 않는다
      * @param fallbackShare 지구본이 실시간 구름을 쓰는 위도 ±60° 안에서 GMGSI로 채운 칸의 비율
+     * @param celsius   위성들을 합친 밝기온도(섭씨 × 10). 위성이 못 본 칸은 {@link SatelliteFrame#NO_DATA}
      */
     public record Result(byte[] gray, double satelliteCoverage, double fallbackShare,
-                         Map<GeoSatellite, Calibration> calibrations) {
+                         Map<GeoSatellite, Calibration> calibrations, short[] celsius) {
     }
 
     // 2026-10-31 시제품에서 겹침 지역으로 맞춘 값(겹침 12만·5만 픽셀, RMS 6.5·6.9°C).
@@ -54,8 +67,16 @@ public final class CloudComposer {
     private CloudComposer() {
     }
 
-    /** @param fallback GMGSI 흑백 픽셀(같은 크기). 없으면 null */
     public static Result compose(int width, List<SatelliteFrame> frames, byte[] fallback) {
+        return compose(width, frames, fallback, null);
+    }
+
+    /**
+     * @param fallback   GMGSI 흑백 픽셀(같은 크기). 없으면 null
+     * @param background 바다의 맑은 날 온도. 없으면 null(모든 칸에 위도 기준)
+     */
+    public static Result compose(int width, List<SatelliteFrame> frames, byte[] fallback,
+                                 ClearSkyBackground background) {
         int height = width / 2;
         double[] cosLat = new double[height];
         double[] latDeg = new double[height];
@@ -81,12 +102,14 @@ public final class CloudComposer {
         }
 
         byte[] out = new byte[width * height];
+        short[] temps = new short[width * height];
+        Arrays.fill(temps, SatelliteFrame.NO_DATA);
         long covered = 0;
         long band = 0;
         long filled = 0;
         for (int r = 0; r < height; r++) {
             double clearSky = clearSkyCelsius(latDeg[r]);
-            double fullDepth = fullCloudDepth(latDeg[r]);
+            double fullCold = clearSky - fullCloudDepth(latDeg[r]);
             boolean inBand = Math.abs(latDeg[r]) <= 60.0;
             for (int x = 0; x < width; x++) {
                 int i = r * width + x;
@@ -110,7 +133,13 @@ public final class CloudComposer {
                 }
                 if (weightSum > 0) {
                     covered++;
-                    out[i] = (byte) density(celsiusSum / weightSum, clearSky, fullDepth);
+                    double celsius = celsiusSum / weightSum;
+                    temps[i] = (short) Math.round(celsius * 10);
+                    double threshold = clearSky;
+                    if (background != null && background.at(i) != SatelliteFrame.NO_DATA) {
+                        threshold = Math.max(clearSky, background.at(i) / 10.0 - SEA_MARGIN);
+                    }
+                    out[i] = (byte) density(celsius, threshold, fullCold);
                 } else if (fallback != null) {
                     out[i] = fallback[i];
                     if (inBand) {
@@ -119,7 +148,7 @@ public final class CloudComposer {
                 }
             }
         }
-        return new Result(out, (double) covered / out.length, (double) filled / band, calibrations);
+        return new Result(out, (double) covered / out.length, (double) filled / band, calibrations, temps);
     }
 
     /**
@@ -146,10 +175,21 @@ public final class CloudComposer {
         return Math.max(45.0, 0.75 * (clearSkyCelsius(latDeg) - tropopause));
     }
 
-    /** 0~255. 감마 0.8로 옅은 구름을 조금 살린다(GMGSI 변환과 같은 곡선). */
-    static int density(double celsius, double clearSky, double fullDepth) {
-        double t = Math.clamp((clearSky - celsius) / fullDepth, 0.0, 1.0);
-        return (int) Math.round(Math.pow(t, 0.8) * 255);
+    /**
+     * 0~255. 기준보다 {@link #KNEE}°C 차가우면 절반, {@code fullCold}°C 이하면 최대.
+     *
+     * @param threshold 이보다 따뜻하면 맑음
+     * @param fullCold  이보다 차가우면 가장 짙은 구름(위도 기준 - {@link #fullCloudDepth})
+     */
+    static int density(double celsius, double threshold, double fullCold) {
+        double below = threshold - celsius;
+        if (below <= 0) {
+            return 0;
+        }
+        double t = below < KNEE
+                ? 0.5 * below / KNEE
+                : 0.5 + 0.5 * (threshold - KNEE - celsius) / Math.max(threshold - KNEE - fullCold, 1.0);
+        return (int) Math.round(Math.clamp(t, 0.0, 1.0) * 255);
     }
 
     private static double celsius(SatelliteFrame frame, short v, Map<GeoSatellite, Calibration> calibrations) {

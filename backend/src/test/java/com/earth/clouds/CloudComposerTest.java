@@ -120,7 +120,63 @@ class CloudComposerTest {
         assertThat(CloudComposer.fullCloudDepth(80)).isEqualTo(45.0);
     }
 
+    @Test
+    @DisplayName("기준보다 15°C 차가운 낮은 구름은 절반 진하기로 보인다")
+    void lowCloudsReachHalfAtKnee() {
+        assertThat(CloudComposer.density(-3, 12, -40)).isEqualTo(128);
+        assertThat(CloudComposer.density(5, 12, -40)).isBetween(50, 70);
+        assertThat(CloudComposer.density(-40, 12, -40)).isEqualTo(255);
+    }
+
+    @Test
+    @DisplayName("바다 칸은 최근 최고 온도에서 여유를 뺀 기준을 쓰고, 육지는 위도 기준 그대로다")
+    void seaUsesRecentClearSkyTemperature() {
+        boolean[] sea = new boolean[WIDTH * HEIGHT];
+        int ocean = index(40, 135);
+        int land = index(40, 127);
+        sea[ocean] = true;
+        ClearSkyBackground background = new ClearSkyBackground(sea);
+        // 맑던 하루: 바다 15°C, 땅 20°C
+        short[] clear = new short[WIDTH * HEIGHT];
+        Arrays.fill(clear, (short) 150);
+        clear[land] = 200;
+        background.record(clear, T);
+
+        // 지금 둘 다 꼭대기 -3°C인 낮은 구름이 덮었다(위도 40° 위도 기준은 약 2°C)
+        List<SatelliteFrame> frames = List.of(filled(GeoSatellite.HIMAWARI, (short) -30));
+        byte[] with = CloudComposer.compose(WIDTH, frames, null, background).gray();
+        byte[] without = CloudComposer.compose(WIDTH, frames, null).gray();
+
+        assertThat(without[ocean] & 0xFF).isLessThan(50);
+        assertThat(with[ocean] & 0xFF).isGreaterThan(100);
+        assertThat(with[land]).isEqualTo(without[land]);
+    }
+
+    @Test
+    @DisplayName("맑은 날 온도는 12시간 묶음 둘로 기억해 24시간이 지나면 잊는다")
+    void backgroundForgetsAfterTwoBuckets() {
+        boolean[] sea = {true};
+        ClearSkyBackground background = new ClearSkyBackground(sea);
+        background.record(new short[]{150}, T);
+        background.record(new short[]{-30}, T.plusSeconds(13 * 3600));
+        assertThat(background.at(0)).isEqualTo((short) 150);  // 직전 묶음에 남아 있다
+        background.record(new short[]{-30}, T.plusSeconds(26 * 3600));
+        assertThat(background.at(0)).isEqualTo((short) -30);  // 두 묶음이 지나 잊었다
+    }
+
+    @Test
+    @DisplayName("리소스의 바다 마스크를 읽는다: 태평양은 바다, 몽골은 육지")
+    void loadsSeaMask() {
+        ClearSkyBackground background = ClearSkyBackground.load(WIDTH);
+        short[] warm = new short[WIDTH * HEIGHT];
+        Arrays.fill(warm, (short) 200);
+        background.record(warm, T);
+        assertThat(background.at(index(30, -150))).isEqualTo((short) 200);
+        assertThat(background.at(index(47, 105))).isEqualTo(SatelliteFrame.NO_DATA);
+    }
+
     private static int density(double celsius, double latDeg) {
-        return CloudComposer.density(celsius, CloudComposer.clearSkyCelsius(latDeg), CloudComposer.fullCloudDepth(latDeg));
+        double clearSky = CloudComposer.clearSkyCelsius(latDeg);
+        return CloudComposer.density(celsius, clearSky, clearSky - CloudComposer.fullCloudDepth(latDeg));
     }
 }

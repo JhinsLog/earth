@@ -1,5 +1,6 @@
 package com.earth.scheduler;
 
+import com.earth.clouds.ClearSkyBackground;
 import com.earth.clouds.CloudComposer;
 import com.earth.clouds.CloudMap;
 import com.earth.clouds.CloudMapRenderer;
@@ -55,6 +56,7 @@ public class CloudMapRefreshScheduler {
     private byte[] gmgsiGray;
     private String gmgsiKey;
     private Instant gmgsiObservedAt;
+    private ClearSkyBackground background;
 
     public CloudMapRefreshScheduler(GmgsiClient gmgsiClient, GeoRingFrames ring, CloudMapStore store,
                                     CloudProperties properties) {
@@ -76,7 +78,7 @@ public class CloudMapRefreshScheduler {
             changed |= ring.refresh(now);
         }
         if (changed) {
-            publish(started);
+            publish(now, started);
         }
     }
 
@@ -106,14 +108,18 @@ public class CloudMapRefreshScheduler {
         }
     }
 
-    private void publish(long started) {
+    private void publish(Instant now, long started) {
         try {
             List<SatelliteFrame> frames = properties.ringEnabled() ? ring.current() : List.of();
             if (frames.isEmpty() && gmgsiGray == null) {
                 return;
             }
             int width = properties.width();
-            CloudComposer.Result result = CloudComposer.compose(width, frames, gmgsiGray);
+            if (background == null) {
+                background = ClearSkyBackground.load(width);
+            }
+            CloudComposer.Result result = CloudComposer.compose(width, frames, gmgsiGray, background);
+            background.record(result.celsius(), now);
 
             List<String> sources = new ArrayList<>();
             List<Instant> times = new ArrayList<>();
