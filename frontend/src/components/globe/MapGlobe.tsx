@@ -430,18 +430,21 @@ export default function MapGlobe({
     // 모두 준비된 뒤 한 번에 페이드인시킨다. 자동 자전이 매 프레임 setCenter를 호출해
     // 'idle'이 발생하지 않으므로, 매 프레임 발생하는 'render'에서 직접 확인한다.
     let revealTimeoutId: number | undefined
+    let attribCollapseId: number | undefined
     function reveal() {
       if (readyRef.current) return
       readyRef.current = true
       map.off('render', tryReveal)
       window.clearTimeout(revealTimeoutId)
-      // compact 모드라도 MapLibre는 처음엔 펼친 상태(maplibregl-compact-show)로 시작한다.
-      // 지구본 화면을 가리므로 접어두고, 사용자가 ⓘ를 누르면 펼쳐지게 한다.
-      // 한 번의 클릭으로 전문을 볼 수 있으므로 ODbL 등의 표기 요건도 충족한다.
-      map
-        .getContainer()
-        .querySelector('.maplibregl-ctrl-attrib')
-        ?.classList.remove('maplibregl-compact-show')
+      // compact 모드라도 MapLibre는 처음엔 펼친 상태(maplibregl-compact-show)로 시작한다. 지구본을 가리므로
+      // 5초 뒤 접는다(끌면 MapLibre가 스스로 접는다). 바로 접지 않는 이유: OpenStreetMap 표기 지침은 닫기 동작,
+      // 지도 조작, 5초 경과 중 하나가 있을 때만 접기를 허용한다. 접은 뒤에는 ⓘ로 다시 본다.
+      attribCollapseId = window.setTimeout(() => {
+        map
+          .getContainer()
+          .querySelector('.maplibregl-ctrl-attrib')
+          ?.classList.remove('maplibregl-compact-show')
+      }, 5000)
       rootRef.current?.classList.add('map-globe--ready')
       onReadyRef.current?.()
     }
@@ -824,6 +827,7 @@ export default function MapGlobe({
       canvasContainer.removeEventListener('touchend', onTouchEnd)
       window.clearTimeout(viewportTimeoutId)
       window.clearTimeout(revealTimeoutId)
+      window.clearTimeout(attribCollapseId)
       readyRef.current = false
       appliedInitialFocusRef.current = false
       window.clearInterval(nearbyCountryIntervalId)

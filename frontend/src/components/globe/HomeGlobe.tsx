@@ -40,6 +40,7 @@ const EARTH_RADIUS = 1
 const STAR_RADIUS = 1.012
 const MAX_TILT_RAD = (60 * Math.PI) / 180
 const FOV_DEG = 30
+const CREDIT_COLLAPSE_MS = 5000
 const CLOUD_RADIUS = 1.006
 const ATMOSPHERE_RADIUS = 1.025
 // 도시 불빛 토글이 한 번에 켜지고 꺼지지 않고 이 시간 동안 번지듯 바뀐다.
@@ -300,6 +301,14 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
   const haloRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
   const [hoveringEarth, setHoveringEarth] = useState(false)
+  // 출처 표기는 처음엔 펼쳐 두고, 5초가 지나거나 지구를 만지면 ⓘ로 접는다. OpenStreetMap 표기 지침이 접기를
+  // 허용하는 조건이 이것이다(osmfoundation.org/wiki/Licence/Attribution_Guidelines). 접은 뒤에도 ⓘ로 다시 본다.
+  const [creditOpen, setCreditOpen] = useState(true)
+  useEffect(() => {
+    if (!ready) return
+    const id = window.setTimeout(() => setCreditOpen(false), CREDIT_COLLAPSE_MS)
+    return () => window.clearTimeout(id)
+  }, [ready])
   // 실시간 구름의 관측 시각과 출처. 없으면 정적 구름 사진을 쓰는 중이다.
   const [liveClouds, setLiveClouds] = useState<LiveClouds | null>(null)
 
@@ -729,7 +738,13 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
   }, [events])
 
   return (
-    <div className={`home-globe${ready ? ' home-globe--ready' : ''}`}>
+    <div
+      className={`home-globe${ready ? ' home-globe--ready' : ''}`}
+      onPointerDown={(e) => {
+        if (!(e.target as HTMLElement).closest('.home-globe__credit')) setCreditOpen(false)
+      }}
+      onWheel={() => setCreditOpen(false)}
+    >
       <Starfield />
       <div
         ref={containerRef}
@@ -738,11 +753,28 @@ export default function HomeGlobe({ events, center, onEnter, onZoomEnter, initia
       <div ref={haloRef} className="globe-halo home-globe__halo" />
       {/* NASA 자료는 퍼블릭 도메인이지만 출처 표기를 요청한다. 지도 화면은 MapLibre 출처 표시가 맡는다.
           EUMETSAT 영상과 GMGSI(Meteosat 포함)를 쓰면 EUMETSAT 데이터 정책 6.3조의 표기를 붙인다. */}
-      <span className="home-globe__credit">
-        Imagery: NASA GIBS · Clouds:{' '}
-        {liveClouds?.observedAt ? cloudCredit(liveClouds.observedAt, liveClouds.sources) : 'NASA Visible Earth'}{' '}
-        · Water mask © OpenStreetMap contributors
-      </span>
+      <div className={`home-globe__credit${creditOpen ? ' home-globe__credit--open' : ''}`}>
+        {creditOpen && (
+          <span className="home-globe__credit-text">
+            Imagery: NASA GIBS · Clouds:{' '}
+            {liveClouds?.observedAt ? cloudCredit(liveClouds.observedAt, liveClouds.sources) : 'NASA Visible Earth'}{' '}
+            · Water mask ©{' '}
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">
+              OpenStreetMap
+            </a>{' '}
+            contributors
+          </span>
+        )}
+        <button
+          type="button"
+          className="home-globe__credit-toggle"
+          aria-label={creditOpen ? '출처 접기' : '출처 보기'}
+          aria-expanded={creditOpen}
+          onClick={() => setCreditOpen((open) => !open)}
+        >
+          i
+        </button>
+      </div>
     </div>
   )
 }
