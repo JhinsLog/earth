@@ -23,6 +23,10 @@ const GRID_STEP_DEG = 2
 // 극점에서는 메르카토르 y가 무한대라 바로 앞에서 멈춘다. 0.1°면 화면에서 구별되지 않는다.
 const MAX_LATITUDE = 89.9
 const LIVE_CLOUDS_REFRESH_MS = 10 * 60 * 1000
+// 우클릭 손전등. 홈 지구본(HomeGlobe)의 FLASHLIGHT_* 와 같은 값이다.
+const FLASHLIGHT_RADIUS_RAD = 0.22
+const FLASHLIGHT_FADE_IN_SEC = 0.15
+const FLASHLIGHT_FADE_OUT_SEC = 1.0
 
 const VERTEX = (prelude: string, define: string) => `#version 300 es
 ${prelude}
@@ -47,6 +51,8 @@ uniform float u_live;
 uniform float u_city_lights;
 uniform float u_strength;
 uniform vec3 u_sun;
+uniform vec3 u_flash;
+uniform float u_flash_strength;
 in vec2 v_lnglat;
 out vec4 fragColor;
 
@@ -78,6 +84,10 @@ void main() {
   // 같은 식(0.01)을 감마로만 바꾸면 0.12가 되어 지도의 밤이 남색으로 떠 보였다.
   float shade = max(toGamma(vec3(light * 1.7)).r, 0.05) * (1.0 - cloud * 0.4 * light);
   float keep = shade * (1.0 - cloud);
+  // 손전등: 비추는 자리만 밤의 어두움을 걷어 아래 위성사진을 드러낸다. 구름은 그대로 덮는다.
+  float flashCos = cos(${FLASHLIGHT_RADIUS_RAD.toFixed(2)});
+  float spot = smoothstep(flashCos, mix(flashCos, 1.0, 0.7), dot(n, u_flash));
+  keep = mix(keep, 0.9 * (1.0 - cloud), spot * u_flash_strength * (1.0 - dayMix));
 
   // 밤 지역에서도 대륙 윤곽이 보이도록 남기는 옅은 푸른빛. 위성사진(낮)의 밝기에 비례하게 하려고
   // 아래 지도 색을 알 수 없으므로 일정한 값으로 둔다.
@@ -166,12 +176,23 @@ function sunVector(): [number, number, number] {
 }
 
 /** 줌에 따른 효과 세기. FULL 이하에서 1, NONE 이상에서 0. */
+function toVector(longitude: number, latitude: number): [number, number, number] {
+  const lat = (latitude * Math.PI) / 180
+  const lng = (longitude * Math.PI) / 180
+  return [Math.cos(lat) * Math.cos(lng), Math.sin(lat), Math.cos(lat) * Math.sin(lng)]
+}
+
 function strengthAt(zoom: number): number {
   const t = Math.min(1, Math.max(0, (zoom - MAP_DAYLIGHT_FULL_ZOOM) / (MAP_DAYLIGHT_NONE_ZOOM - MAP_DAYLIGHT_FULL_ZOOM)))
   return 1 - t * t * (3 - 2 * t)
 }
 
-export function createDaylightLayer(id: string): CustomLayerInterface {
+export interface DaylightLayer extends CustomLayerInterface {
+  /** 손전등을 그 위경도에 켠다. null이면 서서히 끈다. */
+  setFlashlight(point: { lng: number; lat: number } | null): void
+}
+
+export function createDaylightLayer(id: string): DaylightLayer {
   let map: MapLibreMap | null = null
   let gl: WebGL2RenderingContext | null = null
   const programs = new Map<string, { program: WebGLProgram; uniforms: Record<string, WebGLUniformLocation | null> }>()
@@ -185,6 +206,10 @@ export function createDaylightLayer(id: string): CustomLayerInterface {
   const abort = new AbortController()
   let refreshTimer: number | undefined
   let unsubscribeSettings: (() => void) | null = null
+  let flashVector: [number, number, number] = [1, 0, 0]
+  let flashOn = false
+  let flashLevel = 0
+  let flashTime = 0
 
   const programFor = (shaderData: CustomRenderMethodInput['shaderData']) => {
     const cached = programs.get(shaderData.variantName)
@@ -210,6 +235,8 @@ export function createDaylightLayer(id: string): CustomLayerInterface {
       'u_city_lights',
       'u_strength',
       'u_sun',
+      'u_flash',
+      'u_flash_strength',
     ]
     const uniforms = Object.fromEntries(names.map((name) => [name, context.getUniformLocation(program, name)]))
     const entry = { program, uniforms }
@@ -235,6 +262,12 @@ export function createDaylightLayer(id: string): CustomLayerInterface {
   return {
     id,
     type: 'custom',
+    setFlashlight(point) {
+      flashOn = point !== null
+      if (point) flashVector = toVector(point.lng, point.lat)
+      flashTime = performance.now()
+      map?.triggerRepaint()
+    },
     renderingMode: '2d',
     onAdd(m, context) {
       map = m
@@ -292,6 +325,16 @@ export function createDaylightLayer(id: string): CustomLayerInterface {
       c.uniform1f(uniforms.u_city_lights, useSettingsStore.getState().cityLights ? 1 : 0)
       c.uniform1f(uniforms.u_strength, strength)
       c.uniform3f(uniforms.u_sun, ...sunVector())
+      const now = performance.now()
+      const dt = (now - flashTime) / 1000
+      flashTime = now
+      flashLevel = flashOn
+        ? Math.min(1, flashLevel + dt / FLASHLIGHT_FADE_IN_SEC)
+        : Math.max(0, flashLevel - dt / FLASHLIGHT_FADE_OUT_SEC)
+      // 켜지거나 꺼지는 중에는 지도가 멈춰 있어도 다음 프레임을 요청한다.
+      if (flashLevel > 0 && flashLevel < 1) map.triggerRepaint()
+      c.uniform3f(uniforms.u_flash, ...flashVector)
+      c.uniform1f(uniforms.u_flash_strength, flashLevel)
       const textures: [WebGLTexture | null, string][] = [
         [staticClouds, 'u_static_clouds'],
         [liveClouds, 'u_live_clouds'],

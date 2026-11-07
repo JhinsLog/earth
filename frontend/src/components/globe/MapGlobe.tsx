@@ -24,6 +24,7 @@ import {
   EVENT_FOCUS_ZOOM,
   EVENT_PANEL_WIDTH_PX,
   INITIAL_ZOOM,
+  MAP_DAYLIGHT_NONE_ZOOM,
   HOME_VIEW_MAX_ABS_LATITUDE,
   MAX_ZOOM,
   MIN_ZOOM,
@@ -552,7 +553,29 @@ export default function MapGlobe({
     // 실제 낮·밤과 실시간 구름. 국경선·지명·별보다 아래에 깔아 그것들은 밤에도 그대로 보이게 한다.
     // 'load'는 타일까지 다 받은 뒤라 지도가 이미 보인 다음이다. 그때 붙이면 대낮 지구가 먼저 보였다가 바뀌므로
     // 스타일이 준비되는 즉시 붙인다.
-    map.once('style.load', () => map.addLayer(createDaylightLayer(DAYLIGHT_LAYER_ID), 'country-boundaries'))
+    const daylightLayer = createDaylightLayer(DAYLIGHT_LAYER_ID)
+    map.once('style.load', () => map.addLayer(daylightLayer, 'country-boundaries'))
+
+    // 우클릭 손전등. 밤이 어둡게 덮이는 배율(MAP_DAYLIGHT_NONE_ZOOM 미만)에서만 켠다. 그보다 확대하면 밤 효과가
+    // 없어 비출 것이 없고, 우클릭은 별 찍기로 쓴다. 누른 채 움직이면 따라가고, 떼면 서서히 꺼진다.
+    let flashing = false
+    const onGlobe = ({ lng, lat }: { lng: number; lat: number }) =>
+      Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90
+    map.on('mousedown', (e: MapMouseEvent) => {
+      if (e.originalEvent.button !== 2 || map.getZoom() >= MAP_DAYLIGHT_NONE_ZOOM) return
+      flashing = true
+      daylightLayer.setFlashlight(onGlobe(e.lngLat) ? e.lngLat : null)
+    })
+    map.on('mousemove', (e: MapMouseEvent) => {
+      if (flashing) daylightLayer.setFlashlight(onGlobe(e.lngLat) ? e.lngLat : null)
+    })
+    // 지도 밖에서 버튼을 떼도 꺼지도록 window에서 받는다.
+    const stopFlashlight = (e: MouseEvent) => {
+      if (e.button !== 2 || !flashing) return
+      flashing = false
+      daylightLayer.setFlashlight(null)
+    }
+    window.addEventListener('mouseup', stopFlashlight)
 
     map.on('load', () => {
       for (const starColor of STAR_COLORS) {
@@ -717,6 +740,8 @@ export default function MapGlobe({
         suppressNextContextMenuRef.current = false
         return
       }
+      // 이 배율의 우클릭은 손전등이다.
+      if (map.getZoom() < MAP_DAYLIGHT_NONE_ZOOM) return
       const { lat, lng } = e.lngLat
       // globe 투영에서 지구본 바깥(우주)을 클릭하면 좌표가 유효 범위를 벗어날 수 있다.
       // 그대로 두면 백엔드 검증(-90~90 / -180~180)에서 걸리므로 여기서 걸러낸다.
@@ -833,6 +858,7 @@ export default function MapGlobe({
 
     return () => {
       cancelAnimationFrame(rafId)
+      window.removeEventListener('mouseup', stopFlashlight)
       map.off('sourcedata', syncRasterGates)
       map.off('moveend', syncRasterGates)
       map.off('zoom', syncRasterGates)
