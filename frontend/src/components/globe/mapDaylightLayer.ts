@@ -176,6 +176,13 @@ function sunVector(): [number, number, number] {
 }
 
 /** 줌에 따른 효과 세기. FULL 이하에서 1, NONE 이상에서 0. */
+/** 해가 진 곳인가(태양이 지평선 아래). 손전등은 여기서만 켠다. */
+export function isNight(longitude: number, latitude: number): boolean {
+  const [x, y, z] = toVector(longitude, latitude)
+  const [sx, sy, sz] = sunVector()
+  return x * sx + y * sy + z * sz < 0
+}
+
 function toVector(longitude: number, latitude: number): [number, number, number] {
   const lat = (latitude * Math.PI) / 180
   const lng = (longitude * Math.PI) / 180

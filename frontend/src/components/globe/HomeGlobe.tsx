@@ -590,10 +590,14 @@ export default function HomeGlobe({ events, center, onZoomEnter, initialView = n
     const flashLocal = new THREE.Vector3()
     let flashOn = false
     let flashPointerId: number | null = null
+    // 해가 진 곳(태양이 지평선 아래)만 비춘다. 낮 지역을 가리키면 켜지지 않고, 누른 채 밤으로 넘어가면 켜진다.
     const aimFlashlight = (clientX: number, clientY: number) => {
       const hit = hitEarth(clientX, clientY)
       if (!hit) return false
-      flashLocal.copy(earth.worldToLocal(hit.point.clone())).normalize()
+      const point = earth.worldToLocal(hit.point.clone()).normalize()
+      const sun = subsolarPoint(new Date())
+      if (point.dot(toVector(sun.latitude, sun.longitude, 1)) >= 0) return false
+      flashLocal.copy(point)
       return true
     }
     const onContextMenu = (e: MouseEvent) => e.preventDefault()

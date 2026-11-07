@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import * as maplibregl from 'maplibre-gl'
-import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, MapMouseEvent } from 'maplibre-gl'
+import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, MapMouseEvent, MapTouchEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import {
   DARK_BASE_OPACITY,
@@ -10,7 +10,7 @@ import {
   createEarthMapStyle,
 } from './mapStyle'
 import { STAR_SPRITE_PIXEL_RATIO, createStarBodyImage, createStarSparkleImage } from './starFlareTexture'
-import { createDaylightLayer } from './mapDaylightLayer'
+import { createDaylightLayer, isNight } from './mapDaylightLayer'
 import Starfield from './Starfield'
 import { detectLabelLanguage } from '../../lib/language'
 import { destinationPoint, haversineDistanceKm } from '../../lib/geo'
@@ -23,6 +23,8 @@ import {
   DRAFT_STAR_COLOR,
   EVENT_FOCUS_ZOOM,
   EVENT_PANEL_WIDTH_PX,
+  HOME_GLOBE_LONG_PRESS_MS,
+  HOME_GLOBE_LONG_PRESS_TOLERANCE_PX,
   INITIAL_ZOOM,
   MAP_DAYLIGHT_NONE_ZOOM,
   HOME_VIEW_MAX_ABS_LATITUDE,
@@ -130,6 +132,8 @@ interface Props {
   onZoomOutToHome?: (view: HandoffView) => void
   /** 스타일과 타일이 준비돼 화면에 나타났을 때. 홈 지구본은 이때까지 남아 있다가 겹쳐 사라진다. */
   onReady?: () => void
+  /** 손전등을 쓸 수 있는 배율(MAP_DAYLIGHT_NONE_ZOOM 미만)에 들어오거나 나갈 때. 안내 문구를 바꾸는 데 쓴다. */
+  onFlashlightZoomChange?: (available: boolean) => void
 }
 
 /**
@@ -332,6 +336,7 @@ export default function MapGlobe({
   onViewportChange,
   onZoomOutToHome,
   onReady,
+  onFlashlightZoomChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const haloRef = useRef<HTMLDivElement>(null)
@@ -367,6 +372,8 @@ export default function MapGlobe({
   onZoomOutToHomeRef.current = onZoomOutToHome
   const onReadyRef = useRef(onReady)
   onReadyRef.current = onReady
+  const onFlashlightZoomChangeRef = useRef(onFlashlightZoomChange)
+  onFlashlightZoomChangeRef.current = onFlashlightZoomChange
   const onDraftSelectRef = useRef(onDraftSelect)
   onDraftSelectRef.current = onDraftSelect
   const onDraftRemoveRef = useRef(onDraftRemove)
@@ -556,18 +563,22 @@ export default function MapGlobe({
     const daylightLayer = createDaylightLayer(DAYLIGHT_LAYER_ID)
     map.once('style.load', () => map.addLayer(daylightLayer, 'country-boundaries'))
 
-    // 우클릭 손전등. 밤이 어둡게 덮이는 배율(MAP_DAYLIGHT_NONE_ZOOM 미만)에서만 켠다. 그보다 확대하면 밤 효과가
-    // 없어 비출 것이 없고, 우클릭은 별 찍기로 쓴다. 누른 채 움직이면 따라가고, 떼면 서서히 꺼진다.
+    // 손전등(우클릭, 휴대폰은 길게 누르기). 밤이 어둡게 덮이는 배율(MAP_DAYLIGHT_NONE_ZOOM 미만)에서만 켠다. 그보다
+    // 확대하면 밤 효과가 없어 비출 것이 없고, 우클릭은 별 찍기로 쓴다. 해가 진 곳만 비추고, 누른 채 움직이면
+    // 따라가며(낮으로 넘어가면 꺼짐), 떼면 서서히 꺼진다.
     let flashing = false
-    const onGlobe = ({ lng, lat }: { lng: number; lat: number }) =>
-      Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90
+    const aimFlashlight = ({ lng, lat }: { lng: number; lat: number }) => {
+      const night = Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && isNight(lng, lat)
+      daylightLayer.setFlashlight(night ? { lng, lat } : null)
+    }
+    const flashlightZoom = () => map.getZoom() < MAP_DAYLIGHT_NONE_ZOOM
     map.on('mousedown', (e: MapMouseEvent) => {
-      if (e.originalEvent.button !== 2 || map.getZoom() >= MAP_DAYLIGHT_NONE_ZOOM) return
+      if (e.originalEvent.button !== 2 || !flashlightZoom()) return
       flashing = true
-      daylightLayer.setFlashlight(onGlobe(e.lngLat) ? e.lngLat : null)
+      aimFlashlight(e.lngLat)
     })
     map.on('mousemove', (e: MapMouseEvent) => {
-      if (flashing) daylightLayer.setFlashlight(onGlobe(e.lngLat) ? e.lngLat : null)
+      if (flashing) aimFlashlight(e.lngLat)
     })
     // 지도 밖에서 버튼을 떼도 꺼지도록 window에서 받는다.
     const stopFlashlight = (e: MouseEvent) => {
@@ -576,6 +587,54 @@ export default function MapGlobe({
       daylightLayer.setFlashlight(null)
     }
     window.addEventListener('mouseup', stopFlashlight)
+
+    // 휴대폰: 손가락 하나로 움직이지 않고 오래 누르면 켠다. 켜진 동안은 지도가 끌려가지 않게 끌기를 잠시 끈다.
+    let longPressId = 0
+    let touchStart: { x: number; y: number } | null = null
+    let touchLngLat = { lng: 0, lat: 0 }
+    let touchFlashing = false
+    map.on('touchstart', (e: MapTouchEvent) => {
+      window.clearTimeout(longPressId)
+      touchStart = e.points.length === 1 && flashlightZoom() ? { x: e.point.x, y: e.point.y } : null
+      if (!touchStart) return
+      touchLngLat = e.lngLat
+      longPressId = window.setTimeout(() => {
+        touchFlashing = true
+        map.dragPan.disable()
+        aimFlashlight(touchLngLat)
+      }, HOME_GLOBE_LONG_PRESS_MS)
+    })
+    map.on('touchmove', (e: MapTouchEvent) => {
+      if (touchFlashing) {
+        aimFlashlight(e.lngLat)
+        return
+      }
+      if (!touchStart) return
+      touchLngLat = e.lngLat
+      const moved = Math.hypot(e.point.x - touchStart.x, e.point.y - touchStart.y)
+      if (e.points.length !== 1 || moved > HOME_GLOBE_LONG_PRESS_TOLERANCE_PX) {
+        touchStart = null
+        window.clearTimeout(longPressId)
+      }
+    })
+    const endTouchFlashlight = () => {
+      window.clearTimeout(longPressId)
+      touchStart = null
+      if (!touchFlashing) return
+      touchFlashing = false
+      map.dragPan.enable()
+      daylightLayer.setFlashlight(null)
+    }
+    map.on('touchend', endTouchFlashlight)
+    map.on('touchcancel', endTouchFlashlight)
+
+    let flashlightAvailable = flashlightZoom()
+    onFlashlightZoomChangeRef.current?.(flashlightAvailable)
+    map.on('zoom', () => {
+      if (flashlightZoom() === flashlightAvailable) return
+      flashlightAvailable = !flashlightAvailable
+      onFlashlightZoomChangeRef.current?.(flashlightAvailable)
+    })
 
     map.on('load', () => {
       for (const starColor of STAR_COLORS) {
@@ -859,6 +918,7 @@ export default function MapGlobe({
     return () => {
       cancelAnimationFrame(rafId)
       window.removeEventListener('mouseup', stopFlashlight)
+      window.clearTimeout(longPressId)
       map.off('sourcedata', syncRasterGates)
       map.off('moveend', syncRasterGates)
       map.off('zoom', syncRasterGates)

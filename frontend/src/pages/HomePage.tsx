@@ -27,6 +27,13 @@ function formatRemaining(ms: number | null): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
+// 손전등 조작 안내. 마우스가 없는 기기(휴대폰·태블릿)는 우클릭 대신 길게 누른다.
+const FLASHLIGHT_HINT = window.matchMedia('(pointer: coarse)').matches ? (
+  <><strong>길게 눌러</strong> 비춰 보기</>
+) : (
+  <><strong>우클릭</strong>으로 비춰 보기</>
+)
+
 export default function HomePage() {
   const {
     events,
@@ -46,6 +53,8 @@ export default function HomePage() {
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
   const [initialFocusLatLng, setInitialFocusLatLng] = useState<GeoPoint | null>(null)
   const [loginHint, setLoginHint] = useState<string | null>(null)
+  /** 지도가 손전등을 쓸 수 있는 배율인지. 안내 문구를 별 남기기와 비춰 보기 중에서 고른다. */
+  const [flashlightZoom, setFlashlightZoom] = useState(false)
   const loginHintTimerRef = useRef<number | undefined>(undefined)
   const flashLoginHint = (message: string) => {
     window.clearTimeout(loginHintTimerRef.current)
@@ -217,7 +226,7 @@ export default function HomePage() {
 
       {view === 'globe' && (
         <div className="home__hint">
-          지구를 <strong>확대</strong>해 들어가 보세요 · <strong>우클릭</strong>으로 비춰 보기
+          지구를 <strong>확대</strong>해 들어가 보세요 · 밤 지역은 {FLASHLIGHT_HINT}
         </div>
       )}
 
@@ -247,6 +256,7 @@ export default function HomePage() {
               initialView={enterView}
               onZoomOutToHome={exitToGlobe}
               onReady={handleMapReady}
+              onFlashlightZoomChange={setFlashlightZoom}
               myLocation={myLocation}
               locating={locating}
               locateError={locateError}
@@ -260,9 +270,11 @@ export default function HomePage() {
         <div className="home__hint home__hint--warn">{loginHint}</div>
       )}
 
-      {view === 'map' && !loginHint && user && (
+      {view === 'map' && !loginHint && (user || flashlightZoom) && (
         <div className="home__hint">
-          {drafts.length === 0 ? (
+          {drafts.length === 0 && flashlightZoom ? (
+            <>밤 지역은 {FLASHLIGHT_HINT}</>
+          ) : drafts.length === 0 ? (
             <>확대한 뒤 <strong>우클릭</strong>해 별을 남겨보세요</>
           ) : (
             <>
