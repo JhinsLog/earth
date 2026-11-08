@@ -1,6 +1,6 @@
 # Earth — 프로젝트 요약
 
-> 라스 위에 지금 일어나는 일을 플레어로 남기고, 그 자리에서 실시간으로 채팅하는 서비스.
+> 라스(실사 3D 지구본) 위에 지금 일어나는 일을 플레어(위치가 있는 실시간 제보)로 남기고, 그 자리에서 실시간으로 채팅하는 서비스.
 > 1인 개발 · 2026-08 ~ 운영 중 · <https://earth.jhinslog.com>
 
 이 문서는 백엔드에서 풀었던 문제를 **문제 → 선택 → 결과(수치) → 검증** 순서로 모은 것이다.
@@ -14,7 +14,7 @@
 | 항목 | 내용 |
 | --- | --- |
 | 백엔드 | Java 25, Spring Boot 4.0.6, Spring Security · OAuth2(Google) · JWT, STOMP over WebSocket |
-| 데이터 | PostgreSQL 17 + PostGIS(국경 판정), Flyway(V1~V8), Redis(pub/sub · refresh token · 채팅 도배 제한) |
+| 데이터 | PostgreSQL 17 + PostGIS(국경 판정), Flyway(V1~V9), Redis(pub/sub · refresh token · 채팅 도배 제한) |
 | 프론트엔드 | React 19, TypeScript, Vite, MapLibre GL 5(globe 투영), Three.js 셰이더(홈 라스) |
 | 테스트 | JUnit 5 + Testcontainers(실제 PostgreSQL · Redis). 동시성 · 실시간 공개 범위 · 외부 동기화 포함 |
 | 배포 | GitHub Actions(테스트 통과 시에만 이미지) → ghcr.io → 홈서버가 3분마다 당겨 교체(pull 방식) |
@@ -142,7 +142,7 @@ Meteosat 0° · 인도양(EUMETSAT WMS)의 적외선 영상을 받아 한 장으
 
 ## 이력서용 문장
 
-- Spring Boot · STOMP · Redis pub/sub 기반 실시간 라스 서비스를 1인 개발해 자택 서버에서 운영
+- Spring Boot · STOMP · Redis pub/sub 기반 실시간 3D 지구본(라스) 서비스를 1인 개발해 자택 서버에서 운영
 - `AFTER_COMMIT` 이벤트 리스너로 브로드캐스트를 커밋 이후로 강제해, 롤백된 데이터가 실시간으로 퍼지는 문제를 구조적으로 차단
 - 등록 한도·공감 수의 경합(동시 15건 중 11건 저장, 10명 동시 공감 시 1건 반영)을 Testcontainers로 재현하고 행 잠금으로 해결
 - 뷰포트 조회를 측정 기반으로 재설계: 인덱스 후보 5종 비교, 한국 범위 172 ms → 1.3 ms(20만 행), 범용 계획 고정(436 ms) 문제를 찾아 트랜잭션 단위 `force_custom_plan`으로 해결
