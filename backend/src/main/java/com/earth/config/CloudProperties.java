@@ -4,12 +4,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * 홈 지구본의 실시간 구름. 출처와 갱신 방식은 {@code docs/data-sources.md}.
+ * 홈 라스의 실시간 구름. 출처와 갱신 방식은 {@code docs/data-sources.md}.
  *
  * @param enabled   끄면 수집하지 않고, 프론트는 내장된 정적 구름 사진을 쓴다(테스트에서 끈다).
  * @param bucketUrl NOAA GMGSI 공개 버킷. 인증 없이 읽는다.
  * @param product   GMGSI 제품. LW(장파 적외선)는 밤에도 구름이 보여 지구 전체를 한 장으로 덮는다.
- * @param width     지구본용 이미지 가로 픽셀. 세로는 절반(등장방형).
+ * @param width     라스용 이미지 가로 픽셀. 세로는 절반(등장방형).
  * @param ringEnabled 정지궤도 위성 다섯 기를 10분마다 직접 합성한다. 끄면 GMGSI(1시간)만 쓴다.
  * @param gibsWmsUrl  NASA GIBS WMS(GOES-East·West, Himawari).
  * @param gibsDomainsUrl GIBS WMTS의 레이어별 관측 시각 목록(DescribeDomains) 주소 앞부분.

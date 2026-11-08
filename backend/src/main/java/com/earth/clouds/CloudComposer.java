@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 위성 다섯 기의 영상을 지구본 구름 이미지 한 장으로 합친다.
+ * 위성 다섯 기의 영상을 라스 구름 이미지 한 장으로 합친다.
  *
  * <p><b>합치기.</b> 같은 지점을 여러 위성이 보면, 더 정면에서 보는 위성에 더 큰 가중치를 준다. 위성은 원판
  * 가장자리로 갈수록 비스듬히 봐서 해상도가 떨어지고 구름이 실제보다 두꺼워 보인다. 가중치는
@@ -48,7 +48,7 @@ public final class CloudComposer {
     /**
      * @param gray      등장방형 흑백 픽셀(행 우선). 밝을수록 구름이 짙다
      * @param satelliteCoverage 위성 영상으로 채운 칸의 비율(0~1). 극지방은 어느 위성도 못 봐 1이 되지 않는다
-     * @param fallbackShare 지구본이 실시간 구름을 쓰는 위도 ±60° 안에서 GMGSI로 채운 칸의 비율
+     * @param fallbackShare 라스가 실시간 구름을 쓰는 위도 ±60° 안에서 GMGSI로 채운 칸의 비율
      * @param celsius   위성들을 합친 밝기온도(섭씨 × 10). 위성이 못 본 칸은 {@link SatelliteFrame#NO_DATA}
      */
     public record Result(byte[] gray, double satelliteCoverage, double fallbackShare,

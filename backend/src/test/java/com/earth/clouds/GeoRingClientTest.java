@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class GeoRingClientTest {
 
     @Test
-    @DisplayName("EUMETView 조각은 직하점 ±80°를 빈틈·겹침 없이 2×2로 덮고, 지구본 픽셀 경계에 맞는다")
+    @DisplayName("EUMETView 조각은 직하점 ±80°를 빈틈·겹침 없이 2×2로 덮고, 라스 픽셀 경계에 맞는다")
     void tilesCoverSatelliteViewWithoutGaps() {
         int width = 4096;
         List<GeoRingClient.Tile> tiles = GeoRingClient.tiles(45.5, width);
@@ -32,7 +32,7 @@ class GeoRingClientTest {
         assertThat(covered[equator * width + (int) ((45.5 - 79 + 180) / degPerPx)]).isTrue();
         assertThat(covered[equator * width + (int) ((45.5 + 79 + 180) / degPerPx)]).isTrue();
         assertThat(covered[equator * width + (int) ((45.5 + 81 + 180) / degPerPx)]).isFalse();
-        // 조각 하나가 약 910px — 1픽셀이 지구본과 같은 0.088°라 EUMETView가 줄여 둔 자료를 쓰지 않는다.
+        // 조각 하나가 약 910px — 1픽셀이 라스와 같은 0.088°라 EUMETView가 줄여 둔 자료를 쓰지 않는다.
         assertThat(tiles.getFirst().c1() - tiles.getFirst().c0()).isBetween(900, 920);
     }
 

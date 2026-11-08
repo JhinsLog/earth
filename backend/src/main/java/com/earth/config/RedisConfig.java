@@ -16,7 +16,7 @@ import tools.jackson.databind.ObjectMapper;
 @Configuration
 public class RedisConfig {
 
-    public static final String EVENT_CHANNEL = "earth:events";
+    public static final String FLARE_CHANNEL = "earth:flares";
     public static final String CHAT_CHANNEL_PREFIX = "earth:chat:";
 
     @Bean
@@ -47,7 +47,7 @@ public class RedisConfig {
             RedisMessageSubscriber subscriber) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
-        container.addMessageListener(subscriber, new ChannelTopic(EVENT_CHANNEL));
+        container.addMessageListener(subscriber, new ChannelTopic(FLARE_CHANNEL));
         container.addMessageListener(subscriber, new PatternTopic(CHAT_CHANNEL_PREFIX + "*"));
         return container;
     }

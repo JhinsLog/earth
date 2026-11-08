@@ -1,7 +1,7 @@
-package com.earth.domain.event;
+package com.earth.domain.flare;
 
 /**
- * 지구본 화면에 보이는 범위. 경도는 날짜변경선을 넘으면 두 구간으로 나뉜다.
+ * 라스 화면에 보이는 범위. 경도는 날짜변경선을 넘으면 두 구간으로 나뉜다.
  *
  * <p>클라이언트가 보낸 값을 그대로 {@code longitude between west and east}에 넣으면 두 가지가 깨진다.
  * <ul>

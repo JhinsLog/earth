@@ -1,7 +1,7 @@
 package com.earth.incident;
 
-import com.earth.domain.event.EventCategory;
-import com.earth.service.ExternalEventSyncService;
+import com.earth.domain.flare.FlareCategory;
+import com.earth.service.ExternalFlareSyncService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -23,12 +23,12 @@ class SeoulIncidentsTest {
     @Test
     @DisplayName("교통사고는 사고 분류, 차량화재는 화재 분류로 만든다")
     void accidents() {
-        Optional<ExternalEventSyncService.Draft> crash = SeoulIncidents.toDraft(incident("A01", "01B01", Duration.ofHours(1)));
-        assertThat(crash).get().extracting(ExternalEventSyncService.Draft::category).isEqualTo(EventCategory.ACCIDENT);
+        Optional<ExternalFlareSyncService.Draft> crash = SeoulIncidents.toDraft(incident("A01", "01B01", Duration.ofHours(1)));
+        assertThat(crash).get().extracting(ExternalFlareSyncService.Draft::category).isEqualTo(FlareCategory.ACCIDENT);
         assertThat(crash.get().content()).isEqualTo("내용\n둘째 줄");
 
         assertThat(SeoulIncidents.toDraft(incident("A01", "01B04", Duration.ofHours(1))))
-                .get().extracting(ExternalEventSyncService.Draft::category).isEqualTo(EventCategory.FIRE);
+                .get().extracting(ExternalFlareSyncService.Draft::category).isEqualTo(FlareCategory.FIRE);
     }
 
     @Test
@@ -41,7 +41,7 @@ class SeoulIncidentsTest {
 
     @Test
     @DisplayName("행사 통제는 10B01만, 집회(10B02)와 모르는 유형은 넣지 않는다")
-    void eventsAndUnknown() {
+    void flaresAndUnknown() {
         assertThat(SeoulIncidents.toDraft(incident("A10", "10B01", Duration.ofHours(3)))).isPresent();
         assertThat(SeoulIncidents.toDraft(incident("A10", "10B02", Duration.ofHours(3)))).isEmpty();
         assertThat(SeoulIncidents.toDraft(incident("A99", "99B01", Duration.ofHours(3)))).isEmpty();

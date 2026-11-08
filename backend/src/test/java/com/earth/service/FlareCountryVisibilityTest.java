@@ -1,12 +1,12 @@
 package com.earth.service;
 
-import com.earth.domain.event.EventCategory;
-import com.earth.domain.event.EventRepository;
+import com.earth.domain.flare.FlareCategory;
+import com.earth.domain.flare.FlareRepository;
 import com.earth.domain.user.AuthProvider;
 import com.earth.domain.user.User;
 import com.earth.domain.user.UserRepository;
-import com.earth.dto.EventCreateRequest;
-import com.earth.dto.EventResponse;
+import com.earth.dto.FlareCreateRequest;
+import com.earth.dto.FlareResponse;
 import com.earth.exception.EarthApiException;
 import com.earth.exception.ErrorCode;
 import com.earth.support.IntegrationTest;
@@ -25,15 +25,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 비로그인 사용자는 접속 국가의 별만 상세를 보고, 다른 나라 별은 위치와 존재만 받는다.
+ * 비로그인 사용자는 접속 국가의 플레어만 상세를 보고, 다른 나라 플레어는 위치와 존재만 받는다.
  */
-class EventCountryVisibilityTest extends IntegrationTest {
+class FlareCountryVisibilityTest extends IntegrationTest {
 
     @Autowired
-    private EventService eventService;
+    private FlareService flareService;
 
     @Autowired
-    private EventRepository eventRepository;
+    private FlareRepository flareRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -46,35 +46,35 @@ class EventCountryVisibilityTest extends IntegrationTest {
     @BeforeEach
     void setUp() {
         author = userRepository.save(new User(AuthProvider.GOOGLE, "author", "a@test.local", "작성자", null));
-        seoulId = eventService.create(author, request("서울", 37.5665, 126.9780)).id();
-        dokdoId = eventService.create(author, request("독도", 37.2414, 131.8697)).id();
-        tokyoId = eventService.create(author, request("도쿄", 35.6762, 139.6503)).id();
+        seoulId = flareService.create(author, request("서울", 37.5665, 126.9780)).id();
+        dokdoId = flareService.create(author, request("독도", 37.2414, 131.8697)).id();
+        tokyoId = flareService.create(author, request("도쿄", 35.6762, 139.6503)).id();
     }
 
     @AfterEach
     void tearDown() {
-        eventRepository.deleteAll();
+        flareRepository.deleteAll();
         userRepository.deleteAll();
     }
 
     @Test
     @DisplayName("등록할 때 국가가 판정돼 저장된다 — 독도는 대한민국")
     void countryIsAssignedOnCreate() {
-        assertThat(eventRepository.findById(seoulId).orElseThrow().getCountryCode()).isEqualTo("KR");
-        assertThat(eventRepository.findById(dokdoId).orElseThrow().getCountryCode()).isEqualTo("KR");
-        assertThat(eventRepository.findById(tokyoId).orElseThrow().getCountryCode()).isEqualTo("JP");
+        assertThat(flareRepository.findById(seoulId).orElseThrow().getCountryCode()).isEqualTo("KR");
+        assertThat(flareRepository.findById(dokdoId).orElseThrow().getCountryCode()).isEqualTo("KR");
+        assertThat(flareRepository.findById(tokyoId).orElseThrow().getCountryCode()).isEqualTo("JP");
     }
 
     @Test
-    @DisplayName("한국에서 접속한 비로그인 사용자: 한국 별은 상세, 일본 별은 위치만")
+    @DisplayName("한국에서 접속한 비로그인 사용자: 한국 플레어는 상세, 일본 플레어는 위치만")
     void anonymousSeesOwnCountryOnly() {
-        Map<Long, EventResponse> byId = byId(eventService.findVisible(null, "KR", null, null, null, null));
+        Map<Long, FlareResponse> byId = byId(flareService.findVisible(null, "KR", null, null, null, null));
 
         assertThat(byId.get(seoulId).restricted()).isFalse();
         assertThat(byId.get(seoulId).title()).isEqualTo("서울");
         assertThat(byId.get(dokdoId).restricted()).isFalse();
 
-        EventResponse tokyo = byId.get(tokyoId);
+        FlareResponse tokyo = byId.get(tokyoId);
         assertThat(tokyo.restricted()).isTrue();
         assertThat(tokyo.latitude()).isEqualTo(35.6762);
         assertThat(tokyo.title()).isNull();
@@ -85,10 +85,10 @@ class EventCountryVisibilityTest extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("접속 국가를 모르면 비로그인 사용자는 어느 별의 상세도 받지 못한다")
+    @DisplayName("접속 국가를 모르면 비로그인 사용자는 어느 플레어의 상세도 받지 못한다")
     void unknownCountrySeesNothingInDetail() {
-        assertThat(eventService.findVisible(null, null, null, null, null, null))
-                .allSatisfy(event -> assertThat(event.restricted()).isTrue());
+        assertThat(flareService.findVisible(null, null, null, null, null, null))
+                .allSatisfy(flare -> assertThat(flare.restricted()).isTrue());
     }
 
     @Test
@@ -96,24 +96,24 @@ class EventCountryVisibilityTest extends IntegrationTest {
     void loggedInSeesEverything() {
         User viewer = userRepository.save(new User(AuthProvider.GOOGLE, "viewer", "v@test.local", "보는사람", null));
 
-        assertThat(eventService.findVisible(viewer, "KR", null, null, null, null))
-                .allSatisfy(event -> assertThat(event.restricted()).isFalse());
+        assertThat(flareService.findVisible(viewer, "KR", null, null, null, null))
+                .allSatisfy(flare -> assertThat(flare.restricted()).isFalse());
     }
 
     @Test
-    @DisplayName("다른 나라 별의 단건 조회는 403")
+    @DisplayName("다른 나라 플레어의 단건 조회는 403")
     void anonymousCannotFetchOtherCountryDetail() {
-        assertThat(eventService.findById(null, "KR", seoulId).title()).isEqualTo("서울");
-        assertThatThrownBy(() -> eventService.findById(null, "KR", tokyoId))
+        assertThat(flareService.findById(null, "KR", seoulId).title()).isEqualTo("서울");
+        assertThatThrownBy(() -> flareService.findById(null, "KR", tokyoId))
                 .isInstanceOfSatisfying(EarthApiException.class,
                         e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.COUNTRY_RESTRICTED));
     }
 
-    private static Map<Long, EventResponse> byId(List<EventResponse> events) {
-        return events.stream().collect(Collectors.toMap(EventResponse::id, Function.identity()));
+    private static Map<Long, FlareResponse> byId(List<FlareResponse> flares) {
+        return flares.stream().collect(Collectors.toMap(FlareResponse::id, Function.identity()));
     }
 
-    private static EventCreateRequest request(String title, double lat, double lng) {
-        return new EventCreateRequest(title, "내용", EventCategory.ETC, lat, lng);
+    private static FlareCreateRequest request(String title, double lat, double lng) {
+        return new FlareCreateRequest(title, "내용", FlareCategory.ETC, lat, lng);
     }
 }

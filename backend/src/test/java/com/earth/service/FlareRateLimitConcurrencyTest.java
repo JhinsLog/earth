@@ -1,12 +1,12 @@
 package com.earth.service;
 
-import com.earth.config.EventProperties;
-import com.earth.domain.event.EventCategory;
-import com.earth.domain.event.EventRepository;
+import com.earth.config.FlareProperties;
+import com.earth.domain.flare.FlareCategory;
+import com.earth.domain.flare.FlareRepository;
 import com.earth.domain.user.AuthProvider;
 import com.earth.domain.user.User;
 import com.earth.domain.user.UserRepository;
-import com.earth.dto.EventCreateRequest;
+import com.earth.dto.FlareCreateRequest;
 import com.earth.support.IntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,23 +31,23 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>손으로는 재현할 수 없다. 밀리초 단위로 요청이 겹쳐야 하고 성공 여부가 확률적이다.
  * 이 테스트가 없으면 고쳤는지 확인할 방법이 없다.
  */
-class EventRateLimitConcurrencyTest extends IntegrationTest {
+class FlareRateLimitConcurrencyTest extends IntegrationTest {
 
     @Autowired
-    private EventService eventService;
+    private FlareService flareService;
 
     @Autowired
     private UserRepository userRepository;
 
     @Autowired
-    private EventRepository eventRepository;
+    private FlareRepository flareRepository;
 
     @Autowired
-    private EventProperties eventProperties;
+    private FlareProperties flareProperties;
 
     @AfterEach
     void tearDown() {
-        eventRepository.deleteAll();
+        flareRepository.deleteAll();
         userRepository.deleteAll();
     }
 
@@ -56,7 +56,7 @@ class EventRateLimitConcurrencyTest extends IntegrationTest {
     void concurrentCreateRespectsHourlyLimit() throws InterruptedException {
         User author = userRepository.save(
                 new User(AuthProvider.GOOGLE, "concurrency-test", "concurrency@test.local", "동시성테스터", null));
-        int limit = eventProperties.maxPerHour();
+        int limit = flareProperties.maxPerHour();
         int attempts = limit * 3;
 
         // 모든 스레드를 같은 순간에 출발시킨다. 순차 실행되면 이 테스트는 의미가 없다.
@@ -71,7 +71,7 @@ class EventRateLimitConcurrencyTest extends IntegrationTest {
                 pool.execute(() -> {
                     try {
                         start.await();
-                        eventService.create(author, request(index));
+                        flareService.create(author, request(index));
                         accepted.incrementAndGet();
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
@@ -87,16 +87,16 @@ class EventRateLimitConcurrencyTest extends IntegrationTest {
             assertThat(done.await(30, TimeUnit.SECONDS)).as("모든 요청이 끝나야 한다").isTrue();
         }
 
-        long stored = eventRepository.count();
+        long stored = flareRepository.count();
         assertThat(stored)
-                .as("저장된 별 개수(%d)가 한도(%d)를 넘었다. 확인과 저장 사이에 다른 요청이 끼어들었다는 뜻이다.",
+                .as("저장된 플레어 개수(%d)가 한도(%d)를 넘었다. 확인과 저장 사이에 다른 요청이 끼어들었다는 뜻이다.",
                         stored, limit)
                 .isLessThanOrEqualTo(limit);
         assertThat(accepted.get() + rejected.get()).isEqualTo(attempts);
     }
 
-    private EventCreateRequest request(int index) {
-        return new EventCreateRequest(
-                "동시성 테스트 " + index, "내용 " + index, EventCategory.ETC, 37.5665, 126.9780);
+    private FlareCreateRequest request(int index) {
+        return new FlareCreateRequest(
+                "동시성 테스트 " + index, "내용 " + index, FlareCategory.ETC, 37.5665, 126.9780);
     }
 }

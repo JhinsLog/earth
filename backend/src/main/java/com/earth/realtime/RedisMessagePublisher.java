@@ -2,7 +2,7 @@ package com.earth.realtime;
 
 import com.earth.config.RedisConfig;
 import com.earth.dto.ChatMessageResponse;
-import com.earth.dto.EventResponse;
+import com.earth.dto.FlareResponse;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -15,11 +15,11 @@ public class RedisMessagePublisher {
         this.redisTemplate = redisTemplate;
     }
 
-    public void publishNewEvent(EventResponse event) {
-        redisTemplate.convertAndSend(RedisConfig.EVENT_CHANNEL, event);
+    public void publishNewFlare(FlareResponse flare) {
+        redisTemplate.convertAndSend(RedisConfig.FLARE_CHANNEL, flare);
     }
 
-    public void publishChatMessage(Long eventId, ChatMessageResponse message) {
-        redisTemplate.convertAndSend(RedisConfig.CHAT_CHANNEL_PREFIX + eventId, message);
+    public void publishChatMessage(Long flareId, ChatMessageResponse message) {
+        redisTemplate.convertAndSend(RedisConfig.CHAT_CHANNEL_PREFIX + flareId, message);
     }
 }

@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 
 /**
- * 사용자가 즐겨찾기한 관심 지역. 이 안에 별이 생기면 알림을 만든다.
+ * 사용자가 즐겨찾기한 관심 지역. 이 안에 플레어가 생기면 알림을 만든다.
  *
  * <p><b>여기 저장된 좌표는 사용자의 위치가 아니다.</b> 사용자가 직접 고른 "알림받고 싶은
  * 구역"의 중심과 반경이며, 사용자가 그곳에 있었는지와는 무관하다. 서울에 살면서 부산을
@@ -60,8 +60,8 @@ public class RegionSubscription {
         this.createdAt = Instant.now();
     }
 
-    public boolean covers(double eventLat, double eventLng) {
-        return haversineKm(latitude, longitude, eventLat, eventLng) <= radiusKm;
+    public boolean covers(double flareLat, double flareLng) {
+        return haversineKm(latitude, longitude, flareLat, flareLng) <= radiusKm;
     }
 
     private static double haversineKm(double lat1, double lng1, double lat2, double lng2) {

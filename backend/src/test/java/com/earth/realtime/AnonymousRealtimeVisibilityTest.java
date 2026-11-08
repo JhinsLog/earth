@@ -1,12 +1,12 @@
 package com.earth.realtime;
 
-import com.earth.domain.event.EventCategory;
-import com.earth.domain.event.EventRepository;
+import com.earth.domain.flare.FlareCategory;
+import com.earth.domain.flare.FlareRepository;
 import com.earth.domain.user.AuthProvider;
 import com.earth.domain.user.User;
 import com.earth.domain.user.UserRepository;
-import com.earth.dto.EventCreateRequest;
-import com.earth.service.EventService;
+import com.earth.dto.FlareCreateRequest;
+import com.earth.service.FlareService;
 import com.earth.support.IntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -38,8 +38,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 비로그인 WebSocket 연결이 실시간으로 무엇을 받는지 실제 연결로 검증한다(A-10).
  *
  * <p>REST에서 상세를 막아도 실시간 피드가 그대로 흘러나가면 소용이 없다. 예전에는 비로그인 연결도
- * 전체 피드(/topic/events)를 그대로 구독할 수 있었다. 단위 테스트(TopicAccessPolicyTest)는 규칙만 보므로,
- * 여기서는 연결 → 구독 → 별 등록 → Redis 릴레이 → 수신까지 실제 경로 전체를 탄다.
+ * 전체 피드(/topic/flares)를 그대로 구독할 수 있었다. 단위 테스트(TopicAccessPolicyTest)는 규칙만 보므로,
+ * 여기서는 연결 → 구독 → 플레어 등록 → Redis 릴레이 → 수신까지 실제 경로 전체를 탄다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AnonymousRealtimeVisibilityTest extends IntegrationTest {
@@ -48,17 +48,17 @@ class AnonymousRealtimeVisibilityTest extends IntegrationTest {
     private int port;
 
     @Autowired
-    private EventService eventService;
+    private FlareService flareService;
 
     @Autowired
-    private EventRepository eventRepository;
+    private FlareRepository flareRepository;
 
     @Autowired
     private UserRepository userRepository;
 
     @AfterEach
     void tearDown() {
-        eventRepository.deleteAll();
+        flareRepository.deleteAll();
         userRepository.deleteAll();
     }
 
@@ -77,23 +77,23 @@ class AnonymousRealtimeVisibilityTest extends IntegrationTest {
                         })
                 .get(10, TimeUnit.SECONDS);
 
-        BlockingQueue<Map<String, Object>> all = subscribe(session, "/topic/events");
-        BlockingQueue<Map<String, Object>> pub = subscribe(session, "/topic/events.public");
-        BlockingQueue<Map<String, Object>> korea = subscribe(session, "/topic/events.country.KR");
-        BlockingQueue<Map<String, Object>> japan = subscribe(session, "/topic/events.country.JP");
+        BlockingQueue<Map<String, Object>> all = subscribe(session, "/topic/flares");
+        BlockingQueue<Map<String, Object>> pub = subscribe(session, "/topic/flares.public");
+        BlockingQueue<Map<String, Object>> korea = subscribe(session, "/topic/flares.country.KR");
+        BlockingQueue<Map<String, Object>> japan = subscribe(session, "/topic/flares.country.JP");
         BlockingQueue<Map<String, Object>> chat = subscribe(session, "/topic/chat.1");
         // 구독 프레임이 서버에 먼저 도착하도록 잠깐 기다린다(구독보다 발행이 빠르면 아무것도 못 받는다).
         Thread.sleep(500);
 
         User author = userRepository.save(new User(AuthProvider.GOOGLE, "rt", "rt@test.local", "작성자", null));
-        eventService.create(author, new EventCreateRequest("서울 소식", "내용", EventCategory.ETC, 37.5665, 126.9780));
-        eventService.create(author, new EventCreateRequest("도쿄 소식", "내용", EventCategory.ETC, 35.6762, 139.6503));
+        flareService.create(author, new FlareCreateRequest("서울 소식", "내용", FlareCategory.ETC, 37.5665, 126.9780));
+        flareService.create(author, new FlareCreateRequest("도쿄 소식", "내용", FlareCategory.ETC, 35.6762, 139.6503));
 
         Map<String, Object> first = pub.poll(10, TimeUnit.SECONDS);
         Map<String, Object> second = pub.poll(10, TimeUnit.SECONDS);
-        assertThat(List.of(first, second)).allSatisfy(event -> {
-            assertThat(event.get("restricted")).isEqualTo(true);
-            assertThat(event.get("title")).isNull();
+        assertThat(List.of(first, second)).allSatisfy(flare -> {
+            assertThat(flare.get("restricted")).isEqualTo(true);
+            assertThat(flare.get("title")).isNull();
         });
 
         Map<String, Object> seoul = korea.poll(10, TimeUnit.SECONDS);

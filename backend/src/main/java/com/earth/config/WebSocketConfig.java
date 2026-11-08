@@ -46,10 +46,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        // /topic/events              -> 전 지구 별 피드, 전체 정보 (로그인 사용자만)
-        // /topic/events.public       -> 같은 피드, 위치와 존재만 (누구나)
-        // /topic/events.country.{CC} -> 그 나라 별의 전체 정보 (비로그인은 자기 접속 국가만)
-        // /topic/chat.{eventId}      -> 이벤트별 채팅방 (로그인 사용자만 구독, 전송은 레벨까지 서비스에서 검증)
+        // /topic/flares              -> 전 지구 플레어 피드, 전체 정보 (로그인 사용자만)
+        // /topic/flares.public       -> 같은 피드, 위치와 존재만 (누구나)
+        // /topic/flares.country.{CC} -> 그 나라 플레어의 전체 정보 (비로그인은 자기 접속 국가만)
+        // /topic/chat.{flareId}      -> 플레어별 채팅방 (로그인 사용자만 구독, 전송은 레벨까지 서비스에서 검증)
         // 구독 권한은 TopicAccessPolicy가 정하고 StompSubscriptionGuard가 강제한다.
         // /user/queue/errors    -> 메시지 처리 실패 사유를 보낸 사람에게만 되돌려주는 채널
         registry.enableSimpleBroker("/topic", "/queue");

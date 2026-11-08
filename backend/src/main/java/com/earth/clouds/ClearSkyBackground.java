@@ -27,7 +27,7 @@ import java.util.Arrays;
  * 않는다. 메모리에만 두므로 재시작하면 처음부터 다시 쌓는다(그동안은 예전 방식과 같다).
  *
  * <p>육지·바다 구분은 NASA GIBS {@code OSM_Land_Water_Map}(© OpenStreetMap contributors, ODbL)을 4096×2048로
- * 받아 둔 {@code clouds/sea-mask.png}다. 프론트 지구본의 바다 마스크와 같은 출처다.
+ * 받아 둔 {@code clouds/sea-mask.png}다. 프론트 라스의 바다 마스크와 같은 출처다.
  *
  * <p>스케줄러 한 실행만 만진다(같은 예약 작업은 겹쳐 돌지 않는다).
  */

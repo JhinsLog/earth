@@ -4,7 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * 서울시 실시간 돌발정보(서울 열린데이터광장 OA-13315)를 별로 만드는 수집기.
+ * 서울시 실시간 돌발정보(서울 열린데이터광장 OA-13315)를 플레어로 만드는 수집기.
  *
  * @param enabled           끄면 수집하지 않는다(테스트에서 끈다).
  * @param apiKey            열린데이터광장 인증키. <b>기본값을 두지 않는다.</b> 켜져 있는데 비어 있으면 기동을 막는다.

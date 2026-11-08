@@ -65,25 +65,25 @@ earth:
   chat:
     min-level-to-join: 1   # 상세 레벨 정책 확정 전까지는 로그인만 되어 있으면 입장 가능
     max-per-minute: 20     # 한 사용자가 1분 안에 보낼 수 있는 메시지 수 (도배 방지)
-  event:
-    # 별 수명. 현재 30분은 임시 정책이며, 레벨/EXP 정책이 확정되면 레벨별로
+  flare:
+    # 플레어 수명. 현재 30분은 임시 정책이며, 레벨/EXP 정책이 확정되면 레벨별로
     # 달라질 수 있어 설정으로 분리해 둔다.
     ttl-minutes: 30
-    max-per-hour: 5        # 한 사용자가 1시간 안에 등록할 수 있는 별 개수
+    max-per-hour: 5        # 한 사용자가 1시간 안에 등록할 수 있는 플레어 개수
     confirm-extension-minutes: 5   # 공감 1건이 늘려주는 수명
     max-lifetime-hours: 12         # 공감이 쌓여도 넘지 못하는 상한(생성 시각 기준)
-    # 만료된 별을 정리하고 실시간으로 알리는 주기. 조회는 이미 expires_at으로
-    # 걸러지므로 이 값이 커도 만료된 별이 보이지는 않는다.
+    # 만료된 플레어를 정리하고 실시간으로 알리는 주기. 조회는 이미 expires_at으로
+    # 걸러지므로 이 값이 커도 만료된 플레어가 보이지는 않는다.
     expiration-scan-interval-ms: 30000
   incidents:
     seoul:
-      # 서울시 실시간 돌발정보 → 별. 출처·이용조건은 docs/data-sources.md
+      # 서울시 실시간 돌발정보 → 플레어. 출처·이용조건은 docs/data-sources.md
       enabled: true
       # 폴백 기본값을 두지 않는다. 켜져 있는데 비어 있으면 SeoulIncidentScheduler가 기동을 막는다.
       api-key: ${SEOUL_OPENAPI_KEY:}
       refresh-interval-ms: 600000
   clouds:
-    # 홈 지구본 실시간 구름(NOAA GMGSI). 출처는 docs/data-sources.md
+    # 홈 라스 실시간 구름(NOAA GMGSI). 출처는 docs/data-sources.md
     enabled: true
     # 위성 다섯 기 직접 합성(10분). GMGSI(1시간)는 빈 지역을 채우는 바탕으로 같이 받는다. 새 영상일 때만 받는다.
     refresh-interval-ms: 600000

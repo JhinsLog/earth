@@ -1,12 +1,12 @@
 package com.earth.service;
 
-import com.earth.domain.event.Event;
-import com.earth.domain.event.EventCategory;
-import com.earth.domain.event.EventRepository;
+import com.earth.domain.flare.Flare;
+import com.earth.domain.flare.FlareCategory;
+import com.earth.domain.flare.FlareRepository;
 import com.earth.domain.user.AuthProvider;
 import com.earth.domain.user.User;
 import com.earth.domain.user.UserRepository;
-import com.earth.dto.EventResponse;
+import com.earth.dto.FlareResponse;
 import com.earth.exception.EarthApiException;
 import com.earth.support.IntegrationTest;
 import org.junit.jupiter.api.AfterEach;
@@ -30,13 +30,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 화면(피지, 알래스카 서쪽 끝 등)에서는 동쪽 절반이 빠지거나 아예 빈 결과가 났고, 넓은 범위에서는
  * 결과가 무한정 커졌다.
  */
-class EventViewportQueryTest extends IntegrationTest {
+class FlareViewportQueryTest extends IntegrationTest {
 
     @Autowired
-    private EventService eventService;
+    private FlareService flareService;
 
     @Autowired
-    private EventRepository eventRepository;
+    private FlareRepository flareRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -47,48 +47,48 @@ class EventViewportQueryTest extends IntegrationTest {
 
     @AfterEach
     void tearDown() {
-        eventRepository.deleteAll();
+        flareRepository.deleteAll();
         userRepository.deleteAll();
     }
 
     @Test
-    @DisplayName("날짜변경선을 넘는 화면은 양쪽 별을 모두 돌려주고 범위 밖은 뺀다")
+    @DisplayName("날짜변경선을 넘는 화면은 양쪽 플레어를 모두 돌려주고 범위 밖은 뺀다")
     void antimeridianViewportReturnsBothSides() {
         User author = userRepository.save(user());
-        Event west = eventRepository.save(event(author, -17.7, 178.0));   // 피지 서쪽
-        Event east = eventRepository.save(event(author, -16.0, -179.9));  // 날짜변경선 동쪽
-        eventRepository.save(event(author, -17.0, 0.0));                  // 범위 밖
+        Flare west = flareRepository.save(flare(author, -17.7, 178.0));   // 피지 서쪽
+        Flare east = flareRepository.save(flare(author, -16.0, -179.9));  // 날짜변경선 동쪽
+        flareRepository.save(flare(author, -17.0, 0.0));                  // 범위 밖
 
         // MapLibre는 경도를 감지 않고 170~190으로 보낸다.
-        List<Long> ids = idsOf(eventService.findVisible(null, null, -20.0, -10.0, 170.0, 190.0));
+        List<Long> ids = idsOf(flareService.findVisible(null, null, -20.0, -10.0, 170.0, 190.0));
 
         assertThat(ids).containsExactlyInAnyOrder(west.getId(), east.getId());
     }
 
     @Test
-    @DisplayName("범위 안의 별이 많아도 최신 500개만 돌려준다")
+    @DisplayName("범위 안의 플레어가 많아도 최신 500개만 돌려준다")
     void wideViewportIsCappedAtNewest500() {
         User author = userRepository.save(user());
-        List<Event> events = new ArrayList<>();
+        List<Flare> flares = new ArrayList<>();
         for (int i = 0; i < 510; i++) {
-            events.add(event(author, 37.0 + i * 0.001, 127.0));
+            flares.add(flare(author, 37.0 + i * 0.001, 127.0));
         }
-        eventRepository.saveAll(events);
-        jdbc.update("update events set created_at = timestamp with time zone '2026-01-01 00:00:00+00'"
+        flareRepository.saveAll(flares);
+        jdbc.update("update flares set created_at = timestamp with time zone '2026-01-01 00:00:00+00'"
                 + " + id * interval '1 second'");
 
-        List<EventResponse> result = eventService.findVisible(null, null, 30.0, 45.0, 120.0, 135.0);
+        List<FlareResponse> result = flareService.findVisible(null, null, 30.0, 45.0, 120.0, 135.0);
 
         assertThat(result).hasSize(500);
-        long oldestReturned = result.stream().mapToLong(EventResponse::id).min().orElseThrow();
-        long minId = events.stream().mapToLong(Event::getId).min().orElseThrow();
+        long oldestReturned = result.stream().mapToLong(FlareResponse::id).min().orElseThrow();
+        long minId = flares.stream().mapToLong(Flare::getId).min().orElseThrow();
         assertThat(oldestReturned).as("가장 오래된 10개가 빠져야 한다").isEqualTo(minId + 10);
     }
 
     @Test
     @DisplayName("범위 좌표를 일부만 보내면 전 세계 조회로 넘기지 않고 거부한다")
     void partialBoundsAreRejected() {
-        assertThatThrownBy(() -> eventService.findVisible(null, null, 30.0, 45.0, null, 135.0))
+        assertThatThrownBy(() -> flareService.findVisible(null, null, 30.0, 45.0, null, 135.0))
                 .isInstanceOf(EarthApiException.class);
     }
 
@@ -97,7 +97,7 @@ class EventViewportQueryTest extends IntegrationTest {
 
     /**
      * 같은 범위 쿼리가 한 연결에서 반복되면 PostgreSQL은 파라미터를 보지 않는 범용 계획으로 바꾼다.
-     * 범용 계획은 범위를 아주 좁다고 가정해 위경도 인덱스에 고정되고, 별이 빽빽한 범위(한국)에서
+     * 범용 계획은 범위를 아주 좁다고 가정해 위경도 인덱스에 고정되고, 플레어가 빽빽한 범위(한국)에서
      * 14만 행을 다 읽는다(측정용 DB에서 1~2ms → 80ms, 기존 인덱스로는 436ms).
      * 연결 하나에서 확인하려고 바깥 트랜잭션으로 묶는다. {@code pg_prepared_statements}는 세션별이다.
      */
@@ -105,11 +105,11 @@ class EventViewportQueryTest extends IntegrationTest {
     @DisplayName("범위 조회는 반복돼도 범용 계획으로 바뀌지 않고 매번 값에 맞는 계획을 세운다")
     void viewportQueryNeverUsesGenericPlan() {
         User author = userRepository.save(user());
-        eventRepository.save(event(author, 37.5, 127.0));
+        flareRepository.save(flare(author, 37.5, 127.0));
 
         List<Integer> plans = tx.execute(status -> {
             for (int i = 0; i < 15; i++) {
-                eventService.findVisible(null, null, 33.0, 39.0, 124.0, 132.0);
+                flareService.findVisible(null, null, 33.0, 39.0, 124.0, 132.0);
             }
             return jdbc.query("select generic_plans, custom_plans from pg_prepared_statements"
                             + " where statement like '%latitude between%'",
@@ -122,15 +122,15 @@ class EventViewportQueryTest extends IntegrationTest {
         assertThat(plans.get(0)).as("범용 계획 사용 횟수").isZero();
     }
 
-    private static List<Long> idsOf(List<EventResponse> responses) {
-        return responses.stream().map(EventResponse::id).toList();
+    private static List<Long> idsOf(List<FlareResponse> responses) {
+        return responses.stream().map(FlareResponse::id).toList();
     }
 
     private static User user() {
         return new User(AuthProvider.GOOGLE, "viewport", "viewport@test.local", "viewport", null);
     }
 
-    private static Event event(User author, double lat, double lng) {
-        return new Event(author, "범위 조회", "내용", EventCategory.ETC, lat, lng, null, Duration.ofHours(1));
+    private static Flare flare(User author, double lat, double lng) {
+        return new Flare(author, "범위 조회", "내용", FlareCategory.ETC, lat, lng, null, Duration.ofHours(1));
     }
 }

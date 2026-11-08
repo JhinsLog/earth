@@ -28,7 +28,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * 홈 지구본의 실시간 구름을 갱신한다.
+ * 홈 라스의 실시간 구름을 갱신한다.
  *
  * <p>두 가지를 받아 합친다.
  * <ul>

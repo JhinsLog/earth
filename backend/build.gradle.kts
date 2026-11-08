@@ -6,7 +6,7 @@ plugins {
 
 group = "com.earth"
 version = "0.1.0"
-description = "Earth - realtime global event globe (backend)"
+description = "Earth - realtime global flare globe (backend)"
 
 java {
     toolchain {
@@ -37,10 +37,10 @@ dependencies {
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
 
-    // Redis - pub/sub messaging backbone for realtime event/chat broadcast
+    // Redis - pub/sub messaging backbone for realtime flare/chat broadcast
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
 
-    // Realtime transport (STOMP over WebSocket) for globe event feed + chat rooms
+    // Realtime transport (STOMP over WebSocket) for globe flare feed + chat rooms
     implementation("org.springframework.boot:spring-boot-starter-websocket")
 
     // 실시간 구름(NOAA GMGSI)이 NetCDF4(HDF5) 파일로 온다. 순수 자바 HDF5 리더라 네이티브 라이브러리가 없다.

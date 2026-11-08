@@ -1,4 +1,4 @@
-package com.earth.domain.event;
+package com.earth.domain.flare;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 화면 범위 정규화. 계산만 하므로 DB 없이 검증한다.
- * 실제 쿼리가 두 구간을 올바르게 쓰는지는 {@code EventViewportQueryTest}가 본다.
+ * 실제 쿼리가 두 구간을 올바르게 쓰는지는 {@code FlareViewportQueryTest}가 본다.
  */
 class BoundingBoxTest {
 

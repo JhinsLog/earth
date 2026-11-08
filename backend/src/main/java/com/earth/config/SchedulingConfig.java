@@ -12,7 +12,7 @@ import org.springframework.scheduling.config.ScheduledTaskRegistrar;
  * Spring Boot 기본 스케줄러가 물러나고 모든 {@code @Scheduled} 작업이 브로커 스케줄러에서 돈다
  * (운영 로그의 스레드 이름이 MessageBroker-1이었다). 그 상태에서는 {@code spring.task.scheduling.pool.size}도
  * 먹지 않는다. 구름 수집(다운로드와 변환에 수 초)이 실시간 메시징 스레드를 붙잡지 않게 분리한다.
- * 3개: 구름 수집은 한 번에 4~6분 걸린다. 그동안에도 별 만료와 서울시 돌발정보 수집이 서로 기다리지 않게 한다.
+ * 3개: 구름 수집은 한 번에 4~6분 걸린다. 그동안에도 플레어 만료와 서울시 돌발정보 수집이 서로 기다리지 않게 한다.
  */
 @Configuration
 public class SchedulingConfig implements SchedulingConfigurer {

@@ -1,4 +1,4 @@
-package com.earth.domain.event;
+package com.earth.domain.flare;
 
 import com.earth.domain.user.User;
 import jakarta.persistence.*;
@@ -11,16 +11,16 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * 지구본 위에 별로 표시되는 이벤트.
+ * 사용자나 공공데이터가 라스 위에 남기는 플레어.
  *
  * <p>생성 후 TTL이 지나면 자동으로 사라진다. 만료 시각을 컬럼으로 들고 있어 조회 시점에
  * 바로 걸러지므로, 스케줄러 주기와 무관하게 정확한 시각에 사라진다.
  */
 @Entity
-@Table(name = "events")
+@Table(name = "flares")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Event {
+public class Flare {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -38,7 +38,7 @@ public class Event {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private EventCategory category;
+    private FlareCategory category;
 
     @Column(nullable = false)
     private double latitude;
@@ -47,15 +47,15 @@ public class Event {
     private double longitude;
 
     /**
-     * 이 별이 속한 국가(ISO 3166-1 alpha-2). 등록할 때 한 번 판정해 저장한다. 공해 등은 null.
-     * 비로그인 사용자는 자기 접속 국가와 같은 별만 상세를 볼 수 있다.
+     * 이 플레어가 속한 국가(ISO 3166-1 alpha-2). 등록할 때 한 번 판정해 저장한다. 공해 등은 null.
+     * 비로그인 사용자는 자기 접속 국가와 같은 플레어만 상세를 볼 수 있다.
      */
     @Column(name = "country_code", length = 2)
     private String countryCode;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private EventStatus status = EventStatus.ACTIVE;
+    private FlareStatus status = FlareStatus.ACTIVE;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -67,19 +67,19 @@ public class Event {
     private Instant expiresAt;
 
     /**
-     * 이 별을 "나도 봤다"고 확인한 사람 수.
+     * 이 플레어를 "나도 봤다"고 확인한 사람 수.
      *
-     * <p>event_confirmations를 매번 세지 않도록 비정규화해 둔 값이다. 지구본은 별을 최대
-     * 500개까지 한 번에 그리므로 목록 조회에서 별당 집계 쿼리가 나가면 안 된다.
+     * <p>flare_confirmations를 매번 세지 않도록 비정규화해 둔 값이다. 라스는 플레어를 최대
+     * 500개까지 한 번에 그리므로 목록 조회에서 플레어당 집계 쿼리가 나가면 안 된다.
      */
     @Column(name = "confirm_count", nullable = false)
     private int confirmCount = 0;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private EventOrigin origin = EventOrigin.USER;
+    private FlareOrigin origin = FlareOrigin.USER;
 
-    /** 외부 데이터의 출처(예: SEOUL_TOPIS). 사용자 별은 null. */
+    /** 외부 데이터의 출처(예: SEOUL_TOPIS). 사용자 플레어는 null. */
     @Column(length = 30)
     private String source;
 
@@ -87,7 +87,7 @@ public class Event {
     @Column(name = "external_id", length = 64)
     private String externalId;
 
-    public Event(User author, String title, String content, EventCategory category,
+    public Flare(User author, String title, String content, FlareCategory category,
                  double latitude, double longitude, String countryCode, Duration ttl) {
         this.author = author;
         this.title = title;
@@ -101,29 +101,29 @@ public class Event {
     }
 
     /**
-     * 외부 데이터로 만든 별. 수명은 출처가 알려 준 종료 예정 시각이고, 이후 동기화가 갱신하거나 끝낸다.
+     * 외부 데이터로 만든 플레어. 수명은 출처가 알려 준 종료 예정 시각이고, 이후 동기화가 갱신하거나 끝낸다.
      */
-    public static Event external(User systemAuthor, String source, String externalId, String title, String content,
-                                 EventCategory category, double latitude, double longitude, String countryCode,
+    public static Flare external(User systemAuthor, String source, String externalId, String title, String content,
+                                 FlareCategory category, double latitude, double longitude, String countryCode,
                                  Instant expiresAt) {
-        Event event = new Event(systemAuthor, title, content, category, latitude, longitude, countryCode, Duration.ZERO);
-        event.origin = EventOrigin.API;
-        event.source = source;
-        event.externalId = externalId;
-        event.expiresAt = expiresAt;
-        return event;
+        Flare flare = new Flare(systemAuthor, title, content, category, latitude, longitude, countryCode, Duration.ZERO);
+        flare.origin = FlareOrigin.API;
+        flare.source = source;
+        flare.externalId = externalId;
+        flare.expiresAt = expiresAt;
+        return flare;
     }
 
     /**
-     * 출처의 최신 내용으로 맞춘다. 끝났던 별이 목록에 다시 나타나면 되살린다(출처가 잠깐 목록에서 뺐다가 다시 준 경우).
+     * 출처의 최신 내용으로 맞춘다. 끝났던 플레어가 목록에 다시 나타나면 되살린다(출처가 잠깐 목록에서 뺐다가 다시 준 경우).
      *
      * @return 화면에 보이는 내용이 바뀌었으면 true. 바뀐 것만 전파한다.
      */
-    public boolean syncExternal(String title, String content, EventCategory category,
+    public boolean syncExternal(String title, String content, FlareCategory category,
                                 double latitude, double longitude, Instant expiresAt) {
         boolean changed = !this.title.equals(title) || !Objects.equals(this.content, content)
                 || this.category != category || this.latitude != latitude || this.longitude != longitude
-                || !this.expiresAt.equals(expiresAt) || this.status != EventStatus.ACTIVE;
+                || !this.expiresAt.equals(expiresAt) || this.status != FlareStatus.ACTIVE;
         if (!changed) {
             return false;
         }
@@ -133,20 +133,20 @@ public class Event {
         this.latitude = latitude;
         this.longitude = longitude;
         this.expiresAt = expiresAt;
-        this.status = EventStatus.ACTIVE;
+        this.status = FlareStatus.ACTIVE;
         this.updatedAt = Instant.now();
         return true;
     }
 
     /** 출처 목록에서 빠졌다 — 현실의 상황이 끝났다. */
     public void markEndedAtSource() {
-        this.status = EventStatus.EXPIRED;
+        this.status = FlareStatus.EXPIRED;
         this.expiresAt = Instant.now();
         this.updatedAt = this.expiresAt;
     }
 
     public boolean isExternal() {
-        return origin != EventOrigin.USER;
+        return origin != FlareOrigin.USER;
     }
 
     @PrePersist
@@ -156,8 +156,8 @@ public class Event {
         }
     }
 
-    /** 수정해도 만료 시각은 연장하지 않는다. 수정으로 별을 무한히 유지할 수 없도록. */
-    public void update(String title, String content, EventCategory category) {
+    /** 수정해도 만료 시각은 연장하지 않는다. 수정으로 플레어를 무한히 유지할 수 없도록. */
+    public void update(String title, String content, FlareCategory category) {
         this.title = title;
         this.content = content;
         this.category = category;
@@ -165,24 +165,24 @@ public class Event {
     }
 
     public void markDeleted() {
-        this.status = EventStatus.DELETED;
+        this.status = FlareStatus.DELETED;
         this.updatedAt = Instant.now();
     }
 
     public void markExpired() {
-        this.status = EventStatus.EXPIRED;
+        this.status = FlareStatus.EXPIRED;
         this.updatedAt = Instant.now();
     }
 
     /**
      * 공감 하나를 반영해 수명을 늘린다.
      *
-     * <p>실제로 여러 사람이 목격한 사건은 계속 남고, 아무도 확인하지 않은 별은 원래 수명이
+     * <p>실제로 여러 사람이 목격한 사건은 계속 남고, 아무도 확인하지 않은 플레어는 원래 수명이
      * 지나면 사라진다. 가짜를 차단하는 대신 스스로 소멸하게 두는 방식이라 오판으로 정직한
      * 사용자를 벌하지 않는다.
      *
      * <p>연장은 현재 만료 시각이 아니라 <b>생성 시각</b>을 기준으로 상한을 건다. 만료 시각에
-     * 계속 더하면 공감이 꾸준히 들어오는 별이 영원히 남을 수 있기 때문이다.
+     * 계속 더하면 공감이 꾸준히 들어오는 플레어가 영원히 남을 수 있기 때문이다.
      */
     /**
      * @return 이 공감이 <b>실제로</b> 늘려준 시간. 상한에 걸리면 요청한 연장보다 짧거나 0이다.
@@ -202,11 +202,11 @@ public class Event {
      *
      * <p>되돌리지 않으면 두 가지가 어긋난다. 취소가 기록을 지워 유니크 제약이 다시 통과하므로
      * <b>재공감으로 연장이 또 붙어</b> 한 사람이 혼자 상한까지 밀어올릴 수 있고, 공감이 0인데
-     * 기본 수명을 넘겨 살아 있는 별이 생긴다. 정확히 되돌리면 한 사람의 순 기여가 구조적으로
+     * 기본 수명을 넘겨 살아 있는 플레어가 생긴다. 정확히 되돌리면 한 사람의 순 기여가 구조적으로
      * 1회분을 넘지 못한다(+5분 -5분 +5분 … = 최대 +5분).
      *
-     * <p>차감 결과가 이미 지난 시각이면 별은 그 순간 사라진다. 의도한 동작이다 — 그 공감이
-     * 없었다면 애초에 그 시점에 사라졌을 별이고, 자기가 준 만큼만 회수하므로 원래 상태보다
+     * <p>차감 결과가 이미 지난 시각이면 플레어는 그 순간 사라진다. 의도한 동작이다 — 그 공감이
+     * 없었다면 애초에 그 시점에 사라졌을 플레어이고, 자기가 준 만큼만 회수하므로 원래 상태보다
      * 나쁘게 만들 수는 없다.
      */
     public void withdrawConfirmation(Duration granted) {
@@ -220,7 +220,7 @@ public class Event {
         return user != null && this.author.getId().equals(user.getId());
     }
 
-    /** 지구본에 아직 보여야 하는지. 상태와 만료 시각을 함께 본다. */
+    /** 라스에 아직 보여야 하는지. 상태와 만료 시각을 함께 본다. */
     public boolean isVisible() {
         return status.isVisible() && expiresAt.isAfter(Instant.now());
     }

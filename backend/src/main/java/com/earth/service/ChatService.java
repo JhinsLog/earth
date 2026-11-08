@@ -4,7 +4,7 @@ import com.earth.config.ChatProperties;
 import com.earth.domain.chat.ChatMessage;
 import com.earth.domain.chat.ChatMessagePosted;
 import com.earth.domain.chat.ChatMessageRepository;
-import com.earth.domain.event.Event;
+import com.earth.domain.flare.Flare;
 import com.earth.domain.user.User;
 import com.earth.dto.ChatMessageResponse;
 import com.earth.exception.EarthApiException;
@@ -27,25 +27,25 @@ public class ChatService {
 
     private final ChatMessageRepository chatMessageRepository;
     private final ApplicationEventPublisher events;
-    private final EventService eventService;
+    private final FlareService flareService;
     private final ChatProperties chatProperties;
     private final StringRedisTemplate stringRedisTemplate;
 
     public ChatService(ChatMessageRepository chatMessageRepository,
                         ApplicationEventPublisher events,
-                        EventService eventService,
+                        FlareService flareService,
                         ChatProperties chatProperties,
                         StringRedisTemplate stringRedisTemplate) {
         this.chatMessageRepository = chatMessageRepository;
         this.events = events;
-        this.eventService = eventService;
+        this.flareService = flareService;
         this.chatProperties = chatProperties;
         this.stringRedisTemplate = stringRedisTemplate;
     }
 
-    public List<ChatMessageResponse> findRecent(Long eventId) {
-        Event event = eventService.getEventOrThrow(eventId);
-        List<ChatMessageResponse> recentDesc = chatMessageRepository.findTop100ByEventOrderByCreatedAtDesc(event)
+    public List<ChatMessageResponse> findRecent(Long flareId) {
+        Flare flare = flareService.getFlareOrThrow(flareId);
+        List<ChatMessageResponse> recentDesc = chatMessageRepository.findTop100ByFlareOrderByCreatedAtDesc(flare)
                 .stream().map(ChatMessageResponse::from).toList();
         List<ChatMessageResponse> chronological = new java.util.ArrayList<>(recentDesc);
         Collections.reverse(chronological);
@@ -53,18 +53,18 @@ public class ChatService {
     }
 
     @Transactional
-    public ChatMessageResponse postMessage(Long eventId, User sender, String content) {
+    public ChatMessageResponse postMessage(Long flareId, User sender, String content) {
         if (!sender.hasAtLeastLevel(chatProperties.minLevelToJoin())) {
             throw new EarthApiException(ErrorCode.LEVEL_NOT_ENOUGH);
         }
         checkFloodLimit(sender);
-        Event event = eventService.getEventOrThrow(eventId);
-        ChatMessage message = new ChatMessage(event, sender, content);
+        Flare flare = flareService.getFlareOrThrow(flareId);
+        ChatMessage message = new ChatMessage(flare, sender, content);
         chatMessageRepository.save(message);
 
         // 전파는 커밋된 뒤에 일어난다. 이유는 ChatMessagePosted 주석 참고.
         ChatMessageResponse response = ChatMessageResponse.from(message);
-        events.publishEvent(new ChatMessagePosted(eventId, response));
+        events.publishEvent(new ChatMessagePosted(flareId, response));
         return response;
     }
 

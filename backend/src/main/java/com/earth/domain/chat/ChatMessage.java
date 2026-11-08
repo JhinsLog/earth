@@ -1,6 +1,6 @@
 package com.earth.domain.chat;
 
-import com.earth.domain.event.Event;
+import com.earth.domain.flare.Flare;
 import com.earth.domain.user.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -20,8 +20,8 @@ public class ChatMessage {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "event_id", nullable = false)
-    private Event event;
+    @JoinColumn(name = "flare_id", nullable = false)
+    private Flare flare;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
@@ -33,8 +33,8 @@ public class ChatMessage {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    public ChatMessage(Event event, User user, String content) {
-        this.event = event;
+    public ChatMessage(Flare flare, User user, String content) {
+        this.flare = flare;
         this.user = user;
         this.content = content;
     }

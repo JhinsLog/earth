@@ -64,7 +64,7 @@ public class GeoRingClient implements GeoRingFrames.Fetcher {
     /** 위성 직하점에서 이만큼(°)까지만 받는다. 합성은 천정각 약 81° 밖을 쓰지 않는다(CloudComposer). */
     static final double TILE_REACH_DEG = 80.0;
 
-    /** 지구본 격자의 픽셀 범위 [c0, c1) × [r0, r1)와 그에 맞는 WMS BBOX. */
+    /** 라스 격자의 픽셀 범위 [c0, c1) × [r0, r1)와 그에 맞는 WMS BBOX. */
     record Tile(int c0, int c1, int r0, int r1) {
         String bbox(int width) {
             double degPerPx = 360.0 / width;
@@ -75,8 +75,8 @@ public class GeoRingClient implements GeoRingFrames.Fetcher {
     /**
      * EUMETView는 지구 전체처럼 거칠게(1픽셀 0.18°) 요청하면 미리 줄여 둔 자료로 그려 구름이 큰 사각형으로 나오고,
      * 같은 범위를 촘촘하게 한 장으로 요청하면 수 분이 걸린다. 위성이 보는 범위(직하점 ±80°)를 2×2 조각으로 나눠
-     * 지구본과 같은 촘촘함으로 받는다(2026-11-06 측정: 4096 기준 조각 하나 약 10초, 원판 한 장 85초, 전체 200초 이상).
-     * 조각 경계를 지구본 픽셀 경계에 맞춰 그대로 이어 붙인다.
+     * 라스와 같은 촘촘함으로 받는다(2026-11-06 측정: 4096 기준 조각 하나 약 10초, 원판 한 장 85초, 전체 200초 이상).
+     * 조각 경계를 라스 픽셀 경계에 맞춰 그대로 이어 붙인다.
      */
     static java.util.List<Tile> tiles(double subLongitude, int width) {
         int height = width / 2;

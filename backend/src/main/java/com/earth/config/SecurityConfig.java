@@ -53,13 +53,13 @@ public class SecurityConfig {
                                 "/actuator/health",
                                 "/swagger-ui/**", "/v3/api-docs/**"
                         ).permitAll()
-                        // 이벤트 채팅방은 로그인(+레벨) 사용자만 - 조회/전송 모두 인증 필요
-                        .requestMatchers("/api/events/*/chat/**").authenticated()
-                        // 지구본에 표시되는 이벤트 목록/상세는 비로그인 사용자도 볼 수 있어야 한다
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/events", "/api/events/*").permitAll()
-                        // 비로그인 화면이 자기 접속 국가를 알아야 어느 별까지 자세히 볼 수 있는지 안다
+                        // 플레어 채팅방은 로그인(+레벨) 사용자만 - 조회/전송 모두 인증 필요
+                        .requestMatchers("/api/flares/*/chat/**").authenticated()
+                        // 라스에 표시되는 플레어 목록/상세는 비로그인 사용자도 볼 수 있어야 한다
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/flares", "/api/flares/*").permitAll()
+                        // 비로그인 화면이 자기 접속 국가를 알아야 어느 플레어까지 자세히 볼 수 있는지 안다
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/geo/me").permitAll()
-                        // 홈 지구본의 구름 이미지. 누구에게나 같은 위성 영상이다
+                        // 홈 라스의 구름 이미지. 누구에게나 같은 위성 영상이다
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/globe/clouds").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()

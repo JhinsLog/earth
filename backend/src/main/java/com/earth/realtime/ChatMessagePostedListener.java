@@ -22,6 +22,6 @@ public class ChatMessagePostedListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onChatMessagePosted(ChatMessagePosted posted) {
-        redisMessagePublisher.publishChatMessage(posted.eventId(), posted.snapshot());
+        redisMessagePublisher.publishChatMessage(posted.flareId(), posted.snapshot());
     }
 }

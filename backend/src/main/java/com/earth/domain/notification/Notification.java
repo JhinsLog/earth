@@ -1,6 +1,6 @@
 package com.earth.domain.notification;
 
-import com.earth.domain.event.Event;
+import com.earth.domain.flare.Flare;
 import com.earth.domain.user.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -24,8 +24,8 @@ public class Notification {
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "event_id", nullable = false)
-    private Event event;
+    @JoinColumn(name = "flare_id", nullable = false)
+    private Flare flare;
 
     @Column(nullable = false, length = 200)
     private String message;
@@ -36,9 +36,9 @@ public class Notification {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    public Notification(User user, Event event, String message) {
+    public Notification(User user, Flare flare, String message) {
         this.user = user;
-        this.event = event;
+        this.flare = flare;
         this.message = message;
     }
 

@@ -2,7 +2,7 @@ package com.earth.realtime;
 
 import com.earth.config.RedisConfig;
 import com.earth.dto.ChatMessageResponse;
-import com.earth.dto.EventResponse;
+import com.earth.dto.FlareResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.connection.Message;
@@ -15,7 +15,7 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * 여러 백엔드 인스턴스가 떠 있어도 Redis pub/sub을 거쳐 모든 인스턴스에 연결된
- * WebSocket 클라이언트에게 동일한 이벤트/채팅 메시지가 브로드캐스트되도록 하는 릴레이.
+ * WebSocket 클라이언트에게 동일한 플레어/채팅 메시지가 브로드캐스트되도록 하는 릴레이.
  *
  * <p>MessageListener를 직접 구현하는 것이 중요하다. MessageListenerAdapter에 위임 객체로
  * 물리면 어댑터가 리플렉션으로 메서드를 찾기 전에 extractMessage()로 본문을 자기 serializer
@@ -39,18 +39,18 @@ public class RedisMessageSubscriber implements MessageListener {
     public void onMessage(Message message, byte[] pattern) {
         String channel = new String(message.getChannel(), StandardCharsets.UTF_8);
         try {
-            if (channel.equals(RedisConfig.EVENT_CHANNEL)) {
-                EventResponse event = objectMapper.readValue(message.getBody(), EventResponse.class);
+            if (channel.equals(RedisConfig.FLARE_CHANNEL)) {
+                FlareResponse flare = objectMapper.readValue(message.getBody(), FlareResponse.class);
                 // 받는 사람마다 볼 수 있는 범위가 달라 세 갈래로 내보낸다. 이유는 TopicAccessPolicy.
-                messagingTemplate.convertAndSend(TopicAccessPolicy.EVENTS_ALL, event);
-                messagingTemplate.convertAndSend(TopicAccessPolicy.EVENTS_PUBLIC, event.toRestricted());
-                if (event.countryCode() != null) {
-                    messagingTemplate.convertAndSend(TopicAccessPolicy.EVENTS_COUNTRY_PREFIX + event.countryCode(), event);
+                messagingTemplate.convertAndSend(TopicAccessPolicy.FLARES_ALL, flare);
+                messagingTemplate.convertAndSend(TopicAccessPolicy.FLARES_PUBLIC, flare.toRestricted());
+                if (flare.countryCode() != null) {
+                    messagingTemplate.convertAndSend(TopicAccessPolicy.FLARES_COUNTRY_PREFIX + flare.countryCode(), flare);
                 }
             } else if (channel.startsWith(RedisConfig.CHAT_CHANNEL_PREFIX)) {
-                String eventId = channel.substring(RedisConfig.CHAT_CHANNEL_PREFIX.length());
+                String flareId = channel.substring(RedisConfig.CHAT_CHANNEL_PREFIX.length());
                 ChatMessageResponse chatMessage = objectMapper.readValue(message.getBody(), ChatMessageResponse.class);
-                messagingTemplate.convertAndSend("/topic/chat." + eventId, chatMessage);
+                messagingTemplate.convertAndSend("/topic/chat." + flareId, chatMessage);
             }
         } catch (Exception e) {
             // 여기서 예외를 던져봐야 리스너 컨테이너가 삼킨다. 반드시 로그로 남겨야 추적이 가능하다.
