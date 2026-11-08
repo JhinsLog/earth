@@ -21,10 +21,10 @@
 | 운영 | 자택 홈서버 1대(LattePanda Alpha, Rocky Linux), Cloudflare Tunnel, 프론트는 Cloudflare Pages |
 
 ```
-브라우저 ─HTTPS→ Cloudflare ─Tunnel→ Spring Boot ─┬→ PostgreSQL (별 · 사용자 · 국경 · 공감)
-   ▲                                              └→ Redis pub/sub ─→ 모든 인스턴스의 STOMP 구독자
-   └──────────────── STOMP(/topic/events…) ───────────────────────────────┘
-외부 수집(스케줄러): 정지궤도 위성 5기 구름 영상(10분) · 서울시 실시간 돌발정보(10분)
+브라우저 ─HTTPS→ Cloudflare ─Tunnel→ Spring Boot
+                                       ├→ PostgreSQL + PostGIS (별 · 사용자 · 국경 · 공감)
+                                       └→ Redis pub/sub → 모든 인스턴스 → STOMP 구독자(브라우저)
+외부 수집(스케줄러, 10분): 정지궤도 위성 5기 구름 영상 · 서울시 실시간 돌발정보
 ```
 
 ---
