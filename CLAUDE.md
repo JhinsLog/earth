@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-**Earth** — 3D 지구본 위에 실시간으로 이벤트(별)를 남기고, 그 자리에서 채팅하는 서비스.
+**Earth** — 라스 위에 실시간으로 플레어를 남기고, 그 자리에서 채팅하는 서비스.
 `backend/`(Java 25 · Spring Boot 4.0.6) + `frontend/`(React 19 · Vite · MapLibre GL 5) 모노레포.
 사람이 읽는 소개는 `README.md`, `backend/README.md`, `frontend/README.md`.
 
@@ -69,7 +69,7 @@ npm run lint                         # oxlint
 가짜 DB에서는 통과해도 아무것도 증명하지 못하기 때문이다. 공통 기반은
 `backend/src/test/java/com/earth/support/IntegrationTest.java`.
 
-**프론트엔드 테스트는 아직 없다.** 실시간 경로는 수동으로 확인한다(이벤트 등록이 다른
+**프론트엔드 테스트는 아직 없다.** 실시간 경로는 수동으로 확인한다(플레어 등록이 다른
 브라우저에 즉시 뜨는지, 채팅 송수신). 두 계정이 필요한 시나리오는 local 전용
 `GET /api/dev/login?nickname=테스터` 로 만든다.
 

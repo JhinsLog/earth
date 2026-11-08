@@ -1,7 +1,7 @@
 # 🌍 Earth
 
-> 전 세계 사람들이 자신이 있는 지역에서 일어난 일을 3D 지구본 위에 실시간으로 공유하는 서비스.
-> 실사 지구본을 드래그·줌으로 탐색하다가, 이벤트가 있는 곳을 클릭하면 별처럼 반짝이는 지점으로
+> 전 세계 사람들이 자신이 있는 지역에서 일어난 일을 라스 위에 실시간으로 공유하는 서비스.
+> 실사 라스를 드래그·줌으로 탐색하다가, 플레어가 있는 곳을 클릭하면 반짝이는 지점으로
 > 확대되며 내용을 확인하고, 로그인 사용자는 그 자리에서 실시간 채팅에 참여할 수 있습니다.
 
 백엔드와 프론트엔드가 공존하는 모노레포로 관리합니다.
@@ -16,30 +16,30 @@
 ### Backend (`backend/`)
 - Java 25, Spring Boot 4.0.6
 - PostgreSQL + Flyway 마이그레이션
-- Redis — 실시간 이벤트/채팅 브로드캐스트(pub/sub) 및 refresh token 저장
+- Redis — 실시간 플레어/채팅 브로드캐스트(pub/sub) 및 refresh token 저장
 - Spring Security + OAuth2 Client(Google) + JWT
 - STOMP over WebSocket
 
 ### Frontend (`frontend/`)
 - React 19 + TypeScript + Vite
-- `maplibre-gl` — globe projection 3D 지구본
+- `maplibre-gl` — globe projection 라스
 - Zustand, Axios, `@stomp/stompjs`
 
 ---
 
 ## 📡 아키텍처
 
-이벤트 하나가 등록되면, 그 순간 접속해 있는 **모든 사용자의 화면에** 실시간으로 별이 반짝입니다.
+플레어 하나가 등록되면, 그 순간 접속해 있는 **모든 사용자의 화면에** 실시간으로 플레어가 반짝입니다.
 
 ```
-클라이언트 → POST /api/events → 백엔드가 DB 저장 후 Redis에 publish
+클라이언트 → POST /api/flares → 백엔드가 DB 저장 후 Redis에 publish
                                         ↓
                 Redis pub/sub (여러 백엔드 인스턴스로 스케일아웃해도 동일하게 동작)
                                         ↓
-              각 인스턴스가 STOMP로 접속 중인 모든 클라이언트에 /topic/events 브로드캐스트
+              각 인스턴스가 STOMP로 접속 중인 모든 클라이언트에 /topic/flares 브로드캐스트
 ```
 
-이벤트별 채팅방(`/topic/chat.{eventId}`)도 동일한 Redis pub/sub 경로를 타므로, 서버를 여러 대로
+플레어별 채팅방(`/topic/chat.{flareId}`)도 동일한 Redis pub/sub 경로를 타므로, 서버를 여러 대로
 늘려도 채팅 메시지가 한쪽 인스턴스에 고립되지 않습니다.
 
 ---
@@ -55,7 +55,7 @@
   Spring Data Redis 소스코드까지 직접 확인해 원인을 특정했습니다.
 - **globe 투영에서 정확한 대기광(halo) 그리기**: MapLibre의 네이티브 Sky API는 지형 pitch가
   있을 때만 렌더링되어 수직 시점에는 아예 표시되지 않는 것을 확인하고, 대신 현재 시점에서
-  실제로 보이는 지구본 가장자리 각도를 `project()`/`unproject()` 왕복 검증으로 이진탐색해
+  실제로 보이는 라스 가장자리 각도를 `project()`/`unproject()` 왕복 검증으로 이진탐색해
   구한 뒤 그 반지름에 맞춰 CSS 글로우를 그리는 방식으로 구현했습니다(카메라가 가까워질수록
   보이는 가장자리 각도가 90°에서 계속 줄어드는 원근 효과까지 반영).
 - **국가 라벨 데클러터링**: MapLibre의 `distance` 필터 표현식이 이 버전에서 filter 컨텍스트를

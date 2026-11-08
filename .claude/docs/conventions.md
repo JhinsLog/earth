@@ -38,7 +38,7 @@
 
   > **`@DefaultValue`를 반드시 붙인다.** 설정이 누락되면 `int`가 0으로 떨어지는데,
   > `minLevelToJoin=0`이면 레벨 제한이 조용히 사라지고 `maxPerHour=0`이면 아무도 등록할 수
-  > 없게 된다. `ChatProperties`/`EventProperties` 주석이 이 이유를 설명한다.
+  > 없게 된다. `ChatProperties`/`FlareProperties` 주석이 이 이유를 설명한다.
 
 ## 프론트엔드 (TypeScript / React)
 
@@ -64,14 +64,14 @@
 
 | 타입 | 의미 | 사용 예시 |
 | --- | --- | --- |
-| `feat` | 기능 추가 — 사용자가 체감하는 새 동작 | `feat(globe): 임시 별 등록 플로우와 접속 지역 기반 초기 화면` |
+| `feat` | 기능 추가 — 사용자가 체감하는 새 동작 | `feat(globe): 임시 플레어 등록 플로우와 접속 지역 기반 초기 화면` |
 | `fix` | 결함 수정 — 버그·보안 결함을 고침 | `fix(auth): 미인증 API 요청에 302 대신 401을 응답` |
 | `perf` | 성능 개선 — 동작은 그대로, 속도·자원만 | `perf(globe): NASA Blue Marble 타일을 자체 호스팅으로 전환` |
 | `docs` | 문서만 변경 — README·주석·라이선스 | `docs(license): 제3자 지도 저작물 표기 정리 및 앱 내 출처 표시 활성화` |
 | `chore` | 잡무 — 위 어디에도 안 드는 정리 | `chore: 멀티 머신 개발 환경 설정 정리` |
 | `refactor` | 리팩터링 — 겉보기 동작 없이 내부 구조만 | `refactor(chat): 도배 제한 검사를 ChatService에서 분리` |
 | `build` | 빌드 설정 — 의존성·Gradle·Vite | `build(backend): Flyway를 spring-boot-flyway 모듈로 전환` |
-| `test` | 테스트 추가·수정 | `test(event): 시간당 등록 제한 경계값 검증 추가` |
+| `test` | 테스트 추가·수정 | `test(flare): 시간당 등록 제한 경계값 검증 추가` |
 
 > 위 다섯(`feat`·`fix`·`perf`·`docs`·`chore`)은 실제 히스토리에서 인용했다.
 > 아래 셋(`refactor`·`build`·`test`)은 아직 쓰인 적이 없어 **형식 참고용 예시**다.

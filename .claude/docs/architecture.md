@@ -6,11 +6,11 @@
 ## 불변식 1 — 실시간은 Redis pub/sub을 경유한다
 
 ```
-클라이언트 → POST /api/events → EventService (DB 저장)
+클라이언트 → POST /api/flares → FlareService (DB 저장)
                                      ↓ RedisMessagePublisher
-                   Redis pub/sub  earth:events / earth:chat:{eventId}
+                   Redis pub/sub  earth:flares / earth:chat:{flareId}
                                      ↓ RedisMessageSubscriber (모든 인스턴스)
-              SimpMessagingTemplate → /topic/events, /topic/chat.{eventId}
+              SimpMessagingTemplate → /topic/flares, /topic/chat.{flareId}
 ```
 
 백엔드 인스턴스를 여러 대로 늘려도 메시지가 한쪽에 고립되지 않게 하려는 설계다.
@@ -24,14 +24,14 @@
 
 | 무엇 | 어디 |
 | --- | --- |
-| 별 상태 변경 | `domain/event/EventChanged` → `realtime/EventChangedListener` |
+| 플레어 상태 변경 | `domain/flare/FlareChanged` → `realtime/FlareChangedListener` |
 | 채팅 메시지 | `domain/chat/ChatMessagePosted` → `realtime/ChatMessagePostedListener` |
 
-트랜잭션 안에서 내보내면 이후 단계가 실패해 롤백되었을 때 **존재하지 않는 별이 전 접속자
+트랜잭션 안에서 내보내면 이후 단계가 실패해 롤백되었을 때 **존재하지 않는 플레어가 전 접속자
 화면에 뜬다.** pub/sub에는 롤백이 없어 되돌릴 수 없고, 사용자는 새로고침해야 사라진다.
 
 구독자 알림도 같은 리스너에서 커밋 후에 만든다. 알림은 부가 기능이라 실패해도 사용자가 쓴
-별을 무산시켜서는 안 되고, 구독 전수 조회가 느려서 등록 트랜잭션과 사용자 행 잠금을
+플레어를 무산시켜서는 안 되고, 구독 전수 조회가 느려서 등록 트랜잭션과 사용자 행 잠금을
 불필요하게 길게 잡는다.
 
 대가는 반대 방향의 실패다 — 커밋은 됐는데 전파가 실패하면 그 알림은 유실된다. 정석은
@@ -42,17 +42,17 @@
 | 목적지 | 용도 | 인증 |
 | --- | --- | --- |
 | `/ws` (SockJS) | 연결 엔드포인트 | 불필요 |
-| `/app/chat.{eventId}.send` | 클라이언트 → 서버 발행 | 필요 |
-| `/topic/events` | 전 지구 신규 이벤트 피드 | 불필요(구독 가능) |
-| `/topic/chat.{eventId}` | 이벤트별 채팅방 | 필요 |
+| `/app/chat.{flareId}.send` | 클라이언트 → 서버 발행 | 필요 |
+| `/topic/flares` | 전 지구 신규 플레어 피드 | 불필요(구독 가능) |
+| `/topic/chat.{flareId}` | 플레어별 채팅방 | 필요 |
 | `/user/queue/errors` | 처리 실패 사유를 보낸 사람에게만 회신 | 필요 |
 
 ### Redis 키·채널
 
 | 키/채널 | 용도 |
 | --- | --- |
-| `earth:events` | 신규 이벤트 브로드캐스트 채널 |
-| `earth:chat:{eventId}` | 채팅 브로드캐스트 채널(패턴 구독) |
+| `earth:flares` | 신규 플레어 브로드캐스트 채널 |
+| `earth:chat:{flareId}` | 채팅 브로드캐스트 채널(패턴 구독) |
 | `earth:refresh-token:{userId}` | 사용자당 refresh token 1개(회전·폐기용) |
 | `earth:chat-rate:{userId}` | 채팅 도배 제한 카운터(1분 고정 윈도우) |
 
@@ -62,7 +62,7 @@
 추가한다(`V2__...sql`). 기존 `V1__init.sql`은 수정하지 않는다 — 이미 적용된 환경에서
 체크섬 불일치로 기동이 실패한다.
 
-테이블: `users`, `events`, `event_confirmations`, `region_subscriptions`, `notifications`,
+테이블: `users`, `flares`, `flare_confirmations`, `region_subscriptions`, `notifications`,
 `chat_messages`. 마이그레이션은 `V3__`까지 적용돼 있으므로 다음에 추가할 것은 `V4__`다.
 
 ## 불변식 3 — 인증은 JWT, 세션은 없다
@@ -86,8 +86,8 @@ GET /oauth2/authorization/google
 
 | 범위 | 대상 |
 | --- | --- |
-| 비로그인 허용 | `GET /api/events`, `GET /api/events/{id}`(지구본에 별이 보여야 하므로), `/api/auth/refresh`, `/ws/**`, `/oauth2/**`, `/login/**`, `/actuator/health` |
-| 인증 필요 | 그 외 `/api/**`. 채팅 `/api/events/*/chat/**`은 조회·전송 모두 |
+| 비로그인 허용 | `GET /api/flares`, `GET /api/flares/{id}`(라스에 플레어가 보여야 하므로), `/api/auth/refresh`, `/ws/**`, `/oauth2/**`, `/login/**`, `/actuator/health` |
+| 인증 필요 | 그 외 `/api/**`. 채팅 `/api/flares/*/chat/**`은 조회·전송 모두 |
 
 새 엔드포인트를 추가하면 `SecurityConfig`의 규칙에도 명시한다. `/api/**`가 기본 인증이므로
 공개해야 하는 것만 예외로 올린다(그 반대가 아니다).
@@ -96,7 +96,7 @@ GET /oauth2/authorization/google
 
 | 항목 | 기본값 | 위치 |
 | --- | --- | --- |
-| 이벤트 등록 제한 | 5건/시간 | `earth.event.max-per-hour` |
+| 플레어 등록 제한 | 5건/시간 | `earth.flare.max-per-hour` |
 | 채팅 전송 제한 | 20건/분 | `earth.chat.max-per-minute` |
 | 채팅 입장 최소 레벨 | 1 | `earth.chat.min-level-to-join` |
 | access token 유효기간 | 1시간 | `earth.jwt.access-token-validity-ms` |
@@ -113,5 +113,5 @@ GET /oauth2/authorization/google
 - **구독 알림**: 실시간 푸시가 없고 `GET /api/notifications` 폴링만 지원한다. 또
   `NotificationService.notifySubscribers()`가 `findAll()`로 전수 조회 후 메모리 필터링을 한다 —
   구독 수가 늘면 공간 인덱스 기반 질의로 바꿔야 한다.
-- **이벤트 만료/자동 종료 스케줄러 없음** — `EventStatus.CLOSED`로 바꾸는 주체가 아직 없다.
+- **플레어 만료/자동 종료 스케줄러 없음** — `FlareStatus.CLOSED`로 바꾸는 주체가 아직 없다.
 - **프론트엔드에 알림·지역구독 UI가 없다** — API만 존재하고 화면에 연결되어 있지 않다.

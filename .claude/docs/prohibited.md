@@ -18,7 +18,7 @@
 - **`com.earth.dev`는 `@Profile("local")` 전용.** 인증 없이 임의 계정 토큰을 발급한다.
   `DevSecurityConfig`가 활성화 시 기동 로그에 경고를 크게 남긴다 — **이 경고를 지우지 않는다.**
   프로파일 하나에만 기대면 배포 설정에 잘못 들어갔을 때 아무도 눈치채지 못한다.
-- **도배 제한은 서버에서 강제한다** (이벤트 5건/시간, 채팅 20건/분). 클라이언트 안내는 우회 가능하다.
+- **도배 제한은 서버에서 강제한다** (플레어 5건/시간, 채팅 20건/분). 클라이언트 안내는 우회 가능하다.
 - **소유권·사용자 스코프 검사를 새 엔드포인트에도 적용한다**
   (`SubscriptionService.delete`가 기준 예시).
 
@@ -47,10 +47,10 @@
 | `dragRotate`/`pitch`를 다시 켜기 | 대기광(halo)이 "화면 중심 대칭 원"이라는 계산 전제가 깨져 어긋남 |
 | halo를 MapLibre 네이티브 Sky API로 대체 | Sky는 pitch가 있어야 렌더링 — 수직 시점에서 아예 안 보임 |
 | 국가 라벨을 스타일 `filter`의 `distance` 식으로 처리 | 이 버전은 filter 컨텍스트에서 `distance`를 지원하지 않아 **항상 false** |
-| 자전 루프에서 `map.isEasing()` 검사 제거 | `setCenter`가 진행 중인 `flyTo`를 취소 → 별을 클릭해도 확대되지 않음 |
+| 자전 루프에서 `map.isEasing()` 검사 제거 | `setCenter`가 진행 중인 `flyTo`를 취소 → 플레어를 클릭해도 확대되지 않음 |
 | 자전 재개를 `moveend` 대신 고정 타이머로 | 이동이 아직 진행 중일 때 자전이 끼어들어 확대가 중간에 멈춤 |
 | 초기화 훅을 `render` 대신 `once('load')`로 | `load`는 한 번뿐이라 이미 지나갔으면 영영 미실행 → 초기 위치 이동 유실 |
-| `EVENT_FOCUS_ZOOM`을 16보다 올리기 | Esri Dark Gray 타일 원본이 z16까지 — 확대가 아니라 화질 저하 |
+| `FLARE_FOCUS_ZOOM`을 16보다 올리기 | Esri Dark Gray 타일 원본이 z16까지 — 확대가 아니라 화질 저하 |
 | Blue Marble을 GIBS 원격 타일로 되돌리기 | GIBS가 `no-store`로 응답해 캐싱 불가 → 타일 경계가 사각형으로 드러남 |
 | `attributionControl` 제거 | **라이선스 위반.** OpenStreetMap 파생 데이터(ODbL)는 출처 표기가 의무 |
 
