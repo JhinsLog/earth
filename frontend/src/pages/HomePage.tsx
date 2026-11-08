@@ -3,19 +3,19 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import HomeGlobe, { type HandoffView } from '../components/globe/HomeGlobe'
 import { DRAFT_MIN_ZOOM, GLOBE_TRANSITION_MS } from '../components/globe/constants'
 import Navbar from '../components/layout/Navbar'
-import EventDetailPanel from '../components/panel/EventDetailPanel'
-import CreateEventModal from '../components/panel/CreateEventModal'
-import { useEventStore } from '../store/eventStore'
+import FlareDetailPanel from '../components/panel/FlareDetailPanel'
+import CreateFlareModal from '../components/panel/CreateFlareModal'
+import { useFlareStore } from '../store/flareStore'
 import { useAuthStore } from '../store/authStore'
 import { useSettingsStore } from '../store/settingsStore'
-import { useDraftStars } from '../hooks/useDraftStars'
+import { useDraftFlares } from '../hooks/useDraftFlares'
 import { useMyLocation } from '../hooks/useMyLocation'
 import { api } from '../lib/api'
 import { approximateLongitudeFromTimezone, detectApproximateLocation, type GeoPoint } from '../lib/geolocate'
 import type { EarthUser } from '../types'
 import './HomePage.css'
 
-// 첫 화면은 홈 지구본(three)이고 지도(MapLibre, 번들의 큰 몫)는 지구를 클릭해 들어갈 때만 필요하다.
+// 첫 화면은 홈 라스(three)고 지도(MapLibre, 번들의 큰 몫)는 지구를 클릭해 들어갈 때만 필요하다.
 // 따로 떼어 내 첫 로딩에서 빼고, 들어갈 때 내려받는다.
 const MapGlobe = lazy(() => import('../components/globe/MapGlobe'))
 
@@ -37,30 +37,30 @@ const FLASHLIGHT_HINT = window.matchMedia('(pointer: coarse)').matches ? (
 
 export default function HomePage() {
   const {
-    events,
-    selectedEventId,
+    flares,
+    selectedFlareId,
     selectionToken,
-    loadEvents,
-    selectEvent,
+    loadFlares,
+    selectFlare,
     subscribeRealtime,
     addOrUpdate,
     pruneExpired,
-  } = useEventStore()
+  } = useFlareStore()
   const { accessToken, user, setUser } = useAuthStore()
-  const publicStars = useSettingsStore((s) => s.publicStars)
+  const publicFlares = useSettingsStore((s) => s.publicFlares)
   // 화면에서만 거른다(docs/decisions.md). 제한 응답은 출처를 담지 않으므로 스위치와 무관하게 남는다.
-  const visibleEvents = useMemo(
-    () => (publicStars ? events : events.filter((e) => e.restricted || e.origin !== 'API')),
-    [events, publicStars],
+  const visibleFlares = useMemo(
+    () => (publicFlares ? flares : flares.filter((e) => e.restricted || e.origin !== 'API')),
+    [flares, publicFlares],
   )
-  const { drafts, addDraft, removeDraft, soonestRemainingMs } = useDraftStars()
+  const { drafts, addDraft, removeDraft, soonestRemainingMs } = useDraftFlares()
   // 내 위치는 여기서만 소유하고 필요한 두 곳에만 내려보낸다. 서버로는 나가지 않는다.
   const { myLocation, locating, locateError, locate } = useMyLocation()
 
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
   const [initialFocusLatLng, setInitialFocusLatLng] = useState<GeoPoint | null>(null)
   const [loginHint, setLoginHint] = useState<string | null>(null)
-  /** 지도가 손전등을 쓸 수 있는 배율인지. 안내 문구를 별 남기기와 비춰 보기 중에서 고른다. */
+  /** 지도가 손전등을 쓸 수 있는 배율인지. 안내 문구를 플레어 남기기와 비춰 보기 중에서 고른다. */
   const [flashlightZoom, setFlashlightZoom] = useState(false)
   const loginHintTimerRef = useRef<number | undefined>(undefined)
   const flashLoginHint = (message: string) => {
@@ -69,8 +69,8 @@ export default function HomePage() {
     loginHintTimerRef.current = window.setTimeout(() => setLoginHint(null), 3000)
   }
 
-  // 첫 화면은 감상용 3D 지구본(HomeGlobe), 확대하면 탐색용 지도(MapGlobe)로 들어간다.
-  // 로그인하고 돌아온 경우(OAuthRedirectPage가 state.enter를 붙인다)는 지구본을 건너뛴다.
+  // 첫 화면은 감상용 라스(HomeGlobe), 확대하면 탐색용 지도(MapGlobe)로 들어간다.
+  // 로그인하고 돌아온 경우(OAuthRedirectPage가 state.enter를 붙인다)는 라스를 건너뛴다.
   const location = useLocation()
   const navigate = useNavigate()
   const [view, setView] = useState<'globe' | 'map'>(
@@ -86,13 +86,13 @@ export default function HomePage() {
   // 교차 페이드 동안 사라지는 쪽도 잠깐 남겨 둔다. 그 뒤 언마운트해 WebGL 컨텍스트를 하나만 유지한다.
   const [leaving, setLeaving] = useState<'globe' | 'map' | null>(null)
   const leavingTimerRef = useRef<number | undefined>(undefined)
-  /** 지구본을 확대해 들어왔을 때 지도가 이어받을 화면. 있으면 지도는 어디로도 날아가지 않고 그 자리에서 시작한다. */
+  /** 라스를 확대해 들어왔을 때 지도가 이어받을 화면. 있으면 지도는 어디로도 날아가지 않고 그 자리에서 시작한다. */
   const [enterView, setEnterView] = useState<HandoffView | null>(null)
-  /** 지도에서 축소해 돌아왔을 때 홈 지구본이 이어받을 화면. 없으면 처음 화면(globeCenter, 배율 1)으로 시작한다. */
+  /** 지도에서 축소해 돌아왔을 때 홈 라스가 이어받을 화면. 없으면 처음 화면(globeCenter, 배율 1)으로 시작한다. */
   const [returnView, setReturnView] = useState<HandoffView | null>(null)
   const [globeCenter] = useState<GeoPoint>(() => ({ latitude: 20, longitude: approximateLongitudeFromTimezone() }))
 
-  // 지도로 들어갈 때는 지도가 준비될 때까지(타일 도착) 지구본을 그대로 두고 지도는 숨겨 둔다.
+  // 지도로 들어갈 때는 지도가 준비될 때까지(타일 도착) 라스를 그대로 두고 지도는 숨겨 둔다.
   // 바로 겹쳐 바꾸면 그 사이 빈 우주만 보이는 순간이 생긴다(지도는 준비 전엔 투명하다).
   const [waitingForMap, setWaitingForMap] = useState(false)
   // 지도의 준비 알림은 등록 시점의 콜백으로 오므로 최신 대기 여부는 ref로 읽는다.
@@ -110,7 +110,7 @@ export default function HomePage() {
 
   // 전환할 때마다 들어가는 쪽을 새 인스턴스로 띄운다. 빠지는 쪽이 아직 사라지는 중(GLOBE_TRANSITION_MS)에 되돌아오면
   // React가 그 인스턴스를 그대로 다시 쓰는데, 지도는 '준비됨' 알림을 처음 한 번만 보내므로 다시 기다리던 화면이 영영
-  // 풀리지 않았다(지구본은 조작 막힘, 지도는 투명 — 휠로 확대·축소를 빠르게 오가면 재현, 2026-11-07). 지구본도 이미
+  // 풀리지 않았다(라스는 조작 막힘, 지도는 투명 — 휠로 확대·축소를 빠르게 오가면 재현, 2026-11-07). 라스도 이미
   // 넘겨준(handedOff) 상태와 처음 화면 값을 들고 있어 같은 문제가 있다. 키를 바꾸면 이전 것은 내려가고 새로 시작한다.
   const [globeKey, setGlobeKey] = useState(0)
   const [mapKey, setMapKey] = useState(0)
@@ -132,7 +132,7 @@ export default function HomePage() {
   }
   useEffect(() => () => window.clearTimeout(leavingTimerRef.current), [])
 
-  // 비로그인도 그대로 들어간다. 다른 나라 별은 서버가 위치만 내려 주고 상세 요청은 거부하므로(restricted, 403),
+  // 비로그인도 그대로 들어간다. 다른 나라 플레어는 서버가 위치만 내려 주고 상세 요청은 거부하므로(restricted, 403),
   // 입구에서 로그인을 물을 이유가 없다. 로그인은 오른쪽 위 버튼으로 한다(D-8: 제한은 상세만).
   const handleGlobeZoomEnter = (view: HandoffView) => {
     setEnterView(view)
@@ -142,14 +142,14 @@ export default function HomePage() {
   // 로고로 돌아갈 때는 view 없이 처음 화면으로 돌아간다.
   const exitToGlobe = (view: HandoffView | null) => {
     setReturnView(view)
-    selectEvent(null)
+    selectFlare(null)
     setSelectedDraftId(null)
     switchView('globe')
   }
 
   // 만료 전파는 WebSocket으로 오지만, 연결이 끊겼다 붙는 사이의 메시지는 재생되지
   // 않는다(STOMP는 재연결만 하고 놓친 메시지를 다시 주지 않는다). 그 구간에 수명이
-  // 다한 별이 화면에 영영 남지 않도록 클라이언트에서도 주기적으로 걷어낸다.
+  // 다한 플레어가 화면에 영영 남지 않도록 클라이언트에서도 주기적으로 걷어낸다.
   useEffect(() => {
     const id = window.setInterval(pruneExpired, 1000)
     return () => window.clearInterval(id)
@@ -159,12 +159,12 @@ export default function HomePage() {
     detectApproximateLocation().then(setInitialFocusLatLng)
   }, [])
 
-  // 로그인 여부에 따라 받을 수 있는 범위가 다르다(비로그인은 접속 국가의 별만 상세).
+  // 로그인 여부에 따라 받을 수 있는 범위가 다르다(비로그인은 접속 국가의 플레어만 상세).
   // 로그인·로그아웃하면 목록을 다시 받고 실시간 구독도 그 범위에 맞게 다시 맺는다.
   useEffect(() => {
     let cancelled = false
     let unsubscribe: (() => void) | null = null
-    loadEvents()
+    loadFlares()
     const viewerCountry = accessToken
       ? Promise.resolve(null)
       : api
@@ -192,34 +192,34 @@ export default function HomePage() {
     api.get<EarthUser>('/api/users/me').then(({ data }) => setUser(data))
   }, [accessToken, setUser])
 
-  const found = visibleEvents.find((e) => e.id === selectedEventId)
-  const selectedEvent = found && !found.restricted ? found : null
+  const found = visibleFlares.find((e) => e.id === selectedFlareId)
+  const selectedFlare = found && !found.restricted ? found : null
 
   const handleSelect = (id: number | null) => {
-    const target = id == null ? null : visibleEvents.find((e) => e.id === id)
-    // 위치만 아는 별은 서버가 상세를 주지 않는다(403). 열지 않고 이유를 알려 준다.
+    const target = id == null ? null : visibleFlares.find((e) => e.id === id)
+    // 위치만 아는 플레어는 서버가 상세를 주지 않는다(403). 열지 않고 이유를 알려 준다.
     if (target?.restricted) {
-      flashLoginHint('로그인하면 다른 나라의 별도 자세히 볼 수 있습니다')
+      flashLoginHint('로그인하면 다른 나라의 플레어도 자세히 볼 수 있습니다')
       return
     }
-    selectEvent(id)
+    selectFlare(id)
   }
   // 수명이 다해 목록에서 빠지면 selectedDraft도 자연히 null이 되어 모달이 닫힌다.
   const selectedDraft = drafts.find((d) => d.id === selectedDraftId) ?? null
 
   const handleDraftCreate = (latitude: number, longitude: number, zoom: number) => {
     if (!user) {
-      flashLoginHint('별을 남기려면 로그인이 필요합니다')
+      flashLoginHint('플레어를 남기려면 로그인이 필요합니다')
       return
     }
     if (zoom < DRAFT_MIN_ZOOM) {
-      flashLoginHint('더 확대해야 별을 남길 수 있습니다')
+      flashLoginHint('더 확대해야 플레어를 남길 수 있습니다')
       return
     }
     addDraft(latitude, longitude)
   }
 
-  // 이 화면의 우클릭은 별 남기기와 달빛 비춰 보기다. 지도·지구본은 각자 브라우저 메뉴를 막지만, 이벤트가 그쪽에
+  // 이 화면의 우클릭은 플레어 남기기와 달빛 비춰 보기다. 지도·라스는 각자 브라우저 메뉴를 막지만, 이벤트가 그쪽에
   // 닿지 않으면(위에 겹친 요소에서 눌린 경우 등) 크롬 메뉴가 떴다(2026-11-08). 그래서 페이지 전체에서 막는다.
   // 글을 입력하거나 복사하려는 경우(입력창 안, 글자를 선택한 상태)는 브라우저 메뉴를 그대로 둔다.
   const blockBrowserMenu = (e: { target: EventTarget; preventDefault: () => void }) => {
@@ -229,7 +229,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className={`home${selectedEvent ? ' home--panel-open' : ''}`} onContextMenu={blockBrowserMenu}>
+    <div className={`home${selectedFlare ? ' home--panel-open' : ''}`} onContextMenu={blockBrowserMenu}>
       <Navbar
         onBrandClick={() => exitToGlobe(null)}
       />
@@ -240,7 +240,7 @@ export default function HomePage() {
         >
           <HomeGlobe
             key={globeKey}
-            events={visibleEvents}
+            flares={visibleFlares}
             center={initialFocusLatLng ?? globeCenter}
             initialView={returnView}
             onZoomEnter={handleGlobeZoomEnter}
@@ -261,15 +261,15 @@ export default function HomePage() {
           <Suspense fallback={null}>
             <MapGlobe
               key={mapKey}
-              onViewportChange={loadEvents}
-              events={visibleEvents}
-              selectedEventId={selectedEventId}
+              onViewportChange={loadFlares}
+              flares={visibleFlares}
+              selectedFlareId={selectedFlareId}
               selectionToken={selectionToken}
               onSelect={handleSelect}
-              draftStars={drafts}
+              draftFlares={drafts}
               onDraftCreate={handleDraftCreate}
               onDraftSelect={(id) => {
-                selectEvent(null)
+                selectFlare(null)
                 setSelectedDraftId(id)
               }}
               onDraftRemove={(id) => {
@@ -299,27 +299,27 @@ export default function HomePage() {
           {drafts.length === 0 && flashlightZoom ? (
             <>밤 지역은 {FLASHLIGHT_HINT}</>
           ) : drafts.length === 0 ? (
-            <>확대한 뒤 <strong>우클릭</strong>해 별을 남겨보세요</>
+            <>확대한 뒤 <strong>우클릭</strong>해 플레어를 남겨보세요</>
           ) : (
             <>
-              임시 별 {drafts.length}개 · 클릭해 내용 입력, <strong>우클릭</strong>하면 삭제
+              임시 플레어 {drafts.length}개 · 클릭해 내용 입력, <strong>우클릭</strong>하면 삭제
               <span className="home__hint-timer">{formatRemaining(soonestRemainingMs)} 후 사라짐</span>
             </>
           )}
         </div>
       )}
 
-      {selectedEvent && (
-        <EventDetailPanel
-          key={selectedEvent.id}
-          event={selectedEvent}
-          onClose={() => selectEvent(null)}
+      {selectedFlare && (
+        <FlareDetailPanel
+          key={selectedFlare.id}
+          flare={selectedFlare}
+          onClose={() => selectFlare(null)}
           onConfirmed={addOrUpdate}
         />
       )}
 
       {selectedDraft && (
-        <CreateEventModal
+        <CreateFlareModal
           latitude={selectedDraft.latitude}
           longitude={selectedDraft.longitude}
           onClose={() => setSelectedDraftId(null)}
@@ -327,12 +327,12 @@ export default function HomePage() {
             removeDraft(selectedDraft.id)
             setSelectedDraftId(null)
           }}
-          onCreated={(event) => {
-            // 서버에 등록됐으니 임시 별은 걷어내고 실제 별로 대체한다.
+          onCreated={(flare) => {
+            // 서버에 등록됐으니 임시 플레어는 걷어내고 실제 플레어로 대체한다.
             removeDraft(selectedDraft.id)
             setSelectedDraftId(null)
-            addOrUpdate(event)
-            selectEvent(event.id)
+            addOrUpdate(flare)
+            selectFlare(flare.id)
           }}
         />
       )}

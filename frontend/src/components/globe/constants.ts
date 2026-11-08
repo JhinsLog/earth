@@ -1,7 +1,7 @@
 export const INITIAL_ZOOM = 1.5
 /**
- * 첫 화면(지구본 전체)의 중심 위도 상한. 접속 위치의 위도를 그대로 쓰되 이 값으로 자른다.
- * 고위도에 있는 접속자에게 지구본이 극지방만 크게 보이는 화면을 주지 않기 위함이다.
+ * 첫 화면(라스 전체)의 중심 위도 상한. 접속 위치의 위도를 그대로 쓰되 이 값으로 자른다.
+ * 고위도에 있는 접속자에게 라스가 극지방만 크게 보이는 화면을 주지 않기 위함이다.
  * 경도는 고정값 없이 접속 지역에서 구한다 — 그래야 첫 화면이 자기 대륙을 보여준다.
  */
 export const HOME_VIEW_MAX_ABS_LATITUDE = 55
@@ -9,9 +9,9 @@ export const MIN_ZOOM = 1.0
 export const MAX_ZOOM = 22.0
 export const AUTO_ROTATE_MAX_ZOOM = 5 // 이 줌보다 확대하면 자동 자전을 멈춘다
 /**
- * 이 줌부터 화면 범위(bbox)로 별을 조회한다. 그 아래는 첫 로드의 전 세계 최신 500개를 쓴다.
+ * 이 줌부터 화면 범위(bbox)로 플레어를 조회한다. 그 아래는 첫 로드의 전 세계 최신 500개를 쓴다.
  *
- * 전 세계 최신 500개만으로는 별이 많아질수록 내 동네 별이 화면에 나오지 않는다. 반대로 지구본
+ * 전 세계 최신 500개만으로는 플레어가 많아질수록 내 동네 플레어가 화면에 나오지 않는다. 반대로 라스
  * 전체가 보이는 줌에서 범위로 조회하면 사실상 전 세계 조회와 같아 이득이 없다. 자전이 멈추는
  * 줌과 같게 둔 이유는, 자전 중에는 매 프레임 moveend가 와서 조회 요청이 쏟아지기 때문이다.
  */
@@ -19,17 +19,17 @@ export const VIEWPORT_QUERY_MIN_ZOOM = AUTO_ROTATE_MAX_ZOOM
 /** 지도가 멈춘 뒤 이만큼 더 움직임이 없을 때만 조회한다. 드래그를 끊어 할 때마다 요청하지 않도록. */
 export const VIEWPORT_QUERY_DEBOUNCE_MS = 300
 /**
- * 이벤트를 선택했을 때 확대되는 줌 레벨 — 타일 원본 해상도의 한계.
+ * 플레어를 선택했을 때 확대되는 줌 레벨 — 타일 원본 해상도의 한계.
  *
  * 배경-도로-도로명이 모두 Esri Dark Gray 래스터 한 장에서 나오고 이 타일은 z16까지만
  * 존재한다. z16을 넘기면 없는 타일을 늘려 그리는 것이라 (z17=2배, z20=16배) 확대가 아니라
  * 화질 저하일 뿐이다. 뭉개진 지도를 보여주지 않기 위해 원본이 존재하는 최대치인 16에 맞춘다.
  * 이보다 더 당기려면 도로를 벡터 레이어(openmaptiles transportation)로 그려야 한다.
  */
-export const EVENT_FOCUS_ZOOM = 16.0
+export const FLARE_FOCUS_ZOOM = 16.0
 
-/** 우측 상세 패널 너비(px). EventDetailPanel.css의 `.event-panel { width }`와 맞춰야 한다. */
-export const EVENT_PANEL_WIDTH_PX = 360
+/** 우측 상세 패널 너비(px). FlareDetailPanel.css의 `.flare-panel { width }`와 맞춰야 한다. */
+export const FLARE_PANEL_WIDTH_PX = 360
 export const COUNTRY_FOCUS_ZOOM = 4.0 // 접속 지역으로 처음 진입할 때의 줌 레벨
 
 /** 1시간에 1바퀴 자전 (60fps 기준 프레임당 이동 각도). */
@@ -38,24 +38,24 @@ export const AUTO_ROTATE_DEGREES_PER_FRAME = 360 / (3600 * 60)
 /** 현재 보고 있는 중심에서 이 거리(km) 안의 국가만 이름을 표시한다 — 시야가 분산되지 않도록. */
 export const COUNTRY_LABEL_MAX_DISTANCE_KM = 3000
 
-/** 내용을 입력해 등록하지 않은 임시 별이 지도에서 사라지기까지의 시간. */
-export const DRAFT_STAR_LIFETIME_MS = 5 * 60 * 1000
+/** 내용을 입력해 등록하지 않은 임시 플레어가 지도에서 사라지기까지의 시간. */
+export const DRAFT_FLARE_LIFETIME_MS = 5 * 60 * 1000
 
 /**
- * 우클릭으로 별을 남길 수 있는 최소 줌 — 시·구 단위가 구분되는 정도.
+ * 우클릭으로 플레어를 남길 수 있는 최소 줌 — 시·구 단위가 구분되는 정도.
  *
- * 나라 전체가 보이는 배율에서 찍으면 화면 1px이 수 km라 의도한 곳과 크게 어긋난 자리에 별이 생긴다.
+ * 나라 전체가 보이는 배율에서 찍으면 화면 1px이 수 km라 의도한 곳과 크게 어긋난 자리에 플레어가 생긴다.
  */
 export const DRAFT_MIN_ZOOM = 10.0
 
-/** 임시 별 색상 — 등록된 별(카테고리 색)과 구분되도록 중립적인 하늘색을 쓴다. */
-export const DRAFT_STAR_COLOR = '#9fd6ff'
+/** 임시 플레어 색상 — 등록된 플레어(카테고리 색)와 구분되도록 중립적인 하늘색을 쓴다. */
+export const DRAFT_FLARE_COLOR = '#9fd6ff'
 
 /**
  * "내 위치" 버튼이 GPS 좌표로 이동할 때의 줌 — 도로와 건물이 구분되는 수준.
  *
  * 배경 래스터(Esri Dark Gray)가 z16까지만 존재하므로 그 아래인 15는 원본 타일이
- * 그대로 그려지는 안전한 값이다. EVENT_FOCUS_ZOOM의 주석 참고.
+ * 그대로 그려지는 안전한 값이다. FLARE_FOCUS_ZOOM의 주석 참고.
  */
 export const MY_LOCATION_ZOOM = 15.0
 
@@ -71,7 +71,7 @@ export const MY_LOCATION_APPROX_ZOOM = 12.0
 /**
  * 내 위치 표시가 나타나기 시작하는 줌.
  *
- * 지구본이 보이는 축척에서는 내 위치 점이 별과 구분되지 않고, 같은 지역에 별이 있으면
+ * 라스가 보이는 축척에서는 내 위치 점이 플레어와 구분되지 않고, 같은 지역에 플레어가 있으면
  * 어느 쪽이 무엇인지 알 수 없다. 그래서 확대해서 볼 때만 그린다. 판단 기준은 줌 하나뿐이라
  * "내 위치" 버튼으로 이동하든 마우스 휠로 확대하든 동일하게 동작한다.
  *
@@ -80,29 +80,29 @@ export const MY_LOCATION_APPROX_ZOOM = 12.0
  */
 export const MY_LOCATION_MIN_ZOOM = 11.0
 
-/** 내 위치 표시 색 — 별(이벤트)과 혼동되지 않도록 채도가 다른 청록을 쓴다. */
+/** 내 위치 표시 색 — 플레어와 혼동되지 않도록 채도가 다른 청록을 쓴다. */
 export const MY_LOCATION_COLOR = '#4dd2ff'
 
 /** 첫 화면에서 손가락을 이 거리(px) 이상 끌면 길게 누르기가 아니라 돌리기로 본다. 누르다 살짝 밀린 손가락은 봐준다. */
 export const HOME_GLOBE_LONG_PRESS_TOLERANCE_PX = 8
 /** 휴대폰에서 이만큼 누르고 있으면 손전등을 켠다(우클릭 대신). */
 export const HOME_GLOBE_LONG_PRESS_MS = 450
-/** 홈 지구본과 지도를 오갈 때의 교차 페이드 시간. HomePage.css의 transition과 맞춘다. */
+/** 홈 라스와 지도를 오갈 때의 교차 페이드 시간. HomePage.css의 transition과 맞춘다. */
 export const GLOBE_TRANSITION_MS = 600
 
 /**
- * 홈 지구본을 이만큼(처음 크기의 배수) 확대하면 지도로 넘어간다. 지구가 화면을 넘칠 만큼 커진 때라,
+ * 홈 라스를 이만큼(처음 크기의 배수) 확대하면 지도로 넘어간다. 지구가 화면을 넘칠 만큼 커진 때라,
  * 같은 위치·같은 크기의 지도로 겹쳐 바꾸면 계속 확대하는 것처럼 보인다.
  */
 export const HOME_GLOBE_ENTER_ZOOM = 1.8
 /** 휠 한 칸(deltaY 100)에 약 16% 확대. 지도(MapLibre)의 휠 확대 속도와 비슷하게 맞췄다. */
 export const HOME_GLOBE_WHEEL_ZOOM_RATE = 0.0015
-/** 홈 지구본이 처음 크기(배율 1)일 때 화면 짧은 변 대비 지구 지름 비율. */
+/** 홈 라스가 처음 크기(배율 1)일 때 화면 짧은 변 대비 지구 지름 비율. */
 export const HOME_GLOBE_SCREEN_FRACTION = 0.72
 
 /**
- * 홈 지구본을 배율 scale로 볼 때 화면에 보이는 지구 원판의 반지름(CSS px).
- * 지도에서 축소해 이 크기(scale = HOME_GLOBE_ENTER_ZOOM)에 닿으면 홈 지구본으로 돌아간다. 들어갈 때와 같은 크기라
+ * 홈 라스를 배율 scale로 볼 때 화면에 보이는 지구 원판의 반지름(CSS px).
+ * 지도에서 축소해 이 크기(scale = HOME_GLOBE_ENTER_ZOOM)에 닿으면 홈 라스로 돌아간다. 들어갈 때와 같은 크기라
  * 오갈 때 크기가 튀지 않는다. 지도의 최소 줌은 이보다 훨씬 작아서, 예전처럼 최소 줌을 기준으로 삼으면
  * 그 사이 구간 동안 작아지는 지도가 계속 보였다(2026-10-31 사용자 지적).
  */
@@ -111,8 +111,8 @@ export function homeGlobeRadiusPx(width: number, height: number, scale: number):
 }
 
 /**
- * 지도 위 실제 낮·밤·구름(mapDaylightLayer)의 세기. FULL 이하에서는 홈 지구본과 같은 모습이고, NONE에 다가갈수록
- * 옅어져 그 위에서는 그리지 않는다. 홈 지구본에서 넘어오는 줌(화면 크기에 따라 약 3~3.6)에서 끊김이 없어야 하고,
+ * 지도 위 실제 낮·밤·구름(mapDaylightLayer)의 세기. FULL 이하에서는 홈 라스와 같은 모습이고, NONE에 다가갈수록
+ * 옅어져 그 위에서는 그리지 않는다. 홈 라스에서 넘어오는 줌(화면 크기에 따라 약 3~3.6)에서 끊김이 없어야 하고,
  * 나라 하나가 화면을 채우는 줌부터는 밤이어도 지도와 지명을 읽을 수 있어야 한다.
  */
 export const MAP_DAYLIGHT_FULL_ZOOM = 4

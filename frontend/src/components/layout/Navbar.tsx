@@ -5,7 +5,7 @@ import SettingsMenu from '../settings/SettingsMenu'
 import './Navbar.css'
 
 interface Props {
-  /** 로고를 눌렀을 때 첫 화면(지구본 전체)으로 되돌리는 동작. */
+  /** 로고를 눌렀을 때 첫 화면(라스 전체)으로 되돌리는 동작. */
   onBrandClick?: () => void
 }
 

@@ -9,7 +9,7 @@ import {
   ESRI_OPACITY,
   createEarthMapStyle,
 } from './mapStyle'
-import { STAR_SPRITE_PIXEL_RATIO, createStarBodyImage, createStarSparkleImage } from './starFlareTexture'
+import { FLARE_SPRITE_PIXEL_RATIO, createFlareBodyImage, createFlareSparkleImage } from './flareTexture'
 import { createDaylightLayer, isNight } from './mapDaylightLayer'
 import { MOON_CURSOR } from './moonCursor'
 import Starfield from './Starfield'
@@ -21,9 +21,9 @@ import {
   AUTO_ROTATE_MAX_ZOOM,
   COUNTRY_FOCUS_ZOOM,
   COUNTRY_LABEL_MAX_DISTANCE_KM,
-  DRAFT_STAR_COLOR,
-  EVENT_FOCUS_ZOOM,
-  EVENT_PANEL_WIDTH_PX,
+  DRAFT_FLARE_COLOR,
+  FLARE_FOCUS_ZOOM,
+  FLARE_PANEL_WIDTH_PX,
   HOME_GLOBE_LONG_PRESS_MS,
   HOME_GLOBE_LONG_PRESS_TOLERANCE_PX,
   INITIAL_ZOOM,
@@ -45,26 +45,26 @@ import {
   type GeoPoint,
   type LocatedPoint,
 } from '../../lib/geolocate'
-import { EVENT_CATEGORY_COLOR, RESTRICTED_STAR_COLOR, type DraftStar, type EarthEvent } from '../../types'
-import type { ViewportBounds } from '../../store/eventStore'
+import { FLARE_CATEGORY_COLOR, RESTRICTED_FLARE_COLOR, type DraftFlare, type Flare } from '../../types'
+import type { ViewportBounds } from '../../store/flareStore'
 import type { HandoffView } from './HomeGlobe'
 import './MapGlobe.css'
 
-const EVENTS_SOURCE_ID = 'earth-events-source'
+const FLARES_SOURCE_ID = 'earth-flares-source'
 const DRAFTS_SOURCE_ID = 'earth-drafts-source'
-const STAR_BODY_IMAGE_PREFIX = 'earth-star-body-'
-const STAR_SPARKLE_IMAGE_PREFIX = 'earth-star-sparkle-'
-/** 별 색은 이것뿐이다. 색마다 스프라이트를 한 장씩 미리 올린다(starFlareTexture). */
-const STAR_COLORS = [...new Set([...Object.values(EVENT_CATEGORY_COLOR), RESTRICTED_STAR_COLOR, DRAFT_STAR_COLOR])]
+const FLARE_BODY_IMAGE_PREFIX = 'earth-flare-body-'
+const FLARE_SPARKLE_IMAGE_PREFIX = 'earth-flare-sparkle-'
+/** 플레어 색은 이것뿐이다. 색마다 스프라이트를 한 장씩 미리 올린다(flareTexture). */
+const FLARE_COLORS = [...new Set([...Object.values(FLARE_CATEGORY_COLOR), RESTRICTED_FLARE_COLOR, DRAFT_FLARE_COLOR])]
 /** 반짝임 갱신 간격. 매 프레임 바꿀 만큼 빠른 변화가 아니고, 바꿀 때마다 레이어 스타일을 다시 계산한다. */
 const TWINKLE_INTERVAL_MS = 50
 /** 내 위치 표시. 이 좌표는 브라우저 안에만 머무르며 서버로 나가지 않는다. */
 const MY_LOCATION_SOURCE_ID = 'earth-my-location-source'
-/** 공감이 이 수를 넘어도 별이 더 커지지는 않는다. 하나가 화면을 뒤덮지 않도록. */
+/** 공감이 이 수를 넘어도 플레어가 더 커지지는 않는다. 하나가 화면을 뒤덮지 않도록. */
 const CONFIRM_BOOST_MAX = 10
 /** 클릭 판정을 받는 레이어 — 넓은 오라와 중앙 코어만으로 충분하다. */
-const EVENT_CLICK_LAYER_IDS = ['events-aura-layer', 'events-star'] as const
-const DRAFT_CLICK_LAYER_IDS = ['drafts-aura-layer', 'drafts-star'] as const
+const FLARE_CLICK_LAYER_IDS = ['flares-aura-layer', 'flares-body'] as const
+const DRAFT_CLICK_LAYER_IDS = ['drafts-aura-layer', 'drafts-body'] as const
 
 /**
  * 화면에 보이는 지구 원판의 반지름(px). 중심에서 동쪽 대원을 따라 60~90° 떨어진 점들을 투영해 가장 먼 거리를
@@ -76,8 +76,8 @@ const DAYLIGHT_LAYER_ID = 'daylight'
 /** 휠·핀치 축소 입력 뒤 이 시간 안의 줌 변화까지 사용자의 축소로 본다. 휠 한 번의 확대·축소 애니메이션이 이 정도 걸린다. */
 const ZOOM_OUT_INPUT_WINDOW_MS = 400
 /**
- * 지도에서 축소해 이 배율(홈 지구본 기준) 크기가 되면 홈 지구본으로 돌아간다. 들어가는 배율보다 조금 작게 둬서,
- * 돌아온 홈 지구본이 같은 크기로 시작하면서도 곧바로 다시 지도로 넘어가지 않게 한다.
+ * 지도에서 축소해 이 배율(홈 라스 기준) 크기가 되면 홈 라스로 돌아간다. 들어가는 배율보다 조금 작게 둬서,
+ * 돌아온 홈 라스가 같은 크기로 시작하면서도 곧바로 다시 지도로 넘어가지 않게 한다.
  */
 const HOME_GLOBE_EXIT_ZOOM = HOME_GLOBE_ENTER_ZOOM * 0.98
 
@@ -103,23 +103,23 @@ function matchGlobeRadius(map: MapLibreMap, radiusPx: number) {
 }
 
 interface Props {
-  events: EarthEvent[]
-  selectedEventId: number | null
-  /** 값이 바뀔 때마다 선택된 별로 다시 확대한다. 같은 별을 다시 눌렀을 때도 동작하게 하는 장치. */
+  flares: Flare[]
+  selectedFlareId: number | null
+  /** 값이 바뀔 때마다 선택된 플레어로 다시 확대한다. 같은 플레어를 다시 눌렀을 때도 동작하게 하는 장치. */
   selectionToken: number
   onSelect: (id: number | null) => void
-  draftStars: DraftStar[]
+  draftFlares: DraftFlare[]
   /** zoom은 찍은 순간의 줌. 너무 멀리서 찍었는지는 받는 쪽이 판단해 안내한다. */
   onDraftCreate: (latitude: number, longitude: number, zoom: number) => void
   onDraftSelect: (id: string) => void
   onDraftRemove: (id: string) => void
   initialFocusLatLng?: GeoPoint | null
   /**
-   * 홈 지구본을 확대해 들어왔을 때 이어받을 화면. 주면 그 지점을 중앙에, 지구가 같은 크기로 보이는 줌에서
+   * 홈 라스를 확대해 들어왔을 때 이어받을 화면. 주면 그 지점을 중앙에, 지구가 같은 크기로 보이는 줌에서
    * 시작해 이어서 확대하는 것처럼 보이게 한다. 이때는 initialFocusLatLng로 날아가지 않는다(HomePage가 null로 준다).
    */
   initialView?: HandoffView | null
-  /** 값이 바뀔 때마다 첫 화면(지구본 전체)으로 되돌아간다. 로고 클릭용. */
+  /** 값이 바뀔 때마다 첫 화면(라스 전체)으로 되돌아간다. 로고 클릭용. */
   resetViewToken?: number
   /** 내 위치. HomePage의 useMyLocation이 소유하며 여기서는 표시와 이동에만 쓴다. */
   myLocation: LocatedPoint | null
@@ -129,9 +129,9 @@ interface Props {
   onLocateRequest: () => Promise<LocatedPoint | null>
   /** 지도가 멈췄을 때 화면 범위. VIEWPORT_QUERY_MIN_ZOOM 이상에서만 호출된다. */
   onViewportChange?: (bounds: ViewportBounds) => void
-  /** 축소해 지구가 홈 지구본이 넘어오던 크기가 됐을 때. 홈 지구본이 같은 위치·크기로 이어받도록 화면을 넘긴다. */
+  /** 축소해 지구가 홈 라스가 넘어오던 크기가 됐을 때. 홈 라스가 같은 위치·크기로 이어받도록 화면을 넘긴다. */
   onZoomOutToHome?: (view: HandoffView) => void
-  /** 스타일과 타일이 준비돼 화면에 나타났을 때. 홈 지구본은 이때까지 남아 있다가 겹쳐 사라진다. */
+  /** 스타일과 타일이 준비돼 화면에 나타났을 때. 홈 라스는 이때까지 남아 있다가 겹쳐 사라진다. */
   onReady?: () => void
   /** 손전등을 쓸 수 있는 배율(MAP_DAYLIGHT_NONE_ZOOM 미만)에 들어오거나 나갈 때. 안내 문구를 바꾸는 데 쓴다. */
   onFlashlightZoomChange?: (available: boolean) => void
@@ -143,7 +143,7 @@ interface Props {
  * isStyleLoaded()로 판단하면 안 된다. 이 값은 "모든 소스의 타일까지 다 왔는가"를
  * 보기 때문에 지도가 조금이라도 움직이는 중이면 false가 된다. 그때 once('load')로
  * 미루면 'load'는 이미 지나가 다시 오지 않으므로 콜백이 영영 실행되지 않는다.
- * 새로 등록한 별이 지도에 올라오지 않아 클릭조차 되지 않던 원인이다.
+ * 새로 등록한 플레어가 지도에 올라오지 않아 클릭조차 되지 않던 원인이다.
  *
  * setData는 소스만 있으면 안전하므로 소스 존재 여부만 본다. 소스는 map 'load'
  * 안에서 추가되니, 아직 없다면 load가 아직 오지 않은 것이라 기다려도 안전하다.
@@ -208,29 +208,29 @@ function accuracyRing(center: GeoPoint, radiusMeters: number, steps = 64): [numb
   return ring
 }
 
-function toEventGeoJson(events: EarthEvent[]) {
+function toFlareGeoJson(flares: Flare[]) {
   return {
     type: 'FeatureCollection' as const,
-    features: events.map((event) => ({
+    features: flares.map((flare) => ({
       type: 'Feature' as const,
-      geometry: { type: 'Point' as const, coordinates: [event.longitude, event.latitude] },
+      geometry: { type: 'Point' as const, coordinates: [flare.longitude, flare.latitude] },
       properties: {
-        id: event.id,
-        // 위치만 아는 별(비로그인, 다른 나라)은 분류를 모르므로 중립색, 공감 보너스 없음.
-        color: event.restricted ? RESTRICTED_STAR_COLOR : EVENT_CATEGORY_COLOR[event.category],
-        // 목격자가 많을수록 밝고 크게. 신뢰도를 지구본 위에서 바로 읽을 수 있게 한다.
-        // 상한을 두는 이유는 공감이 많은 별 하나가 화면을 뒤덮지 않게 하기 위함이다.
-        confirmBoost: event.restricted ? 0 : Math.min(event.confirmCount, CONFIRM_BOOST_MAX),
-        // 별마다 반짝이는 박자를 다르게 한다. 같으면 화면의 별이 한꺼번에 깜빡여 신호등처럼 보인다.
-        // id에서 정해지므로 새로고침해도 같은 별은 같은 박자다.
-        phase: (event.id * 2.399963) % (Math.PI * 2),
-        speed: 1.1 + ((event.id * 0.618034) % 1) * 1.4,
+        id: flare.id,
+        // 위치만 아는 플레어(비로그인, 다른 나라)는 분류를 모르므로 중립색, 공감 보너스 없음.
+        color: flare.restricted ? RESTRICTED_FLARE_COLOR : FLARE_CATEGORY_COLOR[flare.category],
+        // 목격자가 많을수록 밝고 크게. 신뢰도를 라스 위에서 바로 읽을 수 있게 한다.
+        // 상한을 두는 이유는 공감이 많은 플레어 하나가 화면을 뒤덮지 않게 하기 위함이다.
+        confirmBoost: flare.restricted ? 0 : Math.min(flare.confirmCount, CONFIRM_BOOST_MAX),
+        // 플레어마다 반짝이는 박자를 다르게 한다. 같으면 화면의 플레어가 한꺼번에 깜빡여 신호등처럼 보인다.
+        // id에서 정해지므로 새로고침해도 같은 플레어는 같은 박자다.
+        phase: (flare.id * 2.399963) % (Math.PI * 2),
+        speed: 1.1 + ((flare.id * 0.618034) % 1) * 1.4,
       },
     })),
   }
 }
 
-function toDraftGeoJson(drafts: DraftStar[]) {
+function toDraftGeoJson(drafts: DraftFlare[]) {
   return {
     type: 'FeatureCollection' as const,
     features: drafts.map((draft) => ({
@@ -242,13 +242,13 @@ function toDraftGeoJson(drafts: DraftStar[]) {
 }
 
 /**
- * 별 한 벌(빛무리 → 본체 → 반짝이는 긴 광선)을 얹는다. 등록된 별과 임시 별이 생김새를 공유하고 색과 밝기만 다르다.
+ * 플레어 한 벌(빛무리 → 본체 → 반짝이는 긴 광선)을 얹는다. 등록된 플레어와 임시 플레어가 생김새를 공유하고 색과 밝기만 다르다.
  *
- * @param color          색. 등록된 별은 분류마다 달라 ['get', 'color'], 임시 별은 고정 색 문자열
- * @param boostByConfirm 공감 수만큼 크기를 키울지. 등록된 별에만 적용하고 임시 별에는
- *                       쓰지 않는다 — 임시 별은 아직 아무도 확인하지 않은 상태이므로.
+ * @param color          색. 등록된 플레어는 분류마다 달라 ['get', 'color'], 임시 플레어는 고정 색 문자열
+ * @param boostByConfirm 공감 수만큼 크기를 키울지. 등록된 플레어에만 적용하고 임시 플레어에는
+ *                       쓰지 않는다 — 임시 플레어는 아직 아무도 확인하지 않은 상태이므로.
  */
-function addStarLayers(
+function addFlareLayers(
   map: MapLibreMap,
   sourceId: string,
   prefix: string,
@@ -261,9 +261,9 @@ function addStarLayers(
    *
    * 공감 보너스는 줌 보간의 **각 출력값 안에서** 더한다. 보간식 바깥을 감싸면
    * (`['+', ['interpolate', …, ['zoom'], …], 보너스]`) MapLibre가 "zoom 표현식은 최상위
-   * step/interpolate의 입력으로만 쓸 수 있다"며 레이어 추가 자체를 거부한다. 그 결과 등록된 별의
+   * step/interpolate의 입력으로만 쓸 수 있다"며 레이어 추가 자체를 거부한다. 그 결과 등록된 플레어의
    * 오라·헤일로·색 성광 레이어가 통째로 빠지고 흰 코어만 그려졌다. 오류가 콘솔에만 찍히고 화면은
-   * 그럭저럭 별처럼 보여서 오래 눈에 띄지 않았다.
+   * 그럭저럭 플레어처럼 보여서 오래 눈에 띄지 않았다.
    */
   const zoomRamp = (
     [zoomLow, sizeLow]: [number, number],
@@ -291,11 +291,11 @@ function addStarLayers(
   })
 
   map.addLayer({
-    id: `${prefix}-star`,
+    id: `${prefix}-body`,
     type: 'symbol',
     source: sourceId,
     layout: {
-      'icon-image': image(STAR_BODY_IMAGE_PREFIX) as never,
+      'icon-image': image(FLARE_BODY_IMAGE_PREFIX) as never,
       'icon-size': zoomRamp([1, 0.42], [10, 0.8], 0.04) as never,
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
@@ -309,7 +309,7 @@ function addStarLayers(
     type: 'symbol',
     source: sourceId,
     layout: {
-      'icon-image': image(STAR_SPARKLE_IMAGE_PREFIX) as never,
+      'icon-image': image(FLARE_SPARKLE_IMAGE_PREFIX) as never,
       'icon-size': zoomRamp([1, 0.5], [10, 0.95], 0.05) as never,
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
@@ -319,11 +319,11 @@ function addStarLayers(
 }
 
 export default function MapGlobe({
-  events,
-  selectedEventId,
+  flares,
+  selectedFlareId,
   selectionToken,
   onSelect,
-  draftStars,
+  draftFlares,
   onDraftCreate,
   onDraftSelect,
   onDraftRemove,
@@ -349,13 +349,13 @@ export default function MapGlobe({
   const mapRef = useRef<MapLibreMap | null>(null)
   const isInteractingRef = useRef(false)
   const suppressNextMapClickRef = useRef(false)
-  /** 임시 별 위에서 우클릭한 경우, 전역 우클릭(=새 별 생성)까지 실행되지 않게 막는다. */
+  /** 임시 플레어 위에서 우클릭한 경우, 전역 우클릭(=새 플레어 생성)까지 실행되지 않게 막는다. */
   const suppressNextContextMenuRef = useRef(false)
   const appliedInitialFocusRef = useRef(false)
   // 지도는 한 번만 만든다. 그 시점의 값만 쓰므로 ref로 붙잡아 둔다.
   const initialViewRef = useRef(initialView)
   /**
-   * 첫 화면(지구본 전체)의 중심. 지도를 만드는 시점에는 네트워크 조회 결과를 기다릴 수
+   * 첫 화면(라스 전체)의 중심. 지도를 만드는 시점에는 네트워크 조회 결과를 기다릴 수
    * 없으므로 표준시로 추정한 경도를 먼저 쓰고, IP/GPS 위치가 도착하면 실제 값으로 교체한다.
    * 로고를 눌러 돌아올 때도 이 값을 쓰므로 항상 접속자의 대륙이 보인다.
    */
@@ -379,13 +379,13 @@ export default function MapGlobe({
   onDraftSelectRef.current = onDraftSelect
   const onDraftRemoveRef = useRef(onDraftRemove)
   onDraftRemoveRef.current = onDraftRemove
-  const eventsRef = useRef(events)
-  eventsRef.current = events
-  const draftStarsRef = useRef(draftStars)
-  draftStarsRef.current = draftStars
-  /** 임시 별이 있을 때만 명멸 애니메이션을 돌리기 위한 플래그. */
-  const hasDraftsRef = useRef(draftStars.length > 0)
-  hasDraftsRef.current = draftStars.length > 0
+  const flaresRef = useRef(flares)
+  flaresRef.current = flares
+  const draftFlaresRef = useRef(draftFlares)
+  draftFlaresRef.current = draftFlares
+  /** 임시 플레어가 있을 때만 명멸 애니메이션을 돌리기 위한 플래그. */
+  const hasDraftsRef = useRef(draftFlares.length > 0)
+  hasDraftsRef.current = draftFlares.length > 0
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -399,12 +399,12 @@ export default function MapGlobe({
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
       doubleClickZoom: false,
-      // pitch/bearing 조작을 막아 카메라가 항상 지구본을 수직으로 내려다보게 고정한다.
+      // pitch/bearing 조작을 막아 카메라가 항상 라스를 수직으로 내려다보게 고정한다.
       // 대기광(halo)이 화면 중심 대칭 원이라는 전제로 계산되므로, 기울어지면 어긋난다.
       dragRotate: false,
       pitchWithRotate: false,
       touchPitch: false,
-      // ⓘ 버튼 하나로 접히는 형태. 지구본 화면을 해치지 않으면서 출처 표기 의무를
+      // ⓘ 버튼 하나로 접히는 형태. 라스 화면을 해치지 않으면서 출처 표기 의무를
       // 충족한다 — 특히 OpenStreetMap 파생 데이터는 ODbL상 표기가 의무다.
       attributionControl: {
         compact: true,
@@ -417,7 +417,7 @@ export default function MapGlobe({
       maxTileCacheSize: 500,
     })
     mapRef.current = map
-    // 지구본 투영(globe)은 스타일에 들어 있어서, 스타일이 적용되기 전에는 평면 지도로 잰 크기가 나온다.
+    // 라스 투영(globe)은 스타일에 들어 있어서, 스타일이 적용되기 전에는 평면 지도로 잰 크기가 나온다.
     // 스타일이 준비된 첫 프레임에 맞춘다. 화면은 reveal 전이라 이 보정이 보이지 않는다.
     if (startView) {
       const matchOnStyle = () => {
@@ -438,7 +438,7 @@ export default function MapGlobe({
       readyRef.current = true
       map.off('render', tryReveal)
       window.clearTimeout(revealTimeoutId)
-      // compact 모드라도 MapLibre는 처음엔 펼친 상태(maplibregl-compact-show)로 시작한다. 지구본을 가리므로
+      // compact 모드라도 MapLibre는 처음엔 펼친 상태(maplibregl-compact-show)로 시작한다. 라스를 가리므로
       // 5초 뒤 접는다(끌면 MapLibre가 스스로 접는다). 바로 접지 않는 이유: OpenStreetMap 표기 지침은 닫기 동작,
       // 지도 조작, 5초 경과 중 하나가 있을 때만 접기를 허용한다. 접은 뒤에는 ⓘ로 다시 본다.
       attribCollapseId = window.setTimeout(() => {
@@ -494,7 +494,7 @@ export default function MapGlobe({
     }
     map.on('moveend', scheduleViewportQuery)
 
-    // 축소하다 지구가 홈 지구본이 지도로 넘어가던 크기까지 작아지면 그 자리에서 홈 지구본으로 돌아간다.
+    // 축소하다 지구가 홈 라스가 지도로 넘어가던 크기까지 작아지면 그 자리에서 홈 라스로 돌아간다.
     // 들어갈 때와 같은 크기·같은 중심을 넘겨, 오가는 순간 지구 크기와 위치가 튀지 않게 한다.
     // 사용자가 축소하는 중일 때만 본다 — 로고 버튼처럼 코드가 줌을 바꿀 때까지 돌아가면 안 된다.
     // MapLibre는 최소 줌에서 더 축소하려는 입력을 조용히 무시하고 이벤트도 내지 않으므로, 최소 줌에 닿은
@@ -558,14 +558,14 @@ export default function MapGlobe({
     map.on('zoomstart', setInteractingTrue)
     map.on('zoomend', setInteractingFalse)
 
-    // 실제 낮·밤과 실시간 구름. 국경선·지명·별보다 아래에 깔아 그것들은 밤에도 그대로 보이게 한다.
+    // 실제 낮·밤과 실시간 구름. 국경선·지명·플레어보다 아래에 깔아 그것들은 밤에도 그대로 보이게 한다.
     // 'load'는 타일까지 다 받은 뒤라 지도가 이미 보인 다음이다. 그때 붙이면 대낮 지구가 먼저 보였다가 바뀌므로
     // 스타일이 준비되는 즉시 붙인다.
     const daylightLayer = createDaylightLayer(DAYLIGHT_LAYER_ID)
     map.once('style.load', () => map.addLayer(daylightLayer, 'country-boundaries'))
 
     // 손전등(우클릭, 휴대폰은 길게 누르기). 밤이 어둡게 덮이는 배율(MAP_DAYLIGHT_NONE_ZOOM 미만)에서만 켠다. 그보다
-    // 확대하면 밤 효과가 없어 비출 것이 없고, 우클릭은 별 찍기로 쓴다. 해가 진 곳만 비추고, 누른 채 움직이면
+    // 확대하면 밤 효과가 없어 비출 것이 없고, 우클릭은 플레어 찍기로 쓴다. 해가 진 곳만 비추고, 누른 채 움직이면
     // 따라가며(낮으로 넘어가면 꺼짐), 떼면 서서히 꺼진다.
     let flashing = false
     const aimFlashlight = ({ lng, lat }: { lng: number; lat: number }) => {
@@ -640,32 +640,32 @@ export default function MapGlobe({
     })
 
     map.on('load', () => {
-      for (const starColor of STAR_COLORS) {
-        if (!map.hasImage(STAR_BODY_IMAGE_PREFIX + starColor)) {
-          map.addImage(STAR_BODY_IMAGE_PREFIX + starColor, createStarBodyImage(starColor), {
-            pixelRatio: STAR_SPRITE_PIXEL_RATIO,
+      for (const flareColor of FLARE_COLORS) {
+        if (!map.hasImage(FLARE_BODY_IMAGE_PREFIX + flareColor)) {
+          map.addImage(FLARE_BODY_IMAGE_PREFIX + flareColor, createFlareBodyImage(flareColor), {
+            pixelRatio: FLARE_SPRITE_PIXEL_RATIO,
           })
-          map.addImage(STAR_SPARKLE_IMAGE_PREFIX + starColor, createStarSparkleImage(starColor), {
-            pixelRatio: STAR_SPRITE_PIXEL_RATIO,
+          map.addImage(FLARE_SPARKLE_IMAGE_PREFIX + flareColor, createFlareSparkleImage(flareColor), {
+            pixelRatio: FLARE_SPRITE_PIXEL_RATIO,
           })
         }
       }
 
-      map.addSource(EVENTS_SOURCE_ID, {
+      map.addSource(FLARES_SOURCE_ID, {
         type: 'geojson',
-        data: toEventGeoJson(eventsRef.current),
+        data: toFlareGeoJson(flaresRef.current),
       })
-      addStarLayers(map, EVENTS_SOURCE_ID, 'events', ['get', 'color'], 1, true)
+      addFlareLayers(map, FLARES_SOURCE_ID, 'flares', ['get', 'color'], 1, true)
 
-      // 임시 별은 나중에 얹어 등록된 별 위에 오게 한다 — 같은 자리에 겹쳤을 때
-      // 아직 처리해야 할 임시 별이 클릭에 먼저 잡히도록.
+      // 임시 플레어는 나중에 얹어 등록된 플레어 위에 오게 한다 — 같은 자리에 겹쳤을 때
+      // 아직 처리해야 할 임시 플레어가 클릭에 먼저 잡히도록.
       map.addSource(DRAFTS_SOURCE_ID, {
         type: 'geojson',
-        data: toDraftGeoJson(draftStarsRef.current),
+        data: toDraftGeoJson(draftFlaresRef.current),
       })
-      addStarLayers(map, DRAFTS_SOURCE_ID, 'drafts', DRAFT_STAR_COLOR, 0.85)
+      addFlareLayers(map, DRAFTS_SOURCE_ID, 'drafts', DRAFT_FLARE_COLOR, 0.85)
 
-      // 내 위치. 별과 달리 클릭 대상이 아니므로 판정 레이어를 두지 않는다.
+      // 내 위치. 플레어와 달리 클릭 대상이 아니므로 판정 레이어를 두지 않는다.
       map.addSource(MY_LOCATION_SOURCE_ID, {
         type: 'geojson',
         data: toMyLocationGeoJson(myLocationRef.current),
@@ -713,7 +713,7 @@ export default function MapGlobe({
         },
       })
 
-      EVENT_CLICK_LAYER_IDS.forEach((layerId) => {
+      FLARE_CLICK_LAYER_IDS.forEach((layerId) => {
         map.on('click', layerId, (e: MapLayerMouseEvent) => {
           suppressNextMapClickRef.current = true
           // MapLibre는 GeoJSON 소스도 내부적으로 벡터 타일로 변환하므로 properties 값의
@@ -782,7 +782,7 @@ export default function MapGlobe({
       nearbyCountryIntervalId = window.setInterval(updateNearbyCountryFilter, 400)
     })
 
-    // 빈 곳을 좌클릭하면 선택 해제. 별 레이어를 클릭한 경우에는 위쪽 레이어 핸들러가
+    // 빈 곳을 좌클릭하면 선택 해제. 플레어 레이어를 클릭한 경우에는 위쪽 레이어 핸들러가
     // 먼저 처리하면서 suppress 플래그를 세워두므로 여기서 선택이 풀리지 않는다.
     map.on('click', () => {
       if (suppressNextMapClickRef.current) {
@@ -792,12 +792,12 @@ export default function MapGlobe({
       onSelectRef.current(null)
     })
 
-    // 우클릭한 지점에 임시 별을 찍는다. 브라우저 기본 컨텍스트 메뉴가 뜨면
-    // 별이 가려지므로 확실히 막는다.
+    // 우클릭한 지점에 임시 플레어를 찍는다. 브라우저 기본 컨텍스트 메뉴가 뜨면
+    // 플레어가 가려지므로 확실히 막는다.
     map.on('contextmenu', (e: MapMouseEvent) => {
       e.preventDefault()
       e.originalEvent?.preventDefault()
-      // 임시 별 위에서 우클릭한 경우는 삭제로 처리됐으니 새로 만들지 않는다.
+      // 임시 플레어 위에서 우클릭한 경우는 삭제로 처리됐으니 새로 만들지 않는다.
       if (suppressNextContextMenuRef.current) {
         suppressNextContextMenuRef.current = false
         return
@@ -805,15 +805,15 @@ export default function MapGlobe({
       // 이 배율의 우클릭은 손전등이다.
       if (map.getZoom() < MAP_DAYLIGHT_NONE_ZOOM) return
       const { lat, lng } = e.lngLat
-      // globe 투영에서 지구본 바깥(우주)을 클릭하면 좌표가 유효 범위를 벗어날 수 있다.
+      // globe 투영에서 라스 바깥(우주)을 클릭하면 좌표가 유효 범위를 벗어날 수 있다.
       // 그대로 두면 백엔드 검증(-90~90 / -180~180)에서 걸리므로 여기서 걸러낸다.
       if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90) return
       onDraftCreateRef.current(lat, lng, map.getZoom())
     })
 
-    // 지구본 가장자리 대기광 — MapLibre의 네이티브 Sky/atmosphere는 pitch가 있는 3D 지형용이라
+    // 라스 가장자리 대기광 — MapLibre의 네이티브 Sky/atmosphere는 pitch가 있는 3D 지형용이라
     // 우리처럼 수직으로 내려다보는 globe 뷰에서는 전혀 렌더링되지 않는다(v5.24 기준 확인됨).
-    // 지구본의 실제 가장자리(limb)가 보이는 각도는 카메라가 멀수록(저줌) 90°에 가깝고
+    // 라스의 실제 가장자리(limb)가 보이는 각도는 카메라가 멀수록(저줌) 90°에 가깝고
     // 가까워질수록(고줌) 크게 줄어든다(줌4≈45°, 줌6≈25°) — 원근 투영이라 당연한 현상인데,
     // 처음엔 이 사실을 놓치고 항상 90°로 계산해 고줌에서 대기광이 실제 표면보다 훨씬
     // 커지는 버그가 있었다. 이제 project→unproject 왕복 검증으로 실제 가장자리 각도를
@@ -866,34 +866,34 @@ export default function MapGlobe({
       haloEl.style.opacity = String(opacity)
     }
 
-    // 임시 별은 부드럽게 명멸시켜 "아직 등록되지 않은, 곧 사라질 상태"임을 드러낸다.
+    // 임시 플레어는 부드럽게 명멸시켜 "아직 등록되지 않은, 곧 사라질 상태"임을 드러낸다.
     const updateDraftPulse = () => {
-      if (!hasDraftsRef.current || !map.getLayer('drafts-star')) return
+      if (!hasDraftsRef.current || !map.getLayer('drafts-body')) return
       const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 400)
-      map.setPaintProperty('drafts-star', 'icon-opacity', pulse * 0.85)
+      map.setPaintProperty('drafts-body', 'icon-opacity', pulse * 0.85)
       map.setPaintProperty('drafts-sparkle', 'icon-opacity', pulse * 0.5)
     }
 
-    // 등록된 별의 긴 광선을 별마다 다른 박자(phase, speed)로 반짝인다. 시각만 바꾼 식을 넣으면 MapLibre가 별마다
-    // 계산하므로 별 수만큼 자바스크립트로 돌지 않는다. sin의 양수 쪽만 제곱해 짧게 번쩍이고 대부분은 은은하게 둔다.
+    // 등록된 플레어의 긴 광선을 플레어마다 다른 박자(phase, speed)로 반짝인다. 시각만 바꾼 식을 넣으면 MapLibre가 플레어마다
+    // 계산하므로 플레어 수만큼 자바스크립트로 돌지 않는다. sin의 양수 쪽만 제곱해 짧게 번쩍이고 대부분은 은은하게 둔다.
     let lastTwinkle = 0
     const updateTwinkle = () => {
       const now = performance.now()
-      if (now - lastTwinkle < TWINKLE_INTERVAL_MS || !map.getLayer('events-sparkle')) return
+      if (now - lastTwinkle < TWINKLE_INTERVAL_MS || !map.getLayer('flares-sparkle')) return
       lastTwinkle = now
       const t = now / 1000
       const wave = ['sin', ['+', ['*', t, ['coalesce', ['get', 'speed'], 1]], ['coalesce', ['get', 'phase'], 0]]]
-      map.setPaintProperty('events-sparkle', 'icon-opacity', [
+      map.setPaintProperty('flares-sparkle', 'icon-opacity', [
         '+', 0.18, ['*', 0.82, ['^', ['max', 0, wave], 2]],
       ] as never)
-      map.setPaintProperty('events-star', 'icon-opacity', ['+', 0.88, ['*', 0.12, wave]] as never)
+      map.setPaintProperty('flares-body', 'icon-opacity', ['+', 0.88, ['*', 0.12, wave]] as never)
     }
 
     let rafId: number
     const rotate = () => {
       // isEasing() 확인이 반드시 필요하다. flyTo는 곡선 궤적이라 초반에 줌이 오히려
       // 낮아지는데, 그때 자전이 setCenter를 호출하면 진행 중이던 이동이 통째로 취소된다.
-      // (별을 클릭해도 확대되지 않던 원인이 이것이었다. 타이머로 자전을 멈추는 것만으로는
+      // (플레어를 클릭해도 확대되지 않던 원인이 이것이었다. 타이머로 자전을 멈추는 것만으로는
       //  애니메이션이 타이머보다 오래 걸릴 때 막지 못한다.)
       //
       // 휠·핀치 확대 중에도 쉬어야 한다. setCenter가 진행 중인 휠 확대 애니메이션을 끊어, 축소가 1.4~1.6
@@ -971,39 +971,39 @@ export default function MapGlobe({
     })
   }, [locating, onLocateRequest])
 
-  // 이벤트 목록이 바뀔 때마다 지도 위 별 데이터 갱신
+  // 플레어 목록이 바뀔 때마다 지도 위 플레어 데이터 갱신
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    return whenSourceReady(map, EVENTS_SOURCE_ID, () => {
-      const source = map.getSource(EVENTS_SOURCE_ID) as GeoJSONSource | undefined
-      source?.setData(toEventGeoJson(events))
+    return whenSourceReady(map, FLARES_SOURCE_ID, () => {
+      const source = map.getSource(FLARES_SOURCE_ID) as GeoJSONSource | undefined
+      source?.setData(toFlareGeoJson(flares))
     })
-  }, [events])
+  }, [flares])
 
-  // 임시 별 목록 갱신 (생성 / 등록 완료 / 수명 만료로 바뀐다)
+  // 임시 플레어 목록 갱신 (생성 / 등록 완료 / 수명 만료로 바뀐다)
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
     return whenSourceReady(map, DRAFTS_SOURCE_ID, () => {
       const source = map.getSource(DRAFTS_SOURCE_ID) as GeoJSONSource | undefined
-      source?.setData(toDraftGeoJson(draftStars))
+      source?.setData(toDraftGeoJson(draftFlares))
     })
-  }, [draftStars])
+  }, [draftFlares])
 
-  // 이벤트를 선택하면 해당 좌표로 확대 이동
+  // 플레어를 선택하면 해당 좌표로 확대 이동
   useEffect(() => {
     const map = mapRef.current
-    if (!map || selectedEventId == null) return
-    const event = events.find((e) => e.id === selectedEventId)
-    if (!event) return
+    if (!map || selectedFlareId == null) return
+    const flare = flares.find((e) => e.id === selectedFlareId)
+    if (!flare) return
 
     isInteractingRef.current = true
     map.flyTo({
-      center: [event.longitude, event.latitude],
-      zoom: EVENT_FOCUS_ZOOM,
-      // 우측 상세 패널이 덮는 만큼 시야를 왼쪽으로 밀어, 선택한 별이 패널에 가려지지 않게 한다.
-      padding: { top: 0, bottom: 0, left: 0, right: EVENT_PANEL_WIDTH_PX },
+      center: [flare.longitude, flare.latitude],
+      zoom: FLARE_FOCUS_ZOOM,
+      // 우측 상세 패널이 덮는 만큼 시야를 왼쪽으로 밀어, 선택한 플레어가 패널에 가려지지 않게 한다.
+      padding: { top: 0, bottom: 0, left: 0, right: FLARE_PANEL_WIDTH_PX },
       speed: 1.2,
       curve: 1.4,
       essential: true,
@@ -1035,7 +1035,7 @@ export default function MapGlobe({
       appliedInitialFocusRef.current = true
       map.off('render', tryApply)
       // 실제 접속 위치를 알게 됐으니 '첫 화면'의 기준도 여기로 옮긴다.
-      // 위도는 극지방 접속자에게 지구본이 극만 크게 보이지 않도록 잘라 쓴다.
+      // 위도는 극지방 접속자에게 라스가 극만 크게 보이지 않도록 잘라 쓴다.
       homeCenterRef.current = [
         initialFocusLatLng.longitude,
         Math.max(-HOME_VIEW_MAX_ABS_LATITUDE, Math.min(HOME_VIEW_MAX_ABS_LATITUDE, initialFocusLatLng.latitude)),
@@ -1069,11 +1069,11 @@ export default function MapGlobe({
     }
   }, [initialFocusLatLng])
 
-  // 로고 클릭 → 첫 화면(지구본 전체)으로 복귀
+  // 로고 클릭 → 첫 화면(라스 전체)으로 복귀
   const appliedResetTokenRef = useRef(resetViewToken)
   useEffect(() => {
     const map = mapRef.current
-    // 최초 마운트 시점은 이미 지구본 전체 화면이므로 아무것도 하지 않는다.
+    // 최초 마운트 시점은 이미 라스 전체 화면이므로 아무것도 하지 않는다.
     if (!map || appliedResetTokenRef.current === resetViewToken) return
     appliedResetTokenRef.current = resetViewToken
 
@@ -1081,8 +1081,8 @@ export default function MapGlobe({
     map.flyTo({
       center: homeCenterRef.current,
       zoom: INITIAL_ZOOM,
-      // 별을 선택할 때 넣었던 우측 패널 여백이 지도에 그대로 남아 있다.
-      // 0으로 되돌리지 않으면 지구본이 화면 왼쪽으로 치우친 채 복귀한다.
+      // 플레어를 선택할 때 넣었던 우측 패널 여백이 지도에 그대로 남아 있다.
+      // 0으로 되돌리지 않으면 라스가 화면 왼쪽으로 치우친 채 복귀한다.
       padding: { top: 0, bottom: 0, left: 0, right: 0 },
       speed: 1.2,
       curve: 1.4,

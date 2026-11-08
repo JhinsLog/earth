@@ -1,17 +1,17 @@
 import { useState } from 'react'
 import { api } from '../../lib/api'
-import { EVENT_CATEGORY_LABEL, type EarthEvent, type EventCategory } from '../../types'
-import './CreateEventModal.css'
+import { FLARE_CATEGORY_LABEL, type Flare, type FlareCategory } from '../../types'
+import './CreateFlareModal.css'
 
 interface Props {
   latitude: number
   longitude: number
   onClose: () => void
-  onCreated: (event: EarthEvent) => void
+  onCreated: (flare: Flare) => void
   onDelete: () => void
 }
 
-export default function CreateEventModal({
+export default function CreateFlareModal({
   latitude,
   longitude,
   onClose,
@@ -20,20 +20,20 @@ export default function CreateEventModal({
 }: Props) {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  const [category, setCategory] = useState<EventCategory>('FIRE')
+  const [category, setCategory] = useState<FlareCategory>('FIRE')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const submit = async () => {
-    // 내용을 입력해야 별이 확정된다. 그 전까지는 본인 화면의 임시 별로만 존재한다.
+    // 내용을 입력해야 플레어가 확정된다. 그 전까지는 본인 화면의 임시 플레어로만 존재한다.
     if (!title.trim() || !content.trim()) {
-      setError('제목과 내용을 모두 입력해야 별이 만들어집니다.')
+      setError('제목과 내용을 모두 입력해야 플레어가 만들어집니다.')
       return
     }
     setSubmitting(true)
     setError(null)
     try {
-      const { data } = await api.post<EarthEvent>('/api/events', {
+      const { data } = await api.post<Flare>('/api/flares', {
         title: title.trim(),
         content: content.trim(),
         category,
@@ -48,7 +48,7 @@ export default function CreateEventModal({
       if (response?.status === 429) {
         setError(response.data?.message ?? '잠시 후 다시 시도해 주세요.')
       } else {
-        setError('이벤트 등록에 실패했습니다. 다시 시도해 주세요.')
+        setError('플레어 등록에 실패했습니다. 다시 시도해 주세요.')
       }
     } finally {
       setSubmitting(false)
@@ -63,8 +63,8 @@ export default function CreateEventModal({
           {latitude.toFixed(4)}, {longitude.toFixed(4)}
         </p>
 
-        <select value={category} onChange={(e) => setCategory(e.target.value as EventCategory)}>
-          {Object.entries(EVENT_CATEGORY_LABEL).map(([value, label]) => (
+        <select value={category} onChange={(e) => setCategory(e.target.value as FlareCategory)}>
+          {Object.entries(FLARE_CATEGORY_LABEL).map(([value, label]) => (
             <option key={value} value={value}>
               {label}
             </option>
@@ -81,7 +81,7 @@ export default function CreateEventModal({
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="내용 (필수 — 입력해야 별이 만들어집니다)"
+          placeholder="내용 (필수 — 입력해야 플레어가 만들어집니다)"
           maxLength={1000}
           rows={4}
         />
@@ -91,7 +91,7 @@ export default function CreateEventModal({
 
         <div className="create-modal__actions">
           <button className="create-modal__delete" onClick={onDelete} disabled={submitting}>
-            별 삭제
+            플레어 삭제
           </button>
           <div className="create-modal__actions-right">
             <button className="create-modal__cancel" onClick={onClose}>

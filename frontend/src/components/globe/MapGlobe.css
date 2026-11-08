@@ -121,7 +121,7 @@
 }
 
 /* 상세 패널이 열리면 그 폭만큼 왼쪽으로 비켜 가려지지 않게 한다.
-   360px은 EventDetailPanel.css의 `.event-panel { width }`와 맞춘 값이다. */
+   360px은 FlareDetailPanel.css의 `.flare-panel { width }`와 맞춘 값이다. */
 @media (min-width: 900px) {
   .home--panel-open .my-location-btn,
   .home--panel-open .my-location-note {

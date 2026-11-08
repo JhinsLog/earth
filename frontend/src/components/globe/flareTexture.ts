@@ -1,23 +1,23 @@
 /**
- * 지도 별 스프라이트. 색마다 미리 그려 둔다.
+ * 지도 플레어 스프라이트. 색마다 미리 그려 둔다.
  *
  * 예전에는 흰 십자 하나를 SDF로 올려 색만 입혔다. SDF는 한 가지 색·한 가지 모양의 외곽선만 표현해서, 빛이 번지는 정도나
  * 코어와 광선의 색 차이를 담을 수 없었다(화면에서 평평한 노란 십자로 보였다). 그래서 색마다 RGBA 이미지를 그린다.
  * 분류 색은 몇 개뿐이라 이미지도 몇 장이다.
  *
- * 두 장으로 나눈 이유: 본체(빛무리 + 코어 + 짧은 광선)는 늘 같은 밝기로 두고, 긴 광선만 따로 깜빡이게 하면 별이 꺼졌다
+ * 두 장으로 나눈 이유: 본체(빛무리 + 코어 + 짧은 광선)는 늘 같은 밝기로 두고, 긴 광선만 따로 깜빡이게 하면 플레어가 꺼졌다
  * 켜지는 게 아니라 반짝이는 것처럼 보인다(MapGlobe의 반짝임 루프).
  */
 
 /** 이미지 한 변(장치 픽셀). 화면 픽셀 기준 절반 크기로 올린다(pixelRatio 2). */
-export const STAR_SPRITE_SIZE = 192
-export const STAR_SPRITE_PIXEL_RATIO = 2
+export const FLARE_SPRITE_SIZE = 192
+export const FLARE_SPRITE_PIXEL_RATIO = 2
 
 function canvas2d(): [CanvasRenderingContext2D, number] {
   const canvas = document.createElement('canvas')
-  canvas.width = STAR_SPRITE_SIZE
-  canvas.height = STAR_SPRITE_SIZE
-  return [canvas.getContext('2d')!, STAR_SPRITE_SIZE / 2]
+  canvas.width = FLARE_SPRITE_SIZE
+  canvas.height = FLARE_SPRITE_SIZE
+  return [canvas.getContext('2d')!, FLARE_SPRITE_SIZE / 2]
 }
 
 function rgba(hex: string, alpha: number): string {
@@ -55,8 +55,8 @@ function rays(ctx: CanvasRenderingContext2D, center: number, count: number, offs
   ctx.restore()
 }
 
-/** 별 본체: 색 빛무리, 대각선 짧은 광선, 색 테두리를 두른 흰 코어. */
-export function createStarBodyImage(color: string): ImageData {
+/** 플레어 본체: 색 빛무리, 대각선 짧은 광선, 색 테두리를 두른 흰 코어. */
+export function createFlareBodyImage(color: string): ImageData {
   const [ctx, c] = canvas2d()
   ctx.globalCompositeOperation = 'lighter'
 
@@ -66,7 +66,7 @@ export function createStarBodyImage(color: string): ImageData {
   glow.addColorStop(0.6, rgba(color, 0.08))
   glow.addColorStop(1, rgba(color, 0))
   ctx.fillStyle = glow
-  ctx.fillRect(0, 0, STAR_SPRITE_SIZE, STAR_SPRITE_SIZE)
+  ctx.fillRect(0, 0, FLARE_SPRITE_SIZE, FLARE_SPRITE_SIZE)
 
   rays(ctx, c, 4, Math.PI / 4, c * 0.42, 2.2, 'rgba(255, 255, 255, 0.75)', rgba(color, 0.35))
   rays(ctx, c, 4, 0, c * 0.5, 3.2, 'rgba(255, 255, 255, 0.9)', rgba(color, 0.5))
@@ -81,11 +81,11 @@ export function createStarBodyImage(color: string): ImageData {
   ctx.arc(c, c, c * 0.17, 0, Math.PI * 2)
   ctx.fill()
 
-  return ctx.getImageData(0, 0, STAR_SPRITE_SIZE, STAR_SPRITE_SIZE)
+  return ctx.getImageData(0, 0, FLARE_SPRITE_SIZE, FLARE_SPRITE_SIZE)
 }
 
 /** 반짝임: 본체보다 긴 상하좌우 광선. 투명도를 오르내려 반짝이게 한다. */
-export function createStarSparkleImage(color: string): ImageData {
+export function createFlareSparkleImage(color: string): ImageData {
   const [ctx, c] = canvas2d()
   ctx.globalCompositeOperation = 'lighter'
   rays(ctx, c, 4, 0, c * 0.98, 2.6, 'rgba(255, 255, 255, 1)', rgba(color, 0.6))
@@ -93,6 +93,6 @@ export function createStarSparkleImage(color: string): ImageData {
   flash.addColorStop(0, 'rgba(255, 255, 255, 0.9)')
   flash.addColorStop(1, 'rgba(255, 255, 255, 0)')
   ctx.fillStyle = flash
-  ctx.fillRect(0, 0, STAR_SPRITE_SIZE, STAR_SPRITE_SIZE)
-  return ctx.getImageData(0, 0, STAR_SPRITE_SIZE, STAR_SPRITE_SIZE)
+  ctx.fillRect(0, 0, FLARE_SPRITE_SIZE, FLARE_SPRITE_SIZE)
+  return ctx.getImageData(0, 0, FLARE_SPRITE_SIZE, FLARE_SPRITE_SIZE)
 }

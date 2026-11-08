@@ -1,13 +1,13 @@
 # Earth Frontend
 
-'Earth' — 전 세계 실시간 이벤트 공유 서비스의 웹 프론트엔드 (MVP).
+'Earth' — 전 세계 실시간 플레어 공유 서비스의 웹 프론트엔드 (MVP).
 
 - React 19 + TypeScript + Vite
-- `maplibre-gl` — globe projection 기반 3D 지구본. 저줌은 NASA Blue Marble 실사 이미지,
+- `maplibre-gl` — globe projection 기반 라스. 저줌은 NASA Blue Marble 실사 이미지,
   줌인하면 Esri 위성 → Esri Dark Gray로 크로스페이드, OpenFreeMap 벡터 타일로 접속 언어에
   맞춘 국경선/지명 라벨, 실측 기반 CSS 대기광(halo), 1시간에 1바퀴 자동 자전
-- `zustand` — 인증/이벤트 상태
-- `@stomp/stompjs` + `sockjs-client` — 실시간 이벤트 피드 & 이벤트별 채팅방
+- `zustand` — 인증/플레어 상태
+- `@stomp/stompjs` + `sockjs-client` — 실시간 플레어 피드 & 플레어별 채팅방
 
 ## 실행
 
@@ -17,15 +17,15 @@ npm install
 npm run dev
 ```
 
-백엔드(`../backend`)가 `http://localhost:8080`에서 떠 있어야 로그인/이벤트 등록/채팅이 동작합니다.
+백엔드(`../backend`)가 `http://localhost:8080`에서 떠 있어야 로그인/플레어 등록/채팅이 동작합니다.
 
 ## 구조
 
 - `components/globe` — MapLibre GL 지도(`MapGlobe`), 스타일 정의(`mapStyle`), 대기광(`GlobeHalo`),
-  배경 별(`Starfield`), 이벤트 마커용 성광 텍스처(`starFlareTexture`)
-- `components/panel` — 이벤트 상세 패널, 채팅방, 이벤트 등록 모달
+  배경 별(`Starfield`), 플레어 마커용 성광 텍스처(`flareTexture`)
+- `components/panel` — 플레어 상세 패널, 채팅방, 플레어 등록 모달
 - `components/layout` — 상단 내비게이션(로그인/등록 버튼)
-- `store` — 인증 상태(zustand, localStorage 영속), 이벤트 목록 + 실시간 구독
+- `store` — 인증 상태(zustand, localStorage 영속), 플레어 목록 + 실시간 구독
 - `lib` — axios(리프레시 토큰 인터셉터), STOMP 클라이언트, 접속 위치 감지(GPS/IP),
   대권거리·구면좌표 계산, 브라우저 언어 감지
 

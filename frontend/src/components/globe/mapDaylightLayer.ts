@@ -5,17 +5,17 @@ import { useSettingsStore } from '../../store/settingsStore'
 import { MAP_CLOUDS_NONE_ZOOM, MAP_DAYLIGHT_FULL_ZOOM, MAP_DAYLIGHT_NONE_ZOOM } from './constants'
 
 /**
- * 지도(MapLibre 지구본) 위에 홈 지구본(HomeGlobe)과 같은 실제 낮·밤, 실시간 구름, 도시 불빛을 얹는 커스텀 레이어.
+ * 지도(MapLibre 라스) 위에 홈 라스(HomeGlobe)와 같은 실제 낮·밤, 실시간 구름, 도시 불빛을 얹는 커스텀 레이어.
  *
- * 지도는 위성사진 타일을 그대로 붙여 그려서 지구 전체가 대낮처럼 보였고, 홈 지구본에서 확대해 넘어오는 순간
+ * 지도는 위성사진 타일을 그대로 붙여 그려서 지구 전체가 대낮처럼 보였고, 홈 라스에서 확대해 넘어오는 순간
  * 품질 차이가 컸다. 타일 위에 이 레이어를 한 장 덮어 같은 효과를 낸다. 지도는 확대해 읽는 화면이므로
  * 지구가 작을 때만 진하게 보이고, 확대할수록 옅어진다. 낮·밤은 줌 MAP_DAYLIGHT_NONE_ZOOM에서, 구름은 위성사진이
  * 끝나는 MAP_CLOUDS_NONE_ZOOM에서 사라진다.
  *
- * 홈 지구본의 바다 햇빛 반사·가장자리 대기 산란은 옮기지 않았다. 둘 다 카메라 방향이 필요한데, MapLibre가
- * 넘겨주는 것은 투영 행렬뿐이라 별도 계산이 필요하고, 지구본 바깥 대기광은 이미 GlobeHalo가 그린다.
+ * 홈 라스의 바다 햇빛 반사·가장자리 대기 산란은 옮기지 않았다. 둘 다 카메라 방향이 필요한데, MapLibre가
+ * 넘겨주는 것은 투영 행렬뿐이라 별도 계산이 필요하고, 라스 바깥 대기광은 이미 GlobeHalo가 그린다.
  *
- * 홈 지구본은 선형 공간에서 조명하지만 MapLibre는 감마 공간(sRGB 값 그대로)으로 합성한다. 그래서 밝기 배율을
+ * 홈 라스는 선형 공간에서 조명하지만 MapLibre는 감마 공간(sRGB 값 그대로)으로 합성한다. 그래서 밝기 배율을
  * 감마로 바꿔(pow 1/2.2) 같은 명암이 나오게 한다.
  */
 
@@ -24,7 +24,7 @@ const GRID_STEP_DEG = 2
 // 극점에서는 메르카토르 y가 무한대라 바로 앞에서 멈춘다. 0.1°면 화면에서 구별되지 않는다.
 const MAX_LATITUDE = 89.9
 const LIVE_CLOUDS_REFRESH_MS = 10 * 60 * 1000
-// 우클릭 달빛 비춰 보기. 홈 지구본(HomeGlobe)의 FLASHLIGHT_* 와 같은 값이다.
+// 우클릭 달빛 비춰 보기. 홈 라스(HomeGlobe)의 FLASHLIGHT_* 와 같은 값이다.
 const FLASHLIGHT_RADIUS_RAD = 0.26
 const FLASHLIGHT_FADE_IN_SEC = 0.15
 const FLASHLIGHT_FADE_OUT_SEC = 1.0
@@ -86,12 +86,12 @@ void main() {
   float cloudLight = mix(0.8, light, u_strength);
 
   // 아래 지도에 곱할 밝기: 태양 고도에 따른 명암 × 구름 그림자 × 구름에 가려진 만큼.
-  // 밤 쪽 바닥값은 화면으로 맞췄다. 홈 지구본은 톤 매핑(ACES)이 어두운 값을 더 눌러 밤이 거의 검은데,
+  // 밤 쪽 바닥값은 화면으로 맞췄다. 홈 라스는 톤 매핑(ACES)이 어두운 값을 더 눌러 밤이 거의 검은데,
   // 같은 식(0.01)을 감마로만 바꾸면 0.12가 되어 지도의 밤이 남색으로 떠 보였다.
   float shade = mix(1.0, max(toGamma(vec3(light * 1.7)).r, 0.05) * (1.0 - cloud * 0.4 * light), u_strength);
   float keep = shade * (1.0 - cloud);
   // 달빛: 비추는 자리의 밤 어두움을 절반쯤 걷어 아래 위성사진을 드러내고 푸른 은빛을 얹는다. 구름은 그대로 덮는다.
-  // 아래 지도 색을 읽을 수 없어 홈 지구본처럼 색을 빼지는 못하고, 덜 걷고 푸른빛을 더해 비슷하게 맞춘다.
+  // 아래 지도 색을 읽을 수 없어 홈 라스처럼 색을 빼지는 못하고, 덜 걷고 푸른빛을 더해 비슷하게 맞춘다.
   float flashCos = cos(${FLASHLIGHT_RADIUS_RAD.toFixed(2)});
   float spot = smoothstep(flashCos, mix(flashCos, 1.0, 0.9), dot(n, u_flash)) * u_flash_strength * (1.0 - dayMix);
   keep = mix(keep, 0.55 * (1.0 - cloud), spot);
@@ -299,7 +299,7 @@ export function createDaylightLayer(id: string): DaylightLayer {
       staticClouds = createTexture(gl)
       liveClouds = createTexture(gl)
       nightLights = createTexture(gl)
-      // 지도에서는 2K로 충분하다. 저줌에서만 보이고, 홈 지구본이 같은 파일을 이미 받아 두어 캐시에서 나온다.
+      // 지도에서는 2K로 충분하다. 저줌에서만 보이고, 홈 라스가 같은 파일을 이미 받아 두어 캐시에서 나온다.
       void loadInto('/textures/clouds_2048.jpg', (texture) => {
         gl!.deleteTexture(staticClouds)
         staticClouds = texture
@@ -328,7 +328,7 @@ export function createDaylightLayer(id: string): DaylightLayer {
       const zoom = map.getZoom()
       const strength = fade(zoom, MAP_DAYLIGHT_FULL_ZOOM, MAP_DAYLIGHT_NONE_ZOOM)
       const cloudStrength = fade(zoom, MAP_DAYLIGHT_NONE_ZOOM, MAP_CLOUDS_NONE_ZOOM)
-      // 지구본에서 평면 지도로 바뀌는 높은 줌에서는 어차피 세기가 0이다.
+      // 라스에서 평면 지도로 바뀌는 높은 줌에서는 어차피 세기가 0이다.
       if (cloudStrength <= 0 || options.defaultProjectionData.projectionTransition < 0.999) return
       const c = context as WebGL2RenderingContext
       const { program, uniforms } = programFor(options.shaderData)

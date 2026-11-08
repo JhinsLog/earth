@@ -16,10 +16,10 @@ export interface LocatedPoint extends GeoPoint {
  * 표준시 오프셋만으로 접속 지역의 대략적인 경도를 즉시 구한다.
  *
  * <p>네트워크도 권한도 필요 없어 첫 프레임부터 쓸 수 있다는 것이 핵심이다.
- * IP/GPS 조회는 아무리 빨라도 수백 ms가 걸리는데, 그동안 지구본이 엉뚱한 대륙을
+ * IP/GPS 조회는 아무리 빨라도 수백 ms가 걸리는데, 그동안 라스가 엉뚱한 대륙을
  * 보고 있으면 "기본 화면이 항상 아프리카"처럼 느껴진다.
  * 지구는 1시간에 15도씩 돌므로 UTC+9(한국)이면 135도E — 실제 127도E와 가깝고,
- * 줌 1.5의 지구본 화면에서는 대륙을 맞히는 데 충분한 정확도다.
+ * 줌 1.5의 라스 화면에서는 대륙을 맞히는 데 충분한 정확도다.
  */
 export function approximateLongitudeFromTimezone(): number {
   const offsetMinutes = -new Date().getTimezoneOffset()

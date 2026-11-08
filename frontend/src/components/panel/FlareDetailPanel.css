@@ -1,4 +1,4 @@
-.event-panel {
+.flare-panel {
   position: absolute;
   top: 0;
   right: 0;
@@ -16,7 +16,7 @@
   box-shadow: -20px 0 40px rgba(0, 0, 0, 0.35);
 }
 
-.event-panel__close {
+.flare-panel__close {
   position: absolute;
   top: 20px;
   right: 18px;
@@ -28,7 +28,7 @@
   line-height: 1;
 }
 
-.event-panel__category {
+.flare-panel__category {
   display: inline-block;
   align-self: flex-start;
   font-size: 11px;
@@ -40,19 +40,19 @@
   margin-bottom: 10px;
 }
 
-.event-panel__title {
+.flare-panel__title {
   font-size: 20px;
   margin: 0 0 6px;
 }
 
-.event-panel__meta {
+.flare-panel__meta {
   font-size: 12px;
   color: #7c8aa0;
   margin: 0 0 14px;
 }
 
-/* 생성 주체 배지. 사람이 남긴 별과 공공데이터 별을 한눈에 가른다. */
-.event-panel__origin {
+/* 생성 주체 배지. 사람이 남긴 플레어와 공공데이터 플레어를 한눈에 가른다. */
+.flare-panel__origin {
   display: inline-block;
   padding: 1px 6px;
   margin-right: 2px;
@@ -62,20 +62,20 @@
   color: #a9b6c9;
 }
 
-.event-panel__origin--api {
+.flare-panel__origin--api {
   background: rgba(77, 163, 255, 0.18);
   color: #8cc4ff;
 }
 
-.event-panel__content {
+.flare-panel__content {
   font-size: 14px;
   line-height: 1.6;
   color: #dbe4f0;
   white-space: pre-wrap;
 }
 
-/* 별의 남은 수명. TTL이 지나면 지구본에서 사라진다. */
-.event-panel__expiry {
+/* 플레어의 남은 수명. TTL이 지나면 라스에서 사라진다. */
+.flare-panel__expiry {
   margin: 10px 0 12px;
   font-size: 12px;
   color: #9db4d4;
@@ -83,11 +83,11 @@
 }
 
 /* 공감 — 같은 사건을 본 사람이 신뢰도를 올린다. */
-.event-panel__confirm {
+.flare-panel__confirm {
   margin: 0 0 14px;
 }
 
-.event-panel__confirm-btn {
+.flare-panel__confirm-btn {
   width: 100%;
   padding: 9px 12px;
   border: 1px solid rgba(150, 190, 240, 0.35);
@@ -99,23 +99,23 @@
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.event-panel__confirm-btn:hover:not(:disabled) {
+.flare-panel__confirm-btn:hover:not(:disabled) {
   background: rgba(45, 85, 135, 0.75);
   border-color: rgba(180, 215, 255, 0.6);
 }
 
-.event-panel__confirm-btn.is-on {
+.flare-panel__confirm-btn.is-on {
   background: rgba(40, 105, 90, 0.6);
   border-color: rgba(120, 230, 190, 0.5);
   color: #c8f5e4;
 }
 
-.event-panel__confirm-btn:disabled {
+.flare-panel__confirm-btn:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-.event-panel__confirm-note {
+.flare-panel__confirm-note {
   margin: 6px 0 0;
   font-size: 11px;
   line-height: 1.5;

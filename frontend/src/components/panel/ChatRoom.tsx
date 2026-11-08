@@ -6,10 +6,10 @@ import type { ChatMessage } from '../../types'
 import './ChatRoom.css'
 
 interface Props {
-  eventId: number
+  flareId: number
 }
 
-export default function ChatRoom({ eventId }: Props) {
+export default function ChatRoom({ flareId }: Props) {
   const user = useAuthStore((s) => s.user)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState('')
@@ -33,7 +33,7 @@ export default function ChatRoom({ eventId }: Props) {
     }
 
     api
-      .get<ChatMessage[]>(`/api/events/${eventId}/chat`)
+      .get<ChatMessage[]>(`/api/flares/${flareId}/chat`)
       .then(({ data }) => {
         if (!cancelled) setMessages(data)
       })
@@ -42,7 +42,7 @@ export default function ChatRoom({ eventId }: Props) {
       })
 
     track(
-      subscribeTopic(`/topic/chat.${eventId}`, (msg) => {
+      subscribeTopic(`/topic/chat.${flareId}`, (msg) => {
         const chatMessage = JSON.parse(msg.body) as ChatMessage
         // 재연결 등으로 같은 메시지가 두 번 올 수 있어 id로 걸러낸다.
         setMessages((prev) => (prev.some((m) => m.id === chatMessage.id) ? prev : [...prev, chatMessage]))
@@ -62,7 +62,7 @@ export default function ChatRoom({ eventId }: Props) {
       cancelled = true
       unsubscribers.forEach((unsubscribe) => unsubscribe())
     }
-  }, [eventId])
+  }, [flareId])
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight })
@@ -74,7 +74,7 @@ export default function ChatRoom({ eventId }: Props) {
     setError(null)
     setSending(true)
     try {
-      await publish(`/app/chat.${eventId}.send`, { content })
+      await publish(`/app/chat.${flareId}.send`, { content })
       // 보낸 메시지는 서버를 한 바퀴 돌아 /topic으로 되돌아올 때 목록에 나타난다.
       // 화면에 떴다는 것 자체가 실제로 저장·전파됐다는 뜻이다.
       setDraft('')

@@ -13,13 +13,13 @@ import type { GeoPoint } from '../../lib/geolocate'
 import { API_BASE_URL } from '../../lib/api'
 import { subsolarPoint } from '../../lib/sun'
 import { useSettingsStore } from '../../store/settingsStore'
-import { EVENT_CATEGORY_COLOR, RESTRICTED_STAR_COLOR, type EarthEvent } from '../../types'
+import { FLARE_CATEGORY_COLOR, RESTRICTED_FLARE_COLOR, type Flare } from '../../types'
 import './GlobeHalo.css'
 import './HomeGlobe.css'
 import { MOON_CURSOR } from './moonCursor'
 
 interface Props {
-  events: EarthEvent[]
+  flares: Flare[]
   /** 처음 화면 정면에 둘 지점. 접속 지역의 대륙이 보이도록 HomePage가 정한다. */
   center: GeoPoint
   /** 충분히 확대했을 때. 지도가 같은 위치·같은 크기로 이어받도록 화면 중앙의 위경도와 지구 반지름(px)을 넘긴다. */
@@ -28,7 +28,7 @@ interface Props {
   initialView?: HandoffView | null
 }
 
-/** 홈 지구본 → 지도로 넘길 때의 화면 상태. */
+/** 홈 라스 → 지도로 넘길 때의 화면 상태. */
 export interface HandoffView {
   center: GeoPoint
   /** 화면에 보이는 지구 원판의 반지름(CSS px). */
@@ -36,8 +36,8 @@ export interface HandoffView {
 }
 
 const EARTH_RADIUS = 1
-// 별을 지표면에 딱 붙이면 지구와 깊이가 같아 깜빡이며 가려진다(z-fighting). 살짝 띄운다.
-const STAR_RADIUS = 1.012
+// 플레어를 지표면에 딱 붙이면 지구와 깊이가 같아 깜빡이며 가려진다(z-fighting). 살짝 띄운다.
+const FLARE_RADIUS = 1.012
 const MAX_TILT_RAD = (60 * Math.PI) / 180
 const FOV_DEG = 30
 const CREDIT_COLLAPSE_MS = 5000
@@ -112,7 +112,7 @@ const CLOUD_DENSITY = /* glsl */ `
  * 위경도 → 지구 로컬 좌표.
  *
  * three의 SphereGeometry는 u=0을 -X축에 두고 Y축을 따라 돌며 감는다. 등장방형 텍스처는 u=0이 경도 -180°이므로
- * 경도 0°는 +X, 경도 90°는 -Z가 된다. 이 대응이 어긋나면 별이 엉뚱한 대륙에 찍힌다.
+ * 경도 0°는 +X, 경도 90°는 -Z가 된다. 이 대응이 어긋나면 플레어가 엉뚱한 대륙에 찍힌다.
  */
 function toVector(latitude: number, longitude: number, radius: number): THREE.Vector3 {
   const lat = THREE.MathUtils.degToRad(latitude)
@@ -150,10 +150,10 @@ const EARTH_VERTEX = /* glsl */ `
   }
 `
 
-// 태양은 실제 시각의 태양 직하점 방향이다(lib/sun.ts). 지구본의 자전은 '보는 위치가 도는 것'이라 태양도
+// 태양은 실제 시각의 태양 직하점 방향이다(lib/sun.ts). 라스의 자전은 '보는 위치가 도는 것'이라 태양도
 // 지구와 함께 돈다. 그래서 어느 쪽을 보든 지금 실제로 낮인 곳이 밝고 밤인 곳이 어둡다.
 //
-// 밤 지역의 도시 불빛은 별(이벤트)과 겹쳐 구분이 어려워 기본은 끄고, 설정에서 켤 수 있다(cityLights 0~1).
+// 밤 지역의 도시 불빛은 플레어와 겹쳐 구분이 어려워 기본은 끄고, 설정에서 켤 수 있다(cityLights 0~1).
 // 꺼져 있어도 대륙 윤곽은 보이도록 밤 지역에 아주 옅은 푸른빛을 남긴다.
 //
 // 텍스처는 sRGB로 읽어 선형 공간에서 조명하고, 마지막에 톤 매핑과 sRGB 변환을 거친다. 감마 공간에서
@@ -265,7 +265,7 @@ const ATMOSPHERE_FRAGMENT = /* glsl */ `
   }
 `
 
-const STAR_VERTEX = /* glsl */ `
+const FLARE_VERTEX = /* glsl */ `
   attribute vec3 color;
   attribute float phase;
   attribute float scale;
@@ -277,22 +277,22 @@ const STAR_VERTEX = /* glsl */ `
   varying float vFlash;
   void main() {
     vColor = color;
-    // 별마다 위상과 속도를 달리해 동시에 깜빡이지 않게 한다. 지도 별(MapGlobe updateTwinkle)과 같은 모양의 파동:
+    // 플레어마다 위상과 속도를 달리해 동시에 깜빡이지 않게 한다. 지도 플레어(MapGlobe updateTwinkle)와 같은 모양의 파동:
     // 양수 쪽만 제곱해 짧게 번쩍이고 대부분은 은은하다.
     vWave = sin(time * (1.1 + phase * 1.4) + phase * 6.2831);
     vFlash = pow(max(vWave, 0.0), 2.0);
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     // 정면(카메라에서 가장 가까운 지표) 기준 26px. 긴 광선이 이 칸 끝까지 뻗는다. 가장자리로 갈수록 멀어져 조금 작아진다.
-    // 거리로만 나누면 카메라가 멀어 별이 5px 남짓이 되어 밝은 낮 지역에서 보이지 않았다.
-    // 44px였을 때는 서울의 별 수십 개가 첫 화면 배율에서 한 점에 겹치고, 더하기 합성이라 거대한 빛덩이 하나로 보였다.
+    // 거리로만 나누면 카메라가 멀어 플레어가 5px 남짓이 되어 밝은 낮 지역에서 보이지 않았다.
+    // 44px였을 때는 서울의 플레어 수십 개가 첫 화면 배율에서 한 점에 겹치고, 더하기 합성이라 거대한 빛덩이 하나로 보였다.
     gl_PointSize = scale * 26.0 * pixelRatio * frontDistance / -mv.z;
     gl_Position = projectionMatrix * mv;
   }
 `
 
-// 지도 별(starFlareTexture)과 같은 구성: 색 빛무리, 대각선 짧은 광선, 색 테두리를 두른 흰 코어, 반짝이는 상하좌우 긴 광선.
+// 지도 플레어(flareTexture)와 같은 구성: 색 빛무리, 대각선 짧은 광선, 색 테두리를 두른 흰 코어, 반짝이는 상하좌우 긴 광선.
 // 광선은 가운데가 굵고 끝으로 갈수록 가늘어지며 사라진다(거리에 비례해 폭을 좁힌다).
-const STAR_FRAGMENT = /* glsl */ `
+const FLARE_FRAGMENT = /* glsl */ `
   varying vec3 vColor;
   varying float vWave;
   varying float vFlash;
@@ -330,7 +330,7 @@ function cloudCredit(observedAt: string, sources: string[]): string {
   return `${time} ${names.join(' · ')}${meteosat ? `, contains modified EUMETSAT Meteosat data ${date.getUTCFullYear()}` : ''}`
 }
 
-export default function HomeGlobe({ events, center, onZoomEnter, initialView = null }: Props) {
+export default function HomeGlobe({ flares, center, onZoomEnter, initialView = null }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const haloRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
@@ -350,11 +350,11 @@ export default function HomeGlobe({ events, center, onZoomEnter, initialView = n
   useEffect(() => {
     onZoomEnterRef.current = onZoomEnter
   }, [onZoomEnter])
-  // 장면은 한 번만 만들고, 별 데이터만 바뀔 때마다 갈아 끼운다.
-  const starsRef = useRef<{ geometry: THREE.BufferGeometry; points: THREE.Points } | null>(null)
+  // 장면은 한 번만 만들고, 플레어 데이터만 바뀔 때마다 갈아 끼운다.
+  const flarePointsRef = useRef<{ geometry: THREE.BufferGeometry; points: THREE.Points } | null>(null)
   const initialCenterRef = useRef(initialView?.center ?? center)
   const initialViewRef = useRef(initialView)
-  // 접속 위치는 지구본이 뜬 뒤에 도착한다(IP 조회 약 0.5초). 처음에는 표준시로 짐작한 경도를 보다가, 위치가 오면
+  // 접속 위치는 라스가 뜬 뒤에 도착한다(IP 조회 약 0.5초). 처음에는 표준시로 짐작한 경도를 보다가, 위치가 오면
   // 렌더 루프가 그쪽으로 돌린다. 지도에서 돌아온 경우는 지도가 보던 자리를 지키고, 사용자가 먼저 만지면 그만둔다.
   const focusTargetRef = useRef<GeoPoint | null>(null)
   useEffect(() => {
@@ -481,21 +481,21 @@ export default function HomeGlobe({ events, center, onZoomEnter, initialView = n
     })
     scene.add(new THREE.Mesh(atmosphereGeometry, atmosphereMaterial))
 
-    const starMaterial = new THREE.ShaderMaterial({
+    const flareMaterial = new THREE.ShaderMaterial({
       uniforms: { time: { value: 0 }, pixelRatio: { value: pixelRatio }, frontDistance: { value: 1 } },
-      vertexShader: STAR_VERTEX,
-      fragmentShader: STAR_FRAGMENT,
+      vertexShader: FLARE_VERTEX,
+      fragmentShader: FLARE_FRAGMENT,
       transparent: true,
       blending: THREE.AdditiveBlending,
-      // 깊이는 검사하되 쓰지 않는다. 지구 뒤편 별은 가려지고, 별끼리는 서로 가리지 않는다.
+      // 깊이는 검사하되 쓰지 않는다. 지구 뒤편 플레어는 가려지고, 플레어끼리는 서로 가리지 않는다.
       depthTest: true,
       depthWrite: false,
     })
-    const starGeometry = new THREE.BufferGeometry()
-    const stars = new THREE.Points(starGeometry, starMaterial)
-    stars.renderOrder = 1
-    spin.add(stars)
-    starsRef.current = { geometry: starGeometry, points: stars }
+    const flareGeometry = new THREE.BufferGeometry()
+    const flarePoints = new THREE.Points(flareGeometry, flareMaterial)
+    flarePoints.renderOrder = 1
+    spin.add(flarePoints)
+    flarePointsRef.current = { geometry: flareGeometry, points: flarePoints }
 
     // 확대 배율. 1이 처음 크기이고 HOME_GLOBE_ENTER_ZOOM에 닿으면 지도로 넘어간다.
     // 입력은 목표값만 바꾸고 화면은 매 프레임 그쪽으로 다가가 부드럽게 확대된다.
@@ -518,7 +518,7 @@ export default function HomeGlobe({ events, center, onZoomEnter, initialView = n
       const t = globeTan(zoom)
       // 각반지름 α에서 sin α = 1/거리, tan α = t → 거리 = sqrt(1 + 1/t²)
       camera.position.set(0, 0, Math.sqrt(1 + 1 / (t * t)))
-      starMaterial.uniforms.frontDistance.value = camera.position.z - STAR_RADIUS
+      flareMaterial.uniforms.frontDistance.value = camera.position.z - FLARE_RADIUS
       camera.lookAt(0, 0, 0)
       camera.updateProjectionMatrix()
       // 지구 바깥 광채(GlobeHalo.css). 지도 화면과 같은 것을 같은 크기 규칙으로 둘러, 확대해 넘어갈 때 이어진다.
@@ -765,7 +765,7 @@ export default function HomeGlobe({ events, center, onZoomEnter, initialView = n
       if (cloudUniforms.liveClouds.value === 0) clouds.rotation.y += CLOUD_DRIFT_RAD_PER_SEC * dt
       // 구름 구를 a만큼 돌리면 텍스처의 u가 a/2π만큼 밀린다. 그림자도 같은 만큼 밀어 읽는다.
       earthMaterial.uniforms.cloudOffset.value = clouds.rotation.y / (2 * Math.PI)
-      starMaterial.uniforms.time.value = timer.getElapsed()
+      flareMaterial.uniforms.time.value = timer.getElapsed()
       renderer.render(scene, camera)
       rafId = requestAnimationFrame(animate)
     }
@@ -786,10 +786,10 @@ export default function HomeGlobe({ events, center, onZoomEnter, initialView = n
       canvas.removeEventListener('pointerup', onPointerUp)
       canvas.removeEventListener('pointercancel', onPointerUp)
       canvas.removeEventListener('contextmenu', onContextMenu)
-      starsRef.current = null
+      flarePointsRef.current = null
       for (const disposable of [
         earthGeometry, earthMaterial, cloudGeometry, cloudMaterial, atmosphereGeometry, atmosphereMaterial,
-        starGeometry, starMaterial, dayMap, nightMap, cloudMap, waterMap,
+        flareGeometry, flareMaterial, dayMap, nightMap, cloudMap, waterMap,
       ]) {
         disposable.dispose()
       }
@@ -800,31 +800,31 @@ export default function HomeGlobe({ events, center, onZoomEnter, initialView = n
     }
   }, [])
 
-  // 실시간으로 별이 생기고 사라지면 위치 버퍼만 다시 만든다.
+  // 실시간으로 플레어가 생기고 사라지면 위치 버퍼만 다시 만든다.
   useEffect(() => {
-    const stars = starsRef.current
-    if (!stars) return
-    const positions = new Float32Array(events.length * 3)
-    const colors = new Float32Array(events.length * 3)
-    const phases = new Float32Array(events.length)
-    const scales = new Float32Array(events.length)
+    const layer = flarePointsRef.current
+    if (!layer) return
+    const positions = new Float32Array(flares.length * 3)
+    const colors = new Float32Array(flares.length * 3)
+    const phases = new Float32Array(flares.length)
+    const scales = new Float32Array(flares.length)
     const color = new THREE.Color()
-    events.forEach((event, i) => {
-      toVector(event.latitude, event.longitude, STAR_RADIUS).toArray(positions, i * 3)
-      // 위치만 아는 별(비로그인, 다른 나라)은 분류를 모르므로 중립색.
-      color.set(event.restricted ? RESTRICTED_STAR_COLOR : EVENT_CATEGORY_COLOR[event.category]).toArray(colors, i * 3)
-      // id에서 위상을 뽑아 다시 그려도 같은 별이 같은 박자로 깜빡이게 한다.
-      phases[i] = ((event.id * 0.618034) % 1 + 1) % 1
-      // 공감이 많을수록 조금 더 크게. 상한을 둬 한 별이 화면을 덮지 않게 한다.
-      scales[i] = event.restricted ? 1 : 1 + Math.min(event.confirmCount, 10) * 0.08
+    flares.forEach((flare, i) => {
+      toVector(flare.latitude, flare.longitude, FLARE_RADIUS).toArray(positions, i * 3)
+      // 위치만 아는 플레어(비로그인, 다른 나라)는 분류를 모르므로 중립색.
+      color.set(flare.restricted ? RESTRICTED_FLARE_COLOR : FLARE_CATEGORY_COLOR[flare.category]).toArray(colors, i * 3)
+      // id에서 위상을 뽑아 다시 그려도 같은 플레어가 같은 박자로 깜빡이게 한다.
+      phases[i] = ((flare.id * 0.618034) % 1 + 1) % 1
+      // 공감이 많을수록 조금 더 크게. 상한을 둬 한 플레어가 화면을 덮지 않게 한다.
+      scales[i] = flare.restricted ? 1 : 1 + Math.min(flare.confirmCount, 10) * 0.08
     })
-    const geometry = stars.geometry
+    const geometry = layer.geometry
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
     geometry.setAttribute('phase', new THREE.BufferAttribute(phases, 1))
     geometry.setAttribute('scale', new THREE.BufferAttribute(scales, 1))
     geometry.computeBoundingSphere()
-  }, [events])
+  }, [flares])
 
   return (
     <div

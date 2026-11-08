@@ -3,11 +3,11 @@ import type { ExpressionSpecification, StyleSpecification } from 'maplibre-gl'
 /**
  * API 키가 필요 없는 무료 소스만으로 구성한 통합 스타일.
  *
- * - 최저 줌(우주에서 보는 지구본): NASA GIBS의 Blue Marble Next Generation
- *   실사 이미지를 그대로 사용 — 대륙 전체가 선명하게 보이는 "지구본" 퀄리티를 위함.
+ * - 최저 줌(우주에서 보는 라스): NASA GIBS의 Blue Marble Next Generation
+ *   실사 이미지를 그대로 사용 — 대륙 전체가 선명하게 보이는 "라스" 퀄리티를 위함.
  * - 줌 3~7: NASA 이미지 → Esri 위성 이미지로 크로스페이드 (더 높은 해상도로 자연스럽게 전환).
  * - 줌 8~10.5: Esri 위성 → Esri Dark Gray Canvas로 크로스페이드 — 확대할수록 배경이
- *   어두워져 이벤트(별) 마커가 도드라지게 하기 위함. 라벨이 없는 Base 레이어를 써서
+ *   어두워져 플레어 마커가 도드라지게 하기 위함. 라벨이 없는 Base 레이어를 써서
  *   아래 벡터 라벨과 중복되지 않게 한다.
  *   (원래 CARTO Dark Matter를 썼으나 CARTO가 무인증 사용을 막으면서 타일에
  *    "API KEY REQUIRED" 워터마크가 찍혀 나와 키가 필요 없는 Esri로 교체했다.)
@@ -135,14 +135,14 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
     },
     layers: [
       // 타일이 아직 로딩되지 않은 영역이 우주(검정)로 비쳐 보이는 것을 막는다.
-      // 지구본 표면 전체를 덮는 바닥색이므로 반드시 첫 번째 레이어여야 한다.
+      // 라스 표면 전체를 덮는 바닥색이므로 반드시 첫 번째 레이어여야 한다.
       {
         id: 'globe-background',
         type: 'background',
         paint: { 'background-color': '#0a2038' },
       },
       {
-        // 저줌에서는 실사 지구본 그 자체이고, 고줌에서는 Esri 타일이 아직 도착하지 않은
+        // 저줌에서는 실사 라스 그 자체이고, 고줌에서는 Esri 타일이 아직 도착하지 않은
         // 자리를 메우는 backfill 역할을 한다. 예전에는 줌 4.5에서 꺼버렸는데, 그러면
         // Esri 타일이 비는 순간 배경색이 그대로 드러나 사각형 경계가 보였다.
         //
@@ -187,7 +187,7 @@ export function createEarthMapStyle(labelLanguage: string): StyleSpecification {
           // 소스가 준비되면 MapGlobe가 이 램프를 되돌려 준다. 급격히 튀지 않도록 전환을 준다.
           'raster-opacity': 0,
           'raster-opacity-transition': { duration: 400, delay: 0 },
-          // Esri Dark Gray는 중간 회색이라 그대로 쓰면 별빛이 묻힌다.
+          // Esri Dark Gray는 중간 회색이라 그대로 쓰면 플레어 빛이 묻힌다.
           // 밝기 상한을 눌러 밤하늘에 가깝게 만든다.
           'raster-brightness-max': 0.4,
         },

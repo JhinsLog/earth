@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { useAuthStore } from '../../store/authStore'
-import { EVENT_CATEGORY_LABEL, EVENT_ORIGIN_LABEL, type DetailedEvent } from '../../types'
+import { FLARE_CATEGORY_LABEL, FLARE_ORIGIN_LABEL, type DetailedFlare } from '../../types'
 import ChatRoom from './ChatRoom'
-import './EventDetailPanel.css'
+import './FlareDetailPanel.css'
 
 interface Props {
-  /** 상세를 받은 별만 연다. 위치만 아는 별은 HomePage가 여기까지 보내지 않는다. */
-  event: DetailedEvent
+  /** 상세를 받은 플레어만 연다. 위치만 아는 플레어는 HomePage가 여기까지 보내지 않는다. */
+  flare: DetailedFlare
   onClose: () => void
-  onConfirmed: (event: DetailedEvent) => void
+  onConfirmed: (flare: DetailedFlare) => void
 }
 
 /**
@@ -40,19 +40,19 @@ function formatRemaining(expiresAt: string, now: number): string | null {
   return minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`
 }
 
-export default function EventDetailPanel({ event, onClose, onConfirmed }: Props) {
+export default function FlareDetailPanel({ flare, onClose, onConfirmed }: Props) {
   const user = useAuthStore((s) => s.user)
   const [confirming, setConfirming] = useState(false)
   const [confirmError, setConfirmError] = useState<string | null>(null)
 
-  const isAuthor = user != null && user.id === event.authorId
+  const isAuthor = user != null && user.id === flare.authorId
   const toggleConfirm = async () => {
     setConfirming(true)
     setConfirmError(null)
     try {
-      const { data } = event.confirmedByMe
-        ? await api.delete<DetailedEvent>(`/api/events/${event.id}/confirm`)
-        : await api.post<DetailedEvent>(`/api/events/${event.id}/confirm`)
+      const { data } = flare.confirmedByMe
+        ? await api.delete<DetailedFlare>(`/api/flares/${flare.id}/confirm`)
+        : await api.post<DetailedFlare>(`/api/flares/${flare.id}/confirm`)
       onConfirmed(data)
     } catch {
       setConfirmError('처리에 실패했습니다. 다시 시도해 주세요.')
@@ -61,7 +61,7 @@ export default function EventDetailPanel({ event, onClose, onConfirmed }: Props)
     }
   }
 
-  // 별은 수명이 다하면 예고 없이 지구본에서 사라진다. 남은 시간을 보여줘야
+  // 플레어는 수명이 다하면 예고 없이 라스에서 사라진다. 남은 시간을 보여줘야
   // 사라진 것이 오류가 아니라 정책이라는 걸 알 수 있다.
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -69,43 +69,43 @@ export default function EventDetailPanel({ event, onClose, onConfirmed }: Props)
     return () => window.clearInterval(id)
   }, [])
 
-  const remaining = formatRemaining(event.expiresAt, now)
+  const remaining = formatRemaining(flare.expiresAt, now)
 
   return (
-    <aside className="event-panel">
-      <button className="event-panel__close" onClick={onClose}>
+    <aside className="flare-panel">
+      <button className="flare-panel__close" onClick={onClose}>
         ×
       </button>
 
-      <span className="event-panel__category">{EVENT_CATEGORY_LABEL[event.category]}</span>
-      <h2 className="event-panel__title">{event.title}</h2>
-      <p className="event-panel__meta">
-        <span className={`event-panel__origin event-panel__origin--${event.origin.toLowerCase()}`}>
-          {EVENT_ORIGIN_LABEL[event.origin]}
+      <span className="flare-panel__category">{FLARE_CATEGORY_LABEL[flare.category]}</span>
+      <h2 className="flare-panel__title">{flare.title}</h2>
+      <p className="flare-panel__meta">
+        <span className={`flare-panel__origin flare-panel__origin--${flare.origin.toLowerCase()}`}>
+          {FLARE_ORIGIN_LABEL[flare.origin]}
         </span>{' '}
-        {event.authorNickname} · {formatCreatedAt(event.createdAt)}
+        {flare.authorNickname} · {formatCreatedAt(flare.createdAt)}
       </p>
-      {event.content && <p className="event-panel__content">{event.content}</p>}
+      {flare.content && <p className="flare-panel__content">{flare.content}</p>}
 
-      <p className="event-panel__expiry">
+      <p className="flare-panel__expiry">
         {remaining ? `${remaining} 후 사라집니다` : '곧 사라집니다'}
-        {event.confirmCount > 0 && ` · 공감 ${event.confirmCount}`}
+        {flare.confirmCount > 0 && ` · 공감 ${flare.confirmCount}`}
       </p>
 
       {user && !isAuthor && (
-        <div className="event-panel__confirm">
+        <div className="flare-panel__confirm">
           <button
-            className={`event-panel__confirm-btn${event.confirmedByMe ? ' is-on' : ''}`}
+            className={`flare-panel__confirm-btn${flare.confirmedByMe ? ' is-on' : ''}`}
             onClick={toggleConfirm}
             disabled={confirming}
           >
-            {event.confirmedByMe ? '✓ 나도 봤어요' : '나도 봤어요'}
+            {flare.confirmedByMe ? '✓ 나도 봤어요' : '나도 봤어요'}
           </button>
-          {confirmError && <p className="event-panel__confirm-note">{confirmError}</p>}
+          {confirmError && <p className="flare-panel__confirm-note">{confirmError}</p>}
         </div>
       )}
 
-      <ChatRoom eventId={event.id} />
+      <ChatRoom flareId={flare.id} />
     </aside>
   )
 }

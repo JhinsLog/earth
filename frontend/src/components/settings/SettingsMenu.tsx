@@ -4,7 +4,7 @@ import './SettingsMenu.css'
 
 /** 화면 표시 설정. 브라우저에만 기억한다. */
 export default function SettingsMenu() {
-  const { cityLights, setCityLights, publicStars, setPublicStars } = useSettingsStore()
+  const { cityLights, setCityLights, publicFlares, setPublicFlares } = useSettingsStore()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -47,7 +47,7 @@ export default function SettingsMenu() {
           <label className="settings__row">
             <span className="settings__label">
               도시 불빛
-              <span className="settings__desc">첫 화면 지구본의 밤 지역에 도시 위치를 불빛으로 표시합니다</span>
+              <span className="settings__desc">첫 화면 라스의 밤 지역에 도시 위치를 불빛으로 표시합니다</span>
             </span>
             <input
               type="checkbox"
@@ -59,15 +59,15 @@ export default function SettingsMenu() {
           </label>
           <label className="settings__row">
             <span className="settings__label">
-              공공데이터 별
-              <span className="settings__desc">교통 돌발정보처럼 공공데이터로 자동으로 만든 별을 표시합니다</span>
+              공공데이터 플레어
+              <span className="settings__desc">교통 돌발정보처럼 공공데이터로 자동으로 만든 플레어를 표시합니다</span>
             </span>
             <input
               type="checkbox"
               role="switch"
               className="settings__switch"
-              checked={publicStars}
-              onChange={(e) => setPublicStars(e.target.checked)}
+              checked={publicFlares}
+              onChange={(e) => setPublicFlares(e.target.checked)}
             />
           </label>
         </div>
