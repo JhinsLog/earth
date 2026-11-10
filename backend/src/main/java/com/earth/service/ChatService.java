@@ -44,7 +44,8 @@ public class ChatService {
     }
 
     public List<ChatMessageResponse> findRecent(Long flareId) {
-        Flare flare = flareService.getFlareOrThrow(flareId);
+        // 채팅방은 플레어와 수명을 같이한다. 만료·삭제된 플레어의 대화는 열지 않는다.
+        Flare flare = flareService.getVisibleOrThrow(flareId);
         List<ChatMessageResponse> recentDesc = chatMessageRepository.findTop100ByFlareOrderByCreatedAtDesc(flare)
                 .stream().map(ChatMessageResponse::from).toList();
         List<ChatMessageResponse> chronological = new java.util.ArrayList<>(recentDesc);
@@ -58,7 +59,7 @@ public class ChatService {
             throw new EarthApiException(ErrorCode.LEVEL_NOT_ENOUGH);
         }
         checkFloodLimit(sender);
-        Flare flare = flareService.getFlareOrThrow(flareId);
+        Flare flare = flareService.getVisibleOrThrow(flareId);
         ChatMessage message = new ChatMessage(flare, sender, content);
         chatMessageRepository.save(message);
 

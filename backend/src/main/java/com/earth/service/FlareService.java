@@ -245,7 +245,8 @@ public class FlareService {
         return response;
     }
 
-    private Flare getVisibleOrThrow(Long flareId) {
+    /** 지금 지도에 떠 있는 플레어만 돌려준다. 만료 시각이 지났으면 스케줄러가 상태를 바꾸기 전이라도 없는 것으로 본다. */
+    Flare getVisibleOrThrow(Long flareId) {
         Flare flare = getFlareOrThrow(flareId);
         if (!flare.isVisible()) {
             throw new EarthApiException(ErrorCode.FLARE_NOT_FOUND);
