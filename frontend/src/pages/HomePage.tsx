@@ -11,6 +11,7 @@ import { useSettingsStore } from '../store/settingsStore'
 import { useDraftFlares } from '../hooks/useDraftFlares'
 import { useMyLocation } from '../hooks/useMyLocation'
 import { api } from '../lib/api'
+import { onReconnect } from '../lib/ws'
 import { approximateLongitudeFromTimezone, detectApproximateLocation, type GeoPoint } from '../lib/geolocate'
 import type { EarthUser } from '../types'
 import './HomePage.css'
@@ -43,6 +44,7 @@ export default function HomePage() {
     loadFlares,
     selectFlare,
     subscribeRealtime,
+    reloadAfterReconnect,
     addOrUpdate,
     pruneExpired,
   } = useFlareStore()
@@ -148,12 +150,15 @@ export default function HomePage() {
   }
 
   // 만료 전파는 WebSocket으로 오지만, 연결이 끊겼다 붙는 사이의 메시지는 재생되지
-  // 않는다(STOMP는 재연결만 하고 놓친 메시지를 다시 주지 않는다). 그 구간에 수명이
-  // 다한 플레어가 화면에 영영 남지 않도록 클라이언트에서도 주기적으로 걷어낸다.
+  // 않는다(STOMP는 놓친 메시지를 다시 주지 않는다). 재연결 때 목록을 다시 받지만, 그 전에도
+  // 수명이 다한 플레어가 화면에 남지 않도록 클라이언트에서 주기적으로 걷어낸다.
   useEffect(() => {
     const id = window.setInterval(pruneExpired, 1000)
     return () => window.clearInterval(id)
   }, [pruneExpired])
+
+  // 끊긴 동안 생기거나 사라진 플레어는 실시간으로 다시 오지 않으므로 재연결되면 목록을 다시 받는다.
+  useEffect(() => onReconnect(() => void reloadAfterReconnect().catch(() => {})), [reloadAfterReconnect])
 
   useEffect(() => {
     detectApproximateLocation().then(setInitialFocusLatLng)

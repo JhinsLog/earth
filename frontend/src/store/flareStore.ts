@@ -25,6 +25,11 @@ interface FlareState {
   selectionToken: number
   /** 범위 없이 부르면 전 세계 최신 플레어로 교체하고, 범위를 주면 그 안의 플레어를 기존 목록에 합친다. */
   loadFlares: (bounds?: ViewportBounds) => Promise<void>
+  /**
+   * 실시간 연결이 다시 맺어졌을 때 목록을 다시 받는다. 끊긴 동안 생기거나 사라진 플레어는
+   * 실시간으로 다시 오지 않기 때문이다. 전 세계 목록으로 교체한 뒤 마지막으로 보던 범위를 합친다.
+   */
+  reloadAfterReconnect: () => Promise<void>
   selectFlare: (id: number | null) => void
   /**
    * 실시간 플레어 피드를 구독한다. 로그인하면 전체 피드, 아니면 위치 전용 공개 피드 + 자기 접속 국가 피드.
@@ -37,12 +42,16 @@ interface FlareState {
   pruneExpired: () => void
 }
 
+/** 마지막으로 불러온 화면 범위. 재연결 후 다시 불러올 때 쓴다. 화면에 그릴 값이 아니라 상태에 두지 않는다. */
+let lastBounds: ViewportBounds | undefined
+
 export const useFlareStore = create<FlareState>((set, get) => ({
   flares: [],
   selectedFlareId: null,
   selectionToken: 0,
 
   loadFlares: async (bounds) => {
+    if (bounds) lastBounds = bounds
     const { data } = await api.get<Flare[]>('/api/flares', { params: bounds })
     if (!bounds) {
       set({ flares: data })
@@ -54,6 +63,11 @@ export const useFlareStore = create<FlareState>((set, get) => ({
     const merged = get().flares.map((e) => fetched.get(e.id) ?? e)
     const known = new Set(merged.map((e) => e.id))
     set({ flares: [...data.filter((e) => !known.has(e.id)), ...merged] })
+  },
+
+  reloadAfterReconnect: async () => {
+    await get().loadFlares()
+    if (lastBounds) await get().loadFlares(lastBounds)
   },
 
   selectFlare: (id) =>

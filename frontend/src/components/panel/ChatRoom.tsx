@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../../lib/api'
-import { publish, subscribeTopic } from '../../lib/ws'
+import { onReconnect, publish, subscribeTopic } from '../../lib/ws'
 import { useAuthStore } from '../../store/authStore'
 import type { ChatMessage } from '../../types'
 import './ChatRoom.css'
@@ -32,14 +32,27 @@ export default function ChatRoom({ flareId }: Props) {
         })
     }
 
-    api
-      .get<ChatMessage[]>(`/api/flares/${flareId}/chat`)
-      .then(({ data }) => {
-        if (!cancelled) setMessages(data)
-      })
-      .catch(() => {
-        if (!cancelled) setError('대화 내역을 불러오지 못했습니다.')
-      })
+    // 끊긴 동안 온 메시지는 실시간으로 다시 오지 않는다. 재연결될 때마다 내역을 다시 받아
+    // 이미 받은 것과 id로 합친다. 합치지 않고 교체하면 그사이 실시간으로 받은 것이 잠깐 사라질 수 있다.
+    const loadHistory = () =>
+      api
+        .get<ChatMessage[]>(`/api/flares/${flareId}/chat`)
+        .then(({ data }) => {
+          if (cancelled) return
+          setMessages((prev) => {
+            const byId = new Map(prev.map((m) => [m.id, m]))
+            data.forEach((m) => byId.set(m.id, m))
+            return [...byId.values()].sort((a, b) => a.id - b.id)
+          })
+        })
+        .catch(() => {
+          if (!cancelled) setError('대화 내역을 불러오지 못했습니다.')
+        })
+    loadHistory()
+    unsubscribers.push(onReconnect(() => {
+      setError(null)
+      loadHistory()
+    }))
 
     track(
       subscribeTopic(`/topic/chat.${flareId}`, (msg) => {
@@ -79,7 +92,7 @@ export default function ChatRoom({ flareId }: Props) {
       // 화면에 떴다는 것 자체가 실제로 저장·전파됐다는 뜻이다.
       setDraft('')
     } catch {
-      setError('메시지를 보내지 못했습니다. 연결 상태를 확인해 주세요.')
+      setError('연결이 끊겨 메시지를 보내지 못했습니다. 다시 연결되면 보내 주세요.')
     } finally {
       setSending(false)
     }

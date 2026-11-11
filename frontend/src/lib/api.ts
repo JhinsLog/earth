@@ -15,7 +15,8 @@ api.interceptors.request.use((config) => {
 
 let refreshing: Promise<string | null> | null = null
 
-async function refreshAccessToken(): Promise<string | null> {
+/** 리프레시 토큰으로 액세스 토큰을 새로 받는다. 동시에 여러 번 불려도 요청은 하나만 나간다. 실패하면 null(서버가 거절했을 때만 로그아웃). */
+export async function refreshAccessToken(): Promise<string | null> {
   const { refreshToken, setTokens, logout } = useAuthStore.getState()
   if (!refreshToken) return null
 
@@ -27,7 +28,11 @@ async function refreshAccessToken(): Promise<string | null> {
         // 로그인 유지 기한이 지났으면 setTokens가 저장하지 않고 로그아웃한다. 그때는 null이라 재시도하지 않는다.
         return useAuthStore.getState().accessToken
       })
-      .catch(() => {
+      .catch((error) => {
+        // 서버에 닿지 못한 실패(배포 중 재시작, 네트워크 끊김)는 토큰이 무효라는 뜻이 아니다.
+        // 여기서 로그아웃하면 백엔드가 재시작되는 몇 초 사이에 접속자가 전부 로그아웃된다.
+        // 서버가 갱신을 거절했을 때만 로그아웃한다.
+        if (axios.isAxiosError(error) && !error.response) return null
         logout()
         return null
       })
