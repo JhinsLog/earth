@@ -7,10 +7,14 @@ interface SettingsState {
   /** 공공데이터(외부 API)로 만든 플레어를 보일지. 기본은 켠다. 사람이 남긴 플레어만 보고 싶을 때 끈다. */
   publicFlares: boolean
   setPublicFlares: (on: boolean) => void
+  /** 지도를 도시 단위로 확대했을 때 지하철·전철 노선을 보일지. 기본은 켠다. 플레어보다 아래에 그려져 가리지 않는다. */
+  subwayLines: boolean
+  setSubwayLines: (on: boolean) => void
 }
 
 const CITY_LIGHTS_KEY = 'earth:cityLights'
 const PUBLIC_FLARES_KEY = 'earth:publicFlares'
+const SUBWAY_LINES_KEY = 'earth:subwayLines'
 
 // 화면 취향일 뿐이라 브라우저에만 둔다. 저장소를 못 쓰는 환경(사생활 보호 창 등)에서는 기본값으로 동작한다.
 function readCityLights(): boolean {
@@ -21,9 +25,10 @@ function readCityLights(): boolean {
   }
 }
 
-function readPublicFlares(): boolean {
+/** 따로 끄지 않았으면 켠다. */
+function readOnByDefault(key: string): boolean {
   try {
-    return localStorage.getItem(PUBLIC_FLARES_KEY) !== 'off'
+    return localStorage.getItem(key) !== 'off'
   } catch {
     return true
   }
@@ -43,9 +48,14 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     save(CITY_LIGHTS_KEY, on)
     set({ cityLights: on })
   },
-  publicFlares: readPublicFlares(),
+  publicFlares: readOnByDefault(PUBLIC_FLARES_KEY),
   setPublicFlares: (on) => {
     save(PUBLIC_FLARES_KEY, on)
     set({ publicFlares: on })
+  },
+  subwayLines: readOnByDefault(SUBWAY_LINES_KEY),
+  setSubwayLines: (on) => {
+    save(SUBWAY_LINES_KEY, on)
+    set({ subwayLines: on })
   },
 }))

@@ -6,7 +6,7 @@ import './SettingsMenu.css'
 
 /** 화면 표시 설정. 브라우저에만 기억한다. */
 export default function SettingsMenu() {
-  const { cityLights, setCityLights, publicFlares, setPublicFlares } = useSettingsStore()
+  const { cityLights, setCityLights, publicFlares, setPublicFlares, subwayLines, setSubwayLines } = useSettingsStore()
   const loggedIn = useAuthStore((s) => s.accessToken != null)
   const { blocked, unblock } = useBlockStore()
   const [open, setOpen] = useState(false)
@@ -72,6 +72,19 @@ export default function SettingsMenu() {
               className="settings__switch"
               checked={publicFlares}
               onChange={(e) => setPublicFlares(e.target.checked)}
+            />
+          </label>
+          <label className="settings__row">
+            <span className="settings__label">
+              지하철 노선
+              <span className="settings__desc">지도를 도시 단위로 확대하면 국내 지하철·전철 노선을 노선 색으로 표시합니다</span>
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              className="settings__switch"
+              checked={subwayLines}
+              onChange={(e) => setSubwayLines(e.target.checked)}
             />
           </label>
           {loggedIn && (

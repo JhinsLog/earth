@@ -123,3 +123,9 @@ export const MAP_DAYLIGHT_NONE_ZOOM = 6
  * 동안은 실제 구름을 보여 주고, 어두운 지도 위에는 구름을 얹지 않는다.
  */
 export const MAP_CLOUDS_NONE_ZOOM = 10.5
+/**
+ * 지하철 노선이 나타나기 시작하는 줌과 다 나타나는 줌. 위성사진이 어두운 지도로 다 바뀌는 줌(DARK_BASE_OPACITY 끝,
+ * 10.5)에 맞췄다 — 노선 색은 어두운 바탕에서 읽히도록 고른 색이라 위성사진 위에서는 묻힌다.
+ */
+export const SUBWAY_MIN_ZOOM = 10
+export const SUBWAY_FULL_ZOOM = 10.5

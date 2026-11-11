@@ -41,6 +41,13 @@ over it:
   "point of view" dataset for South Korea. Natural Earth data is in the public
   domain. Made with Natural Earth. https://www.naturalearthdata.com/
 
+- frontend/public/data/subway-kr.geojson contains South Korean subway and
+  metropolitan rail lines extracted (simplified) from OpenStreetMap route
+  relations, © OpenStreetMap contributors. It is a derivative database made
+  available under the Open Database License
+  (https://www.openstreetmap.org/copyright). It is rebuilt with
+  frontend/scripts/subway/ (query.overpassql, build.py).
+
 - Vector map data served at runtime by OpenFreeMap is derived from
   OpenStreetMap and is licensed under the Open Database License (ODbL).
   See https://www.openstreetmap.org/copyright

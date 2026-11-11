@@ -11,6 +11,8 @@ import {
 } from './mapStyle'
 import { FLARE_SPRITE_PIXEL_RATIO, createFlareBodyImage, createFlareSparkleImage } from './flareTexture'
 import { createDaylightLayer, isNight } from './mapDaylightLayer'
+import { addSubwayLayer, ensureSubwayData, setSubwayVisible } from './subwayLayer'
+import { useSettingsStore } from '../../store/settingsStore'
 import { MOON_CURSOR } from './moonCursor'
 import Starfield from './Starfield'
 import { detectLabelLanguage } from '../../lib/language'
@@ -381,6 +383,9 @@ export default function MapGlobe({
   onDraftRemoveRef.current = onDraftRemove
   const flaresRef = useRef(flares)
   flaresRef.current = flares
+  const subwayLines = useSettingsStore((s) => s.subwayLines)
+  const subwayLinesRef = useRef(subwayLines)
+  subwayLinesRef.current = subwayLines
   const draftFlaresRef = useRef(draftFlares)
   draftFlaresRef.current = draftFlares
   /** 임시 플레어가 있을 때만 명멸 애니메이션을 돌리기 위한 플래그. */
@@ -650,6 +655,10 @@ export default function MapGlobe({
           })
         }
       }
+
+      addSubwayLayer(map, 'country-boundaries', subwayLinesRef.current)
+      ensureSubwayData(map, subwayLinesRef.current)
+      map.on('zoomend', () => ensureSubwayData(map, subwayLinesRef.current))
 
       map.addSource(FLARES_SOURCE_ID, {
         type: 'geojson',
@@ -939,6 +948,12 @@ export default function MapGlobe({
       mapRef.current = null
     }
   }, [])
+
+  // 설정에서 지하철 노선을 켜고 끈다. 지도가 아직 load 전이면 addSubwayLayer가 ref 값으로 처음 상태를 정한다.
+  useEffect(() => {
+    const map = mapRef.current
+    if (map) setSubwayVisible(map, subwayLines)
+  }, [subwayLines])
 
   // 내 위치 표시 갱신
   useEffect(() => {
