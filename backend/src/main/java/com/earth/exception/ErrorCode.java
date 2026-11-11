@@ -14,6 +14,7 @@ public enum ErrorCode {
     CHAT_RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "메시지를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요."),
     CHAT_DUPLICATE_CONTENT(HttpStatus.TOO_MANY_REQUESTS, "같은 내용을 반복해서 보낼 수 없습니다."),
     CONTENT_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "올릴 수 없는 내용이 포함되어 있습니다."),
+    CANNOT_BLOCK_SELF(HttpStatus.BAD_REQUEST, "자기 자신은 차단할 수 없습니다."),
     CANNOT_CONFIRM_OWN_FLARE(HttpStatus.BAD_REQUEST, "자신이 등록한 플레어에는 공감할 수 없습니다."),
     ALREADY_CONFIRMED(HttpStatus.CONFLICT, "이미 공감한 플레어입니다."),
     INVALID_BOUNDS(HttpStatus.BAD_REQUEST, "조회 범위가 올바르지 않습니다."),

@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSettingsStore } from '../../store/settingsStore'
+import { useAuthStore } from '../../store/authStore'
+import { useBlockStore } from '../../store/blockStore'
 import './SettingsMenu.css'
 
 /** 화면 표시 설정. 브라우저에만 기억한다. */
 export default function SettingsMenu() {
   const { cityLights, setCityLights, publicFlares, setPublicFlares } = useSettingsStore()
+  const loggedIn = useAuthStore((s) => s.accessToken != null)
+  const { blocked, unblock } = useBlockStore()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -70,6 +74,26 @@ export default function SettingsMenu() {
               onChange={(e) => setPublicFlares(e.target.checked)}
             />
           </label>
+          {loggedIn && (
+            <div className="settings__section">
+              <div className="settings__label">
+                차단한 사용자
+                <span className="settings__desc">차단한 사람의 플레어와 채팅은 보이지 않습니다</span>
+              </div>
+              {blocked.length === 0 ? (
+                <p className="settings__empty">없음</p>
+              ) : (
+                <ul className="settings__blocked">
+                  {blocked.map((b) => (
+                    <li key={b.userId}>
+                      <span>{b.nickname}</span>
+                      <button onClick={() => void unblock(b.userId).catch(() => {})}>해제</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

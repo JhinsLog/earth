@@ -8,6 +8,7 @@ import CreateFlareModal from '../components/panel/CreateFlareModal'
 import { useFlareStore } from '../store/flareStore'
 import { useAuthStore } from '../store/authStore'
 import { useSettingsStore } from '../store/settingsStore'
+import { useBlockStore } from '../store/blockStore'
 import { useDraftFlares } from '../hooks/useDraftFlares'
 import { useMyLocation } from '../hooks/useMyLocation'
 import { api } from '../lib/api'
@@ -51,9 +52,15 @@ export default function HomePage() {
   const { accessToken, user, setUser } = useAuthStore()
   const publicFlares = useSettingsStore((s) => s.publicFlares)
   // 화면에서만 거른다(docs/decisions.md). 제한 응답은 출처를 담지 않으므로 스위치와 무관하게 남는다.
+  const blockedIds = useBlockStore((s) => s.blockedIds)
+  // 차단한 사람의 플레어도 여기서 거른다. 실시간으로 온 것과 REST로 받은 것이 모두 이 목록을 거친다.
+  // 제한 응답(비로그인)에는 작성자가 없지만, 차단은 로그인해야 쓸 수 있어 상관없다.
   const visibleFlares = useMemo(
-    () => (publicFlares ? flares : flares.filter((e) => e.restricted || e.origin !== 'API')),
-    [flares, publicFlares],
+    () =>
+      flares.filter(
+        (e) => (publicFlares || e.restricted || e.origin !== 'API') && (e.restricted || !blockedIds.has(e.authorId)),
+      ),
+    [flares, publicFlares, blockedIds],
   )
   const { drafts, addDraft, removeDraft, soonestRemainingMs } = useDraftFlares()
   // 내 위치는 여기서만 소유하고 필요한 두 곳에만 내려보낸다. 서버로는 나가지 않는다.
@@ -192,8 +199,10 @@ export default function HomePage() {
   useEffect(() => {
     if (!accessToken) {
       setUser(null)
+      useBlockStore.getState().clear()
       return
     }
+    useBlockStore.getState().load().catch(() => {})
     api.get<EarthUser>('/api/users/me').then(({ data }) => setUser(data))
   }, [accessToken, setUser])
 

@@ -121,3 +121,19 @@
   line-height: 1.5;
   color: #9db4d4;
 }
+
+/* 차단은 자주 쓰는 동작이 아니라 공감 버튼보다 눈에 덜 띄게 둔다. */
+.flare-panel__block-btn {
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgba(220, 234, 255, 0.55);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.flare-panel__block-btn:hover {
+  color: #ff9b9b;
+  text-decoration: underline;
+}

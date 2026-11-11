@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api } from '../../lib/api'
 import { onReconnect, publish, subscribeTopic } from '../../lib/ws'
 import { useAuthStore } from '../../store/authStore'
+import { useBlockStore } from '../../store/blockStore'
 import type { ChatMessage } from '../../types'
 import './ChatRoom.css'
 
@@ -11,6 +12,8 @@ interface Props {
 
 export default function ChatRoom({ flareId }: Props) {
   const user = useAuthStore((s) => s.user)
+  const blockedIds = useBlockStore((s) => s.blockedIds)
+  const blockUser = useBlockStore((s) => s.block)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -98,17 +101,41 @@ export default function ChatRoom({ flareId }: Props) {
     }
   }
 
+  // 차단한 사람의 메시지는 받아도 보여 주지 않는다. 차단을 풀면 그대로 다시 보인다.
+  const visibleMessages = messages.filter((m) => !blockedIds.has(m.userId))
+
+  const confirmBlock = async (m: ChatMessage) => {
+    if (!window.confirm(`${m.nickname}님을 차단할까요? 이 사람의 플레어와 채팅이 보이지 않습니다. 설정에서 풀 수 있습니다.`)) return
+    try {
+      await blockUser(m.userId, m.nickname)
+    } catch {
+      setError('차단하지 못했습니다. 다시 시도해 주세요.')
+    }
+  }
+
   return (
     <div className="chat-room">
       <div className="chat-room__list" ref={listRef}>
         <div className="chat-room__messages">
-          {messages.length === 0 && <p className="chat-room__empty">아직 대화가 없습니다.</p>}
-          {messages.map((m) => {
+          {visibleMessages.length === 0 && <p className="chat-room__empty">아직 대화가 없습니다.</p>}
+          {visibleMessages.map((m) => {
             const mine = m.userId === user?.id
             return (
               <div key={m.id} className={`chat-room__message${mine ? ' chat-room__message--mine' : ''}`}>
                 {/* 내 메시지는 오른쪽 정렬만으로 이미 구분되므로 닉네임을 반복하지 않는다. */}
-                {!mine && <span className="chat-room__nickname">{m.nickname}</span>}
+                {/* 닉네임을 누르면 차단할 수 있다. 로그인한 사람만 차단 목록을 가진다. */}
+                {!mine &&
+                  (user ? (
+                    <button
+                      className="chat-room__nickname chat-room__nickname--action"
+                      onClick={() => confirmBlock(m)}
+                      title="눌러서 차단"
+                    >
+                      {m.nickname}
+                    </button>
+                  ) : (
+                    <span className="chat-room__nickname">{m.nickname}</span>
+                  ))}
                 <span className="chat-room__content">{m.content}</span>
               </div>
             )

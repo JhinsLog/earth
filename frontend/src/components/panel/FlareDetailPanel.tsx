@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { useAuthStore } from '../../store/authStore'
+import { useBlockStore } from '../../store/blockStore'
 import { FLARE_CATEGORY_LABEL, FLARE_ORIGIN_LABEL, type DetailedFlare } from '../../types'
 import ChatRoom from './ChatRoom'
 import './FlareDetailPanel.css'
@@ -46,6 +47,16 @@ export default function FlareDetailPanel({ flare, onClose, onConfirmed }: Props)
   const [confirmError, setConfirmError] = useState<string | null>(null)
 
   const isAuthor = user != null && user.id === flare.authorId
+  const blockUser = useBlockStore((s) => s.block)
+  // 차단하면 이 플레어도 목록에서 걸러져 패널이 저절로 닫힌다.
+  const blockAuthor = async () => {
+    if (!window.confirm(`${flare.authorNickname}님을 차단할까요? 이 사람의 플레어와 채팅이 보이지 않습니다. 설정에서 풀 수 있습니다.`)) return
+    try {
+      await blockUser(flare.authorId, flare.authorNickname)
+    } catch {
+      setConfirmError('차단하지 못했습니다. 다시 시도해 주세요.')
+    }
+  }
   const toggleConfirm = async () => {
     setConfirming(true)
     setConfirmError(null)
@@ -101,6 +112,12 @@ export default function FlareDetailPanel({ flare, onClose, onConfirmed }: Props)
           >
             {flare.confirmedByMe ? '✓ 나도 봤어요' : '나도 봤어요'}
           </button>
+          {/* 공공데이터 플레어는 사람이 쓴 글이 아니다. 끄려면 설정의 공공데이터 스위치를 쓴다. */}
+          {flare.origin !== 'API' && (
+            <button className="flare-panel__block-btn" onClick={blockAuthor}>
+              작성자 차단
+            </button>
+          )}
           {confirmError && <p className="flare-panel__confirm-note">{confirmError}</p>}
         </div>
       )}
