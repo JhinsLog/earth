@@ -15,6 +15,7 @@ import com.earth.dto.FlareResponse;
 import com.earth.dto.FlareUpdateRequest;
 import com.earth.exception.EarthApiException;
 import com.earth.exception.ErrorCode;
+import com.earth.moderation.ContentModerator;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,19 +38,22 @@ public class FlareService {
     private final ApplicationEventPublisher events;
     private final FlareProperties flareProperties;
     private final CountryBoundaryRepository countryBoundaryRepository;
+    private final ContentModerator contentModerator;
 
     public FlareService(FlareRepository flareRepository,
                          FlareConfirmationRepository confirmationRepository,
                          UserRepository userRepository,
                          ApplicationEventPublisher events,
                          FlareProperties flareProperties,
-                         CountryBoundaryRepository countryBoundaryRepository) {
+                         CountryBoundaryRepository countryBoundaryRepository,
+                         ContentModerator contentModerator) {
         this.flareRepository = flareRepository;
         this.confirmationRepository = confirmationRepository;
         this.userRepository = userRepository;
         this.events = events;
         this.flareProperties = flareProperties;
         this.countryBoundaryRepository = countryBoundaryRepository;
+        this.contentModerator = contentModerator;
     }
 
     /**
@@ -115,6 +119,8 @@ public class FlareService {
 
     @Transactional
     public FlareResponse create(User author, FlareCreateRequest request) {
+        // 잠금과 COUNT보다 먼저 한다. 걸릴 글이면 DB를 건드릴 이유가 없다.
+        contentModerator.check(request.title(), request.content());
         // 검사 전에 작성자 행을 잠근다. 잠그지 않으면 같은 사용자의 요청 여러 개가 아래 COUNT를
         // 거의 동시에 실행해 전부 같은 값을 보고 통과한다(한도 5에 동시 요청 15개 → 11개 저장).
         // 도배를 막으려고 만든 제한이 정확히 도배 방식으로 뚫리는 셈이다.
@@ -148,6 +154,8 @@ public class FlareService {
 
     @Transactional
     public FlareResponse update(User actor, Long flareId, FlareUpdateRequest request) {
+        // 등록 때만 검사하면 수정으로 우회된다.
+        contentModerator.check(request.title(), request.content());
         Flare flare = getEditableOrThrow(actor, flareId);
         flare.update(request.title(), request.content(), request.category());
 

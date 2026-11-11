@@ -9,6 +9,7 @@ import com.earth.domain.user.User;
 import com.earth.dto.ChatMessageResponse;
 import com.earth.exception.EarthApiException;
 import com.earth.exception.ErrorCode;
+import com.earth.moderation.ContentModerator;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -50,17 +51,20 @@ public class ChatService {
     private final FlareService flareService;
     private final ChatProperties chatProperties;
     private final StringRedisTemplate stringRedisTemplate;
+    private final ContentModerator contentModerator;
 
     public ChatService(ChatMessageRepository chatMessageRepository,
                         ApplicationEventPublisher events,
                         FlareService flareService,
                         ChatProperties chatProperties,
-                        StringRedisTemplate stringRedisTemplate) {
+                        StringRedisTemplate stringRedisTemplate,
+                        ContentModerator contentModerator) {
         this.chatMessageRepository = chatMessageRepository;
         this.events = events;
         this.flareService = flareService;
         this.chatProperties = chatProperties;
         this.stringRedisTemplate = stringRedisTemplate;
+        this.contentModerator = contentModerator;
     }
 
     public List<ChatMessageResponse> findRecent(Long flareId) {
@@ -78,6 +82,8 @@ public class ChatService {
         if (!sender.hasAtLeastLevel(chatProperties.minLevelToJoin())) {
             throw new EarthApiException(ErrorCode.LEVEL_NOT_ENOUGH);
         }
+        // 걸린 글은 도배 횟수에 넣지 않는다. 고쳐서 다시 보내는 것까지 막으면 안 된다.
+        contentModerator.check(content);
         checkFloodLimit(sender);
         checkSameContentLimit(sender, content);
         Flare flare = flareService.getVisibleOrThrow(flareId);

@@ -43,9 +43,10 @@ export default function CreateFlareModal({
       onCreated(data)
       onClose()
     } catch (e) {
-      // 서버가 1시간 등록 제한(429)을 걸었다면 그 사유를 그대로 보여준다.
+      // 서버가 1시간 등록 제한(429)이나 검열(400)로 거절했다면 그 사유를 그대로 보여준다.
+      // 사유 없이 "실패"만 보이면 사용자는 무엇을 고쳐야 하는지 모른다.
       const response = (e as { response?: { status?: number; data?: { message?: string } } }).response
-      if (response?.status === 429) {
+      if (response?.status === 429 || response?.status === 400) {
         setError(response.data?.message ?? '잠시 후 다시 시도해 주세요.')
       } else {
         setError('플레어 등록에 실패했습니다. 다시 시도해 주세요.')
