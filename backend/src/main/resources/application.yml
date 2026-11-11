@@ -65,6 +65,8 @@ earth:
   chat:
     min-level-to-join: 1   # 상세 레벨 정책 확정 전까지는 로그인만 되어 있으면 입장 가능
     max-per-minute: 20     # 한 사용자가 1분 안에 보낼 수 있는 메시지 수 (도배 방지)
+    max-same-content: 2    # 같은 내용은 이 횟수까지. 세 번째부터 거절 (반복 도배 방지)
+    same-content-window-minutes: 10
   flare:
     # 플레어 수명. 현재 30분은 임시 정책이며, 레벨/EXP 정책이 확정되면 레벨별로
     # 달라질 수 있어 설정으로 분리해 둔다.
