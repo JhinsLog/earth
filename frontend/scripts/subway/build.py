@@ -21,6 +21,15 @@ def line_key(t):
     return (t.get('network', ''), t.get('ref') or base)
 
 way_line = {}
+
+# 같은 노선인데 관계 일부에만 colour가 적힌 경우가 있다(실측: 광주 도시철도 1호선). 이름이 같은 관계의 색을 쓴다.
+# stations.py도 같은 규칙을 써야 역과 노선의 색이 같아진다.
+colour_by_name = {}
+for r in rels:
+    c = r['tags'].get('colour')
+    if c:
+        colour_by_name.setdefault(re.split(r'[:(]', r['tags'].get('name', ''))[0].strip(),
+                                  '#' + c if re.fullmatch(r'[0-9A-Fa-f]{6}', c) else c)
 # 공항 터미널 안 셔틀은 지하철 노선이 아니다.
 rels = [r for r in rels if '셔틀트레인' not in r['tags'].get('name', '')]
 
@@ -58,7 +67,8 @@ for r in sorted(rels, key=lambda r: (r['id'] not in primary, r['id'])):
     for m in r.get('members', []):
         if m['type'] != 'way' or m['ref'] in way_line:
             continue
-        way_line[m['ref']] = {'line': name, 'colour': colour or '#9aa4b2', 'key': key, 'first': r['id'] in primary}
+        way_line[m['ref']] = {'line': name, 'colour': colour or colour_by_name.get(name, '#9aa4b2'), 'key': key,
+                              'first': r['id'] in primary}
 
 KEEP = {'subway', 'light_rail', 'monorail', 'rail', 'narrow_gauge'}
 
