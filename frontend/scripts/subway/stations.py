@@ -76,7 +76,10 @@ for key, name, name_en, lon, lat, line, colour in stops:
 
 # 역 점은 상·하행 정차 위치의 평균이라 선로 한가운데지만, 노선은 단순화·가운데 맞추기를 거친 선이라 몇 m씩
 # 비킬 수 있다. 확대하면 역과 노선이 어긋나 보이므로, 한 노선만 지나는 역은 가장 가까운 같은 색 노선 위로 붙인다.
-# 환승역은 여러 노선의 평균 자리(노선 사이)에 둔다. 한 노선 위로 붙이면 다른 노선에서 더 멀어진다.
+# 환승역은 정차 위치 평균에 두면 노선 사이 빈 곳에 뜬다. 정차 위치는 노선끼리 만나는 곳이 아니라 각 노선의 승강장
+# 자리라서다(실측: 당산 2·9호선, 샛강, 동작). 노선도처럼 '갈아타는 지점'을 보여 주려고, 역 주변 노선 위의 점 중
+# 그 역의 다른 노선들까지 거리 합이 가장 작은 점에 둔다. 노선이 교차하면 교차점, 나란히 달리면 한 노선 위
+# 다른 노선에 가장 가까운 자리가 된다. 실제 승강장 위치는 포기한다.
 SNAP_METERS = 60
 KX = 111_320 * math.cos(math.radians(36))
 KY = 110_540
@@ -98,6 +101,39 @@ def snap(lon, lat, colour):
             best, best_q = d, q
     return (best_q[0] / KX, best_q[1] / KY) if best_q else (lon, lat)
 
+TRANSFER_SEARCH_METERS = 300
+CANDIDATE_STEP_METERS = 5
+
+def seg_point_dist(p, a, b):
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    t = 0 if dx == dy == 0 else max(0, min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy)))
+    return math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy)
+
+def transfer_point(lon, lat, colours):
+    centre = (lon * KX, lat * KY)
+    r = TRANSFER_SEARCH_METERS
+    near = {}
+    for colour in colours:
+        segs = [(a, b) for a, b in line_segs.get(colour.lower(), ())
+                if seg_point_dist(centre, a, b) < r + 200]
+        if segs:
+            near[colour] = segs
+    if len(near) < 2:  # 주변에 노선이 하나뿐이면 일반역처럼 그 노선 위로
+        return snap(lon, lat, next(iter(near), colours[0]))
+    best, best_p = math.inf, None
+    for colour, segs in near.items():
+        for a, b in segs:
+            n = max(1, int(math.hypot(b[0] - a[0], b[1] - a[1]) // CANDIDATE_STEP_METERS))
+            for k in range(n + 1):
+                p = (a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n)
+                if math.hypot(p[0] - centre[0], p[1] - centre[1]) > r:
+                    continue
+                cost = sum(min(seg_point_dist(p, sa, sb) for sa, sb in other)
+                           for oc, other in near.items() if oc != colour)
+                if cost < best:
+                    best, best_p = cost, p
+    return (best_p[0] / KX, best_p[1] / KY) if best_p else (lon, lat)
+
 features, snapped = [], 0
 for c in clusters:
     lon = sum(p[0] for p in c['pts']) / len(c['pts'])
@@ -106,8 +142,8 @@ for c in clusters:
     # 노선마다 표기가 조금씩 다르면('강남'·'강남역') 가장 많이 쓰인 것을 고른다.
     name = max(set(c['names']), key=lambda n: (c['names'].count(n), -len(n)))
     props = {'name': name, 'colour': colours[0], 'transfer': len(colours) > 1}
-    if not props['transfer'] and line_segs:
-        new = snap(lon, lat, colours[0])
+    if line_segs:
+        new = transfer_point(lon, lat, colours) if props['transfer'] else snap(lon, lat, colours[0])
         snapped += new != (lon, lat)
         lon, lat = new
     if c['name_en']:
