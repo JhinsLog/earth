@@ -85,7 +85,10 @@ for wid, info in way_line.items():
         skipped += 1
         continue
     t = w.get('tags', {})
-    if t.get('railway') not in KEEP or t.get('service') in ('yard', 'siding', 'spur', 'crossover'):
+    # 차량기지 선로(yard)와 선로를 건너가는 짧은 연결선(crossover)은 노선이 아니다. 측선(siding)은 남긴다 — 노선
+    # 관계에 든 측선은 대부분 열차가 실제로 서는 역 선로다(GTX-A는 성남역에서 본선을 벗어나 측선으로 정차해,
+    # 빼면 성남역 앞뒤 약 1.4km가 끊겼다). 본선 곁 측선은 아래 겹침 자르기에서 본선에 합쳐진다.
+    if t.get('railway') not in KEEP or t.get('service') in ('yard', 'spur', 'crossover'):
         skipped += 1
         continue
     pts = [(round(p['lon'], 5), round(p['lat'], 5)) for p in w['geometry']]
@@ -95,6 +98,7 @@ for wid, info in way_line.items():
         'properties': {'line': info['line'], 'colour': info['colour']},
         'first': info['first'],
         'src': wid,
+        'siding': t.get('service') == 'siding',
         'geometry': {'type': 'LineString', 'coordinates': [list(p) for p in pts]},
     })
 
@@ -131,9 +135,13 @@ def seg_dist(p, seg):
 def cell(p):
     return int(p[0] // CELL_METERS), int(p[1] // CELL_METERS)
 
-def near_kept(grid, p):
+# 역 측선은 본선보다 넓게 벌어진다(GTX-A 성남역: 상·하행 측선 약 50m 간격). 측선은 이 거리까지 겹침으로 본다.
+SIDING_TWIN_METERS = 80
+
+def near_kept(grid, p, limit=TWIN_METERS):
     cx, cy = cell(p)
-    return any(seg_dist(p, seg) < TWIN_METERS
+    # 칸(100m)보다 먼 거리는 보지 않으므로 limit은 CELL_METERS를 넘지 않아야 한다
+    return any(seg_dist(p, seg) < limit
                for i in (-1, 0, 1) for j in (-1, 0, 1) for seg in grid.get((cx + i, cy + j), ()))
 
 def register(grid, pts):
@@ -151,7 +159,8 @@ kept, grids, cut = [], {}, 0
 for f in sorted(features, key=lambda f: (not f['first'], -length(f['geometry']['coordinates']))):
     grid = grids.setdefault(f['properties']['colour'], {})
     pts = densify(f['geometry']['coordinates'])
-    free = [not near_kept(grid, p) for p in pts]
+    limit = SIDING_TWIN_METERS if f['siding'] else TWIN_METERS
+    free = [not near_kept(grid, p, limit) for p in pts]
     if not all(free):
         cut += 1
     # 곁에 남긴 선로가 없는 점이 이어진 구간마다 한 조각. 앞뒤로 한 점씩 늘려 남긴 선로와 이어 붙인다.
@@ -295,6 +304,7 @@ for f in kept:
 for f in kept:
     f.pop('first', None)
     f.pop('src', None)
+    f.pop('siding', None)
 features = kept
 print('tracks cut', cut, 'gaps bridged', bridged)
 
