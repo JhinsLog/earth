@@ -656,7 +656,7 @@ export default function MapGlobe({
         }
       }
 
-      addSubwayLayer(map, 'country-boundaries', subwayLinesRef.current)
+      addSubwayLayer(map, 'country-boundaries', subwayLinesRef.current, detectLabelLanguage())
       ensureSubwayData(map, subwayLinesRef.current)
       map.on('zoomend', () => ensureSubwayData(map, subwayLinesRef.current))
 

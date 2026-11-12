@@ -129,3 +129,11 @@ export const MAP_CLOUDS_NONE_ZOOM = 10.5
  */
 export const SUBWAY_MIN_ZOOM = 10
 export const SUBWAY_FULL_ZOOM = 10.5
+/**
+ * 역 점이 나타나는 줌과 역 이름이 나타나는 줌. 수도권에만 역이 600곳 넘게 있어 노선과 같은 줌(10.5)에 점을 찍으면
+ * 노선이 점에 덮인다. 구 하나가 화면에 들어오는 줌부터 점을, 동네가 보이는 줌부터 이름을 보인다.
+ * 환승역 이름은 한 단계 먼저 보인다 — 길을 찾을 때 기준이 되는 역이다.
+ */
+export const STATION_MIN_ZOOM = 12
+export const STATION_LABEL_MIN_ZOOM = 13
+export const TRANSFER_LABEL_MIN_ZOOM = 12
