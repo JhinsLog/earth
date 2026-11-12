@@ -3,7 +3,8 @@
 # 만드는 법:
 #   curl -s --data-urlencode data@stations.overpassql https://overpass-api.de/api/interpreter -o stops.json
 #   (overpass-api.de가 붐비거나 406을 내면 같은 쿼리를 https://maps.mail.ru/osm/tools/overpass/api/interpreter 로)
-#   python3 -I stations.py stops.json ../../public/data/subway-stations-kr.geojson
+#   python3 -I stations.py stops.json ../../public/data/subway-stations-kr.geojson ../../public/data/subway-kr.geojson
+#   (마지막 인자는 build.py로 먼저 만든 노선 파일. 일반역을 노선 위로 붙이는 데 쓴다)
 #
 # 역 노드(railway=station)가 아니라 노선 관계에 정차 위치(role=stop)로 들어 있는 노드를 쓴다. 역 노드는
 # 어느 노선의 역인지 적혀 있지 않은 경우가 많고, 정차 위치는 노선 관계에 직접 매여 있어 노선 색을 알 수 있다.
@@ -13,6 +14,7 @@
 import json, sys, re, math
 
 src, dst = sys.argv[1], sys.argv[2]
+lines_path = sys.argv[3] if len(sys.argv) > 3 else None
 els = json.load(open(src))['elements']
 nodes = {e['id']: e for e in els if e['type'] == 'node'}
 rels = [e for e in els if e['type'] == 'relation' and '셔틀트레인' not in e['tags'].get('name', '')]
@@ -72,7 +74,31 @@ for key, name, name_en, lon, lat, line, colour in stops:
     c['lines'].setdefault(line, colour)
     c['name_en'] = c['name_en'] or name_en
 
-features = []
+# 역 점은 상·하행 정차 위치의 평균이라 선로 한가운데지만, 노선은 단순화·가운데 맞추기를 거친 선이라 몇 m씩
+# 비킬 수 있다. 확대하면 역과 노선이 어긋나 보이므로, 한 노선만 지나는 역은 가장 가까운 같은 색 노선 위로 붙인다.
+# 환승역은 여러 노선의 평균 자리(노선 사이)에 둔다. 한 노선 위로 붙이면 다른 노선에서 더 멀어진다.
+SNAP_METERS = 60
+KX = 111_320 * math.cos(math.radians(36))
+KY = 110_540
+line_segs = {}
+if lines_path:
+    for f in json.load(open(lines_path))['features']:
+        pts = [(lon * KX, lat * KY) for lon, lat in f['geometry']['coordinates']]
+        line_segs.setdefault(f['properties']['colour'].lower(), []).extend(zip(pts, pts[1:]))
+
+def snap(lon, lat, colour):
+    p = (lon * KX, lat * KY)
+    best, best_q = SNAP_METERS, None
+    for (ax, ay), (bx, by) in line_segs.get(colour.lower(), ()):
+        dx, dy = bx - ax, by - ay
+        t = 0 if dx == dy == 0 else max(0, min(1, ((p[0] - ax) * dx + (p[1] - ay) * dy) / (dx * dx + dy * dy)))
+        q = (ax + t * dx, ay + t * dy)
+        d = math.hypot(p[0] - q[0], p[1] - q[1])
+        if d < best:
+            best, best_q = d, q
+    return (best_q[0] / KX, best_q[1] / KY) if best_q else (lon, lat)
+
+features, snapped = [], 0
 for c in clusters:
     lon = sum(p[0] for p in c['pts']) / len(c['pts'])
     lat = sum(p[1] for p in c['pts']) / len(c['pts'])
@@ -80,6 +106,10 @@ for c in clusters:
     # 노선마다 표기가 조금씩 다르면('강남'·'강남역') 가장 많이 쓰인 것을 고른다.
     name = max(set(c['names']), key=lambda n: (c['names'].count(n), -len(n)))
     props = {'name': name, 'colour': colours[0], 'transfer': len(colours) > 1}
+    if not props['transfer'] and line_segs:
+        new = snap(lon, lat, colours[0])
+        snapped += new != (lon, lat)
+        lon, lat = new
     if c['name_en']:
         # 영문 이름에도 'Station'이 붙은 경우가 있어 뗀다.
         props['name_en'] = re.sub(r'\s+Station$', '', c['name_en'])
@@ -92,5 +122,5 @@ for c in clusters:
 json.dump({'type': 'FeatureCollection', 'features': features}, open(dst, 'w'),
           ensure_ascii=False, separators=(',', ':'))
 transfers = [f['properties']['name'] for f in features if f['properties']['transfer']]
-print('stops', len(stops), 'stations', len(features), 'transfers', len(transfers))
+print('stops', len(stops), 'stations', len(features), 'transfers', len(transfers), 'snapped', snapped)
 print(sorted(transfers)[:80])

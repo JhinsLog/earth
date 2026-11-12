@@ -94,6 +94,7 @@ for wid, info in way_line.items():
         'type': 'Feature',
         'properties': {'line': info['line'], 'colour': info['colour']},
         'first': info['first'],
+        'src': wid,
         'geometry': {'type': 'LineString', 'coordinates': [list(p) for p in pts]},
     })
 
@@ -145,6 +146,7 @@ def register(grid, pts):
 def length(coords):
     return sum(math.hypot((a[0] - b[0]) * KX, (a[1] - b[1]) * KY) for a, b in zip(coords, coords[1:]))
 
+originals = list(features)
 kept, grids, cut = [], {}, 0
 for f in sorted(features, key=lambda f: (not f['first'], -length(f['geometry']['coordinates']))):
     grid = grids.setdefault(f['properties']['colour'], {})
@@ -200,6 +202,54 @@ for colour, idxs in by_colour.items():
 kept = [f for k, f in enumerate(kept) if k not in removed]
 print('short side pieces removed', len(removed))
 
+# 한 선로만 남기면 노선이 두 선로의 한가운데가 아니라 한쪽(선로 간격의 절반, 5~10m)으로 비켜 있다. 역 점은
+# 상·하행 정차 위치의 평균이라 한가운데에 있으므로, 확대하면 역과 노선이 어긋나 보인다. 남긴 선로의 각 점을
+# 곁의 다른 선로(잘라 낸 쪽 포함, 원래 선로 전부)와의 중간으로 옮긴다. 선로가 갈라지는 곳에서 갑자기 꺾이지 않도록
+# CENTER_FULL_METERS~TWIN_METERS 사이에서는 옮기는 양을 거리에 따라 줄인다.
+CENTER_FULL_METERS = 25
+
+def nearest_point(grid, p, skip_src):
+    best, best_q = TWIN_METERS, None
+    cx, cy = cell(p)
+    for i in (-1, 0, 1):
+        for j in (-1, 0, 1):
+            for (a, b, a_end, b_end, src) in grid.get((cx + i, cy + j), ()):
+                if src == skip_src:
+                    continue
+                dx, dy = b[0] - a[0], b[1] - a[1]
+                t = 0 if dx == dy == 0 else ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy)
+                if (t < 0 and a_end) or (t > 1 and b_end):
+                    continue
+                t = max(0, min(1, t))
+                q = (a[0] + t * dx, a[1] + t * dy)
+                d = math.hypot(p[0] - q[0], p[1] - q[1])
+                if d < best:
+                    best, best_q = d, q
+    return best, best_q
+
+all_tracks = {}
+for f in originals:
+    pts = densify(f['geometry']['coordinates'])
+    grid = all_tracks.setdefault(f['properties']['colour'], {})
+    last = len(pts) - 2
+    for k, (a, b) in enumerate(zip(pts, pts[1:])):
+        for c in {cell(a), cell(b)}:
+            grid.setdefault(c, []).append((a, b, k == 0, k == last, f['src']))
+
+moved = 0
+for f in kept:
+    grid = all_tracks[f['properties']['colour']]
+    out = []
+    for p in densify(f['geometry']['coordinates']):
+        d, q = nearest_point(grid, p, f['src'])
+        if q is not None:
+            w = 1 if d <= CENTER_FULL_METERS else (TWIN_METERS - d) / (TWIN_METERS - CENTER_FULL_METERS)
+            p = (p[0] + (q[0] - p[0]) * 0.5 * w, p[1] + (q[1] - p[1]) * 0.5 * w)
+            moved += 1
+        out.append((round(p[0] / KX, 5), round(p[1] / KY, 5)))
+    f['geometry']['coordinates'] = [list(c) for c in rdp(out, 0.00005)]
+print('points centred', moved)
+
 # 조각끼리 갈아타는 곳(분기·복복선 끝)에서는 자른 조각 끝이 이웃 조각과 10~20m 떨어져 틈으로 보일 수 있다.
 # 끝점에서 가장 가까운 같은 노선 선로까지 GAP_METERS 안이면 짧은 선을 그어 잇는다.
 GAP_METERS = 60
@@ -244,6 +294,7 @@ for f in kept:
         bridged += 1
 for f in kept:
     f.pop('first', None)
+    f.pop('src', None)
 features = kept
 print('tracks cut', cut, 'gaps bridged', bridged)
 
