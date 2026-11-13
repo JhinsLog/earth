@@ -132,6 +132,9 @@ services:
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       # Cloudflare Tunnel로 들어오는 주소. 리다이렉트·알림 링크를 이 주소로 만든다.
       GF_SERVER_ROOT_URL: https://earth-grafana.jhinslog.com
+      # Grafana는 기본으로 응답을 압축하지 않는다. 첫 화면 JS만 약 8.9MB(gzip 시 2.5MB, 실측)라, 압축 없이
+      # 집 회선의 업로드로 터널을 지나면 첫 접속이 수십 초 걸린다.
+      GF_SERVER_ENABLE_GZIP: "true"
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
