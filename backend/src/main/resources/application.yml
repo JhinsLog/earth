@@ -103,10 +103,21 @@ springdoc:
     path: /v3/api-docs
 
 management:
+  server:
+    # 수치(/actuator/prometheus)는 요청 수·응답 시간·JVM 상태를 그대로 드러내므로 공개 포트(8080)에 두지 않는다.
+    # 8080은 Cloudflare Tunnel이 외부에 여는 포트이고, 이 포트는 compose에서 publish하지 않아 같은 docker
+    # 네트워크의 Prometheus만 닿는다. 그 대신 /actuator/health도 같이 8081로 옮겨 가므로, 공개 포트의 같은 경로는
+    # PublicHealthController가 이어서 맡는다.
+    port: 8081
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
+  metrics:
+    distribution:
+      # 응답 시간 분포를 버킷으로 내보내야 Prometheus에서 p95·p99를 계산할 수 있다(평균만으로는 꼬리 지연이 안 보인다).
+      percentiles-histogram:
+        http.server.requests: true
 
 logging:
   level:

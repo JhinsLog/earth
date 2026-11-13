@@ -50,6 +50,8 @@ dependencies {
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5")
 
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    // Micrometer가 모은 수치를 Prometheus 형식(/actuator/prometheus)으로 내보낸다. 관리 포트에만 열린다(application.yml).
+    runtimeOnly("io.micrometer:micrometer-registry-prometheus")
     developmentOnly("org.springframework.boot:spring-boot-devtools")
 
     compileOnly("org.projectlombok:lombok")

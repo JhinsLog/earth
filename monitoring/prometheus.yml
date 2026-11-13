@@ -1,0 +1,16 @@
+# Prometheus 수집 설정. compose.yml의 prometheus 서비스가 읽는다.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: earth-backend
+    # 공개 포트(8080)가 아니라 관리 포트(8081)다. 8080에는 /actuator/prometheus가 없다(application.yml).
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['earth-backend:8081']
+
+  # Prometheus 자신의 상태(수집 실패, 저장 용량).
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

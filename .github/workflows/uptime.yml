@@ -1,0 +1,33 @@
+# 서버 바깥에서 하는 업타임 체크.
+#
+# 홈서버 안의 Prometheus·Grafana는 서버와 같이 죽는다. 정전·회선 단절·부팅 실패처럼 서버째 멈춘 경우는
+# 안에서 알릴 주체가 없으므로, GitHub 러너가 공개 주소를 주기적으로 호출해 본다. 실패하면 이 워크플로가
+# 실패로 끝나고, GitHub가 실패 알림을 메일로 보낸다(예약 실행의 알림은 cron을 마지막으로 바꾼 사람이 받는다).
+#
+# 한계: GitHub 예약 실행은 붐비면 늦게 돌거나 건너뛸 수 있다. 즉시 알림이 아니라 "몇 분~수십 분 안에 안다"
+# 수준이다. 또 공개 저장소에 60일 동안 활동이 없으면 예약 실행이 자동으로 꺼진다.
+name: 업타임 체크
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+# 저장소에 아무 권한도 필요 없다. 외부 주소를 호출하기만 한다.
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 백엔드 health
+        # 일시적인 끊김 한 번으로 알림이 오지 않게 몇 번 다시 시도한다. 상태만 보고(UP) 세부 항목은 공개 포트에 없다.
+        run: |
+          curl -fsS --retry 3 --retry-delay 15 --retry-all-errors --max-time 10 \
+            https://earth-api.jhinslog.com/actuator/health | tee /dev/stderr | grep -q '"UP"'
+
+      - name: 프론트엔드
+        run: |
+          curl -fsS --retry 3 --retry-delay 15 --retry-all-errors --max-time 10 -o /dev/null \
+            https://earth.jhinslog.com/

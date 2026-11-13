@@ -1,0 +1,10 @@
+# Grafana가 뜰 때 Prometheus를 데이터 소스로 자동 등록한다. 화면에서 손으로 연결하면 볼륨을 잃었을 때 다시 해야 한다.
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

@@ -433,3 +433,26 @@ VPN을 쓰면 다른 나라로 보이는 것은 IP 기반 판정의 본질적 �
 제약 위반(500)으로 실패한다.
 
 **포기한 것** — 차단된 사람의 글도 네트워크로는 받는다. 대화가 길면 최근 100건 중 차단된 사람 몫만큼 덜 보인다.
+
+## D-14. 모니터링은 Micrometer → Prometheus → Grafana로 홈서버 안에 두고, 서버째 죽는 것은 바깥에서 본다
+
+**상황** — 수치도 알림도 없어, 장애는 직접 접속하거나 사용자 제보로만 알 수 있었다. 서버는 한 대(메모리 7.4GB)이고,
+전원이 끊기면 하루 동안 켜지지 않는다. 오픈소스로만 고른다.
+
+| | A안 | B안 | C안 |
+| --- | --- | --- | --- |
+| 방법 | 외부 업타임 체크만 | Micrometer(앱) + Prometheus·Grafana(컨테이너 2개) + 외부 업타임 체크 | B + postgres/redis/node exporter, Loki 로그 |
+| 장점 | 가장 단순 | 느려짐·에러율·커넥션 풀·힙을 수치로 보고 전후 비교 가능 | DB·Redis·호스트 내부까지 보임 |
+| 단점 | 살았는지만 앎 | 메모리 약 170MB(실측) 추가, 서버가 죽은 동안은 수치도 없음 | 컨테이너 3~5개 추가, node_exporter는 호스트 경로 마운트 필요 |
+| 포기하는 것 | 원인 분석 | DB·Redis 서버 내부 지표, 로그 검색 | 단순함 |
+
+**결정** — B. 앱 쪽 수치(HikariCP 대기, JVM 힙, 경로별 p95)만으로도 "느려졌다면 어디인가"의 첫 갈림길은 가를 수 있다.
+수치(`/actuator/prometheus`)는 관리 포트 8081에만 열고 compose에서 publish하지 않는다. 8080은 Cloudflare Tunnel이 외부에
+여는 포트라 요청 경로·응답 시간·JVM 상태가 그대로 공개되기 때문이다. 관리 포트를 나누면 `/actuator/health`도 8081로
+옮겨 가는데, 헬스체크·`earth-ctl health`·외부 체크가 모두 8080의 그 경로를 본다. Spring의 `additional-path`는
+한 단계 경로(`/healthz`)만 허용해(`'value' must contain only one segment`로 기동 실패) 기존 경로를 지킬 수 없었으므로,
+`PublicHealthController`가 같은 `HealthEndpoint` 판정을 상태만 담아 8080에 다시 내보낸다(`ManagementPortTest`).
+외부 체크는 별도 계정이 필요 없는 GitHub Actions 예약 실행(10분)으로 한다.
+
+**포기한 것** — 서버가 죽어 있던 동안의 수치. 외부 체크의 즉시성(GitHub 예약 실행은 늦거나 건너뛸 수 있다).
+DB·Redis 서버 내부 지표와 로그 검색은 필요해지면 exporter·Loki로 붙인다.

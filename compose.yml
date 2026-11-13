@@ -3,7 +3,7 @@
 #   earth.jhinslog.com      → Cloudflare Pages (정적, 홈서버와 무관)
 #   earth-api.jhinslog.com  → Cloudflare Tunnel → 이 스택의 earth-backend
 #
-# 다른 서버로 옮길 때는 이 파일 + .env + 볼륨만 가져가면 된다.
+# 다른 서버로 옮길 때는 이 파일 + monitoring/ + .env + 볼륨만 가져가면 된다.
 #
 # 사전 준비 (개발 PC에서):
 #   cd backend && ./gradlew bootJar   →   backend/build/libs/earth-backend-*.jar
@@ -100,6 +100,48 @@ services:
       start_period: 90s
     mem_limit: 1g
 
+  # ── 모니터링 ───────────────────────────────────────────────────────────────
+  # 백엔드가 관리 포트(8081)의 /actuator/prometheus로 내놓는 수치를 Prometheus가 15초마다 긁어 저장하고,
+  # Grafana가 그래프로 보여 준다. 8081은 publish하지 않는다 — 이 docker 네트워크 안에서만 닿는다.
+  # 이 스택은 서버와 같이 죽으므로, 서버째 꺼진 것은 바깥의 업타임 체크(.github/workflows/uptime.yml)가 맡는다.
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # 디스크가 조용히 차지 않게 기간과 크기 둘 다 건다. 먼저 닿는 쪽에서 오래된 것부터 지운다.
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=2GB
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    # 포트를 열지 않는다. Grafana만 내부망으로 붙는다.
+    mem_limit: 256m
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      # 폴백 기본값을 두지 않는다. 비어 있으면 Grafana 기본 비밀번호(admin)로 뜬다.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Grafana 관리자 비밀번호를 .env에 지정해야 한다}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    # 127.0.0.1에만 묶고 터널에도 연결하지 않는다. 보려면 SSH 포트 포워딩으로 들어온다.
+    #   ssh -L 3000:127.0.0.1:3000 jhin@jhinslog   →   http://localhost:3000
+    ports:
+      - "127.0.0.1:3000:3000"
+    mem_limit: 384m
+
 volumes:
   pg_data:
   redis_data:
+  prometheus_data:
+  grafana_data:
