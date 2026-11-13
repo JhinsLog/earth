@@ -456,3 +456,7 @@ VPN을 쓰면 다른 나라로 보이는 것은 IP 기반 판정의 본질적 �
 
 **포기한 것** — 서버가 죽어 있던 동안의 수치. 외부 체크의 즉시성(GitHub 예약 실행은 늦거나 건너뛸 수 있다).
 DB·Redis 서버 내부 지표와 로그 검색은 필요해지면 exporter·Loki로 붙인다.
+
+Grafana는 127.0.0.1에만 묶고, 바깥에서는 Cloudflare Tunnel(`earth-grafana.jhinslog.com`) 앞에 Cloudflare Access(지정한
+메일 주소만 통과)를 두어 연다. Grafana 로그인만으로 인터넷에 열면 Grafana 취약점이 곧 서버 침입 경로가 되고, VPN(Tailscale 등)은
+서버와 기기마다 설치가 필요해서다.
