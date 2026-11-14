@@ -258,6 +258,7 @@ export default function HomePage() {
             center={initialFocusLatLng ?? globeCenter}
             initialView={returnView}
             onZoomEnter={handleGlobeZoomEnter}
+            onContextLost={() => setGlobeKey((key) => key + 1)}
           />
         </div>
       )}
@@ -294,6 +295,7 @@ export default function HomePage() {
               initialView={enterView}
               onZoomOutToHome={exitToGlobe}
               onReady={handleMapReady}
+              onContextLost={exitToGlobe}
               onFlashlightZoomChange={setFlashlightZoom}
               myLocation={myLocation}
               locating={locating}

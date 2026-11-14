@@ -307,13 +307,13 @@ export function createDaylightLayer(id: string): DaylightLayer {
         staticClouds = texture
       })
       // 도시 불빛은 지도에서 홈 라스보다 훨씬 크게 확대된 채(줌 MAP_DAYLIGHT_NONE_ZOOM까지) 보인다. 2K는 줌 3.5에서
-      // 한 텍셀이 화면 몇 픽셀로 늘어나 뭉개졌다. GPU가 받는 만큼 8K를 쓴다(밉맵 포함 약 170MB).
-      // 휴대폰은 화면 밀도가 높아(DPR 3 이상) 오히려 더 필요하다. 다만 메모리가 작은 기기는 4K로 낮춘다 —
-      // deviceMemory(GB, 크롬 계열만, 최대 8로 보고)가 없으면 PC는 넉넉하다고 보고, 터치 기기는 작다고 본다.
+      // 한 텍셀이 화면 몇 픽셀로 늘어나 뭉개졌다. PC는 GPU가 받는 만큼 8K(밉맵 포함 약 170MB).
+      // 휴대폰은 4K까지만 쓴다. 8K로 올린 직후 갤럭시 S23 Ultra에서 라스↔지도를 오가다 화면이 굳는 일이 생겼다
+      // (2026-11-14, GPU 메모리 부족으로 컨텍스트를 잃은 것으로 추정). 전환 중에는 홈 라스의 4K 텍스처 셋과 이 텍스처가
+      // 함께 GPU에 올라간다. 휴대폰 화질은 타일 방식으로 따로 푼다.
       const maxTexture = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number
       const coarse = window.matchMedia('(pointer: coarse)').matches
-      const memoryGb = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? (coarse ? 4 : 8)
-      const nightSize = maxTexture >= 8192 && memoryGb >= 8 ? 8192 : maxTexture >= 4096 ? 4096 : 2048
+      const nightSize = !coarse && maxTexture >= 8192 ? 8192 : maxTexture >= 4096 ? 4096 : 2048
       void loadInto(
         `/textures/night_${nightSize}.jpg`,
         (texture) => {

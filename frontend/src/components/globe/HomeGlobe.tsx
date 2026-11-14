@@ -26,6 +26,8 @@ interface Props {
   onZoomEnter: (view: HandoffView) => void
   /** 지도에서 축소해 돌아왔을 때 이어받을 화면. 주면 그 지점을 정면에, 지구를 같은 크기로 보이게 시작한다. */
   initialView?: HandoffView | null
+  /** 그리기용 GPU 연결(WebGL 컨텍스트)을 잃었을 때. 이 인스턴스는 다시 그릴 수 없으므로 HomePage가 새로 띄운다. */
+  onContextLost?: () => void
 }
 
 /** 홈 라스 → 지도로 넘길 때의 화면 상태. */
@@ -330,7 +332,7 @@ function cloudCredit(observedAt: string, sources: string[]): string {
   return `${time} ${names.join(' · ')}${meteosat ? `, contains modified EUMETSAT Meteosat data ${date.getUTCFullYear()}` : ''}`
 }
 
-export default function HomeGlobe({ flares, center, onZoomEnter, initialView = null }: Props) {
+export default function HomeGlobe({ flares, center, onZoomEnter, initialView = null, onContextLost }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const haloRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
@@ -346,6 +348,10 @@ export default function HomeGlobe({ flares, center, onZoomEnter, initialView = n
   const [liveClouds, setLiveClouds] = useState<LiveClouds | null>(null)
 
   // 장면을 만드는 effect는 한 번만 돌기 때문에, 그 안의 처리기는 이 ref로 최신 콜백을 읽는다.
+  const onContextLostRef = useRef(onContextLost)
+  useEffect(() => {
+    onContextLostRef.current = onContextLost
+  }, [onContextLost])
   const onZoomEnterRef = useRef(onZoomEnter)
   useEffect(() => {
     onZoomEnterRef.current = onZoomEnter
@@ -589,6 +595,10 @@ export default function HomeGlobe({ flares, center, onZoomEnter, initialView = n
     let longPressId = 0
     const cancelLongPress = () => window.clearTimeout(longPressId)
     const canvas = renderer.domElement
+    // GPU 메모리가 모자라면 브라우저가 WebGL 컨텍스트를 끊는다. 그러면 화면이 마지막 그림 그대로 굳고 조작도 먹지 않는다.
+    // 휴대폰에서 확대·축소로 라스와 지도를 빠르게 오가다(둘이 잠깐 함께 떠 텍스처를 올린다) 화면이 굳는 일이 있었다(2026-11-14).
+    const onContextLostEvent = () => onContextLostRef.current?.()
+    canvas.addEventListener('webglcontextlost', onContextLostEvent)
     // 우클릭 손전등. 비추는 지점은 지구 좌표로 들고 있어야 자전해도 같은 땅을 비춘다.
     const flashLocal = new THREE.Vector3()
     let flashOn = false
@@ -772,6 +782,8 @@ export default function HomeGlobe({ flares, center, onZoomEnter, initialView = n
     rafId = requestAnimationFrame(animate)
 
     return () => {
+      // 아래 forceContextLoss도 같은 이벤트를 낸다. 스스로 내려가는 것을 '잃었다'로 알리지 않게 먼저 뗀다.
+      canvas.removeEventListener('webglcontextlost', onContextLostEvent)
       cancelAnimationFrame(rafId)
       cancelLongPress()
       liveCloudsRequest.abort()

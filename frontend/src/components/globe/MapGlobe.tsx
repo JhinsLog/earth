@@ -135,6 +135,8 @@ interface Props {
   onZoomOutToHome?: (view: HandoffView) => void
   /** 스타일과 타일이 준비돼 화면에 나타났을 때. 홈 라스는 이때까지 남아 있다가 겹쳐 사라진다. */
   onReady?: () => void
+  /** 그리기용 GPU 연결(WebGL 컨텍스트)을 잃었을 때. 지도는 다시 그릴 수 없으므로 그 자리의 화면을 넘겨 홈 라스로 돌아간다. */
+  onContextLost?: (view: HandoffView) => void
   /** 손전등을 쓸 수 있는 배율(MAP_DAYLIGHT_NONE_ZOOM 미만)에 들어오거나 나갈 때. 안내 문구를 바꾸는 데 쓴다. */
   onFlashlightZoomChange?: (available: boolean) => void
 }
@@ -339,6 +341,7 @@ export default function MapGlobe({
   onViewportChange,
   onZoomOutToHome,
   onReady,
+  onContextLost,
   onFlashlightZoomChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -373,6 +376,8 @@ export default function MapGlobe({
   onViewportChangeRef.current = onViewportChange
   const onZoomOutToHomeRef = useRef(onZoomOutToHome)
   onZoomOutToHomeRef.current = onZoomOutToHome
+  const onContextLostRef = useRef(onContextLost)
+  onContextLostRef.current = onContextLost
   const onReadyRef = useRef(onReady)
   onReadyRef.current = onReady
   const onFlashlightZoomChangeRef = useRef(onFlashlightZoomChange)
@@ -521,6 +526,15 @@ export default function MapGlobe({
       onZoomOutToHomeRef.current?.({ center: { latitude: center.lat, longitude: center.lng }, globeRadiusPx: radius })
     }
     map.on('zoom', exitIfSmallEnough)
+    // GPU 메모리가 모자라면 브라우저가 WebGL 컨텍스트를 끊는다. 그러면 화면이 마지막 그림 그대로 굳고 조작도 먹지 않는다.
+    // 휴대폰에서 라스와 지도를 빠르게 오가다 화면이 굳는 일이 있었다(2026-11-14). 위치 계산은 GPU 없이 되므로 지금 화면을 넘긴다.
+    const onWebglContextLost = () => {
+      if (exited) return
+      exited = true
+      const center = map.getCenter()
+      onContextLostRef.current?.({ center: { latitude: center.lat, longitude: center.lng }, globeRadiusPx: globeRadiusOnScreen(map) })
+    }
+    map.on('webglcontextlost', onWebglContextLost)
     const onWheel = (e: WheelEvent) => {
       lastZoomInputAt = performance.now()
       if (e.deltaY > 0) {
@@ -944,6 +958,8 @@ export default function MapGlobe({
       readyRef.current = false
       appliedInitialFocusRef.current = false
       window.clearInterval(nearbyCountryIntervalId)
+      // map.remove()도 컨텍스트를 놓으며 같은 이벤트를 낼 수 있다. 스스로 내려가는 것을 '잃었다'로 알리지 않는다.
+      map.off('webglcontextlost', onWebglContextLost)
       map.remove()
       mapRef.current = null
     }
