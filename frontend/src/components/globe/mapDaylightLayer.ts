@@ -307,10 +307,13 @@ export function createDaylightLayer(id: string): DaylightLayer {
         staticClouds = texture
       })
       // 도시 불빛은 지도에서 홈 라스보다 훨씬 크게 확대된 채(줌 MAP_DAYLIGHT_NONE_ZOOM까지) 보인다. 2K는 줌 3.5에서
-      // 한 텍셀이 화면 몇 픽셀로 늘어나 뭉개졌다. 터치 기기는 GPU 메모리를 생각해 4K, 그 밖에는 8K(GPU가 받는 만큼).
+      // 한 텍셀이 화면 몇 픽셀로 늘어나 뭉개졌다. GPU가 받는 만큼 8K를 쓴다(밉맵 포함 약 170MB).
+      // 휴대폰은 화면 밀도가 높아(DPR 3 이상) 오히려 더 필요하다. 다만 메모리가 작은 기기는 4K로 낮춘다 —
+      // deviceMemory(GB, 크롬 계열만, 최대 8로 보고)가 없으면 PC는 넉넉하다고 보고, 터치 기기는 작다고 본다.
       const maxTexture = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number
       const coarse = window.matchMedia('(pointer: coarse)').matches
-      const nightSize = !coarse && maxTexture >= 8192 ? 8192 : maxTexture >= 4096 ? 4096 : 2048
+      const memoryGb = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? (coarse ? 4 : 8)
+      const nightSize = maxTexture >= 8192 && memoryGb >= 8 ? 8192 : maxTexture >= 4096 ? 4096 : 2048
       void loadInto(
         `/textures/night_${nightSize}.jpg`,
         (texture) => {
