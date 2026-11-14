@@ -51,7 +51,6 @@ export default function SettingsMenu() {
           <label className="settings__row">
             <span className="settings__label">
               도시 불빛
-              <span className="settings__desc">첫 화면 라스의 밤 지역에 도시 위치를 불빛으로 표시합니다</span>
             </span>
             <input
               type="checkbox"
@@ -64,7 +63,6 @@ export default function SettingsMenu() {
           <label className="settings__row">
             <span className="settings__label">
               공공데이터 플레어
-              <span className="settings__desc">교통 돌발정보처럼 공공데이터로 자동으로 만든 플레어를 표시합니다</span>
             </span>
             <input
               type="checkbox"
@@ -77,7 +75,6 @@ export default function SettingsMenu() {
           <label className="settings__row">
             <span className="settings__label">
               지하철 노선
-              <span className="settings__desc">지도를 도시 단위로 확대하면 국내 지하철·전철 노선을 노선 색으로 표시합니다</span>
             </span>
             <input
               type="checkbox"
@@ -91,7 +88,6 @@ export default function SettingsMenu() {
             <div className="settings__section">
               <div className="settings__label">
                 차단한 사용자
-                <span className="settings__desc">차단한 사람의 플레어와 채팅은 보이지 않습니다</span>
               </div>
               {blocked.length === 0 ? (
                 <p className="settings__empty">없음</p>

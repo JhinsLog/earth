@@ -61,11 +61,6 @@
   color: #eaf2ff;
 }
 
-.settings__desc {
-  font-size: 12px;
-  color: #8fa3bf;
-}
-
 /* 체크박스를 스위치 모양으로. 키보드·스크린리더 동작은 체크박스 그대로다. */
 .settings__switch {
   appearance: none;

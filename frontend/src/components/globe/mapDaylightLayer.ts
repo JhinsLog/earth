@@ -152,12 +152,14 @@ function compile(gl: WebGL2RenderingContext, type: number, source: string): WebG
   return shader
 }
 
-function createTexture(gl: WebGL2RenderingContext, image?: TexImageSource): WebGLTexture {
+function createTexture(gl: WebGL2RenderingContext, image?: TexImageSource, mipmap = false): WebGLTexture {
   const texture = gl.createTexture()!
   gl.bindTexture(gl.TEXTURE_2D, texture)
   if (image) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
   else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]))
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+  // 화면보다 훨씬 큰 텍스처(도시 불빛 8K)를 축소해 그릴 때 밉맵이 없으면 점 같은 불빛이 지도를 돌릴 때마다 반짝인다.
+  if (image && mipmap) gl.generateMipmap(gl.TEXTURE_2D)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, image && mipmap ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
   // 경도 ±180°에서 이어지도록 가로는 반복, 극에서는 가장자리를 늘린다.
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
@@ -260,10 +262,10 @@ export function createDaylightLayer(id: string): DaylightLayer {
     return entry
   }
 
-  const loadInto = async (url: string, assign: (texture: WebGLTexture) => void) => {
+  const loadInto = async (url: string, assign: (texture: WebGLTexture) => void, mipmap = false) => {
     const image = await fetchImage(url, abort.signal)
     if (!image || !gl || abort.signal.aborted) return
-    assign(createTexture(gl, image))
+    assign(createTexture(gl, image, mipmap))
     image.close()
     map?.triggerRepaint()
   }
@@ -299,15 +301,24 @@ export function createDaylightLayer(id: string): DaylightLayer {
       staticClouds = createTexture(gl)
       liveClouds = createTexture(gl)
       nightLights = createTexture(gl)
-      // 지도에서는 2K로 충분하다. 저줌에서만 보이고, 홈 라스가 같은 파일을 이미 받아 두어 캐시에서 나온다.
+      // 구름은 2K로 충분하다. 실시간 구름이 오면 그쪽을 쓰고, 홈 라스가 같은 파일을 이미 받아 두어 캐시에서 나온다.
       void loadInto('/textures/clouds_2048.jpg', (texture) => {
         gl!.deleteTexture(staticClouds)
         staticClouds = texture
       })
-      void loadInto('/textures/night_2048.jpg', (texture) => {
-        gl!.deleteTexture(nightLights)
-        nightLights = texture
-      })
+      // 도시 불빛은 지도에서 홈 라스보다 훨씬 크게 확대된 채(줌 MAP_DAYLIGHT_NONE_ZOOM까지) 보인다. 2K는 줌 3.5에서
+      // 한 텍셀이 화면 몇 픽셀로 늘어나 뭉개졌다. 터치 기기는 GPU 메모리를 생각해 4K, 그 밖에는 8K(GPU가 받는 만큼).
+      const maxTexture = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number
+      const coarse = window.matchMedia('(pointer: coarse)').matches
+      const nightSize = !coarse && maxTexture >= 8192 ? 8192 : maxTexture >= 4096 ? 4096 : 2048
+      void loadInto(
+        `/textures/night_${nightSize}.jpg`,
+        (texture) => {
+          gl!.deleteTexture(nightLights)
+          nightLights = texture
+        },
+        true,
+      )
       void refreshLiveClouds()
       refreshTimer = window.setInterval(() => void refreshLiveClouds(), LIVE_CLOUDS_REFRESH_MS)
       unsubscribeSettings = useSettingsStore.subscribe(() => map?.triggerRepaint())
