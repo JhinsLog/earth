@@ -89,6 +89,10 @@ services:
       # 이걸 켜야 Spring이 X-Forwarded-Proto를 신뢰해 OAuth 콜백 URL을 https로 만든다.
       # 빠뜨리면 구글이 redirect_uri_mismatch로 로그인을 거부한다.
       SERVER_FORWARD_HEADERS_STRATEGY: framework
+      # prod 프로파일은 logback-spring.xml의 Loki 전송만 켠다(그 밖의 동작은 바꾸지 않는다). 로그는 docker 내부망의
+      # Loki로 직접 보낸다. Loki가 죽어 있어도 백엔드는 정상 동작하고 콘솔 로그(earth-ctl logs)는 그대로 남는다.
+      SPRING_PROFILES_ACTIVE: prod
+      LOKI_URL: http://loki:3100/loki/api/v1/push
     # 127.0.0.1에만 묶는다. 집 LAN 전체에 노출되지 않고, 호스트의 cloudflared만 여기로 붙는다.
     ports:
       - "127.0.0.1:8080:8080"
@@ -119,11 +123,24 @@ services:
     # 포트를 열지 않는다. Grafana만 내부망으로 붙는다.
     mem_limit: 256m
 
+  # 로그 저장소. 백엔드 로그(오류 스택 포함), 브라우저가 보낸 오류·행동, 서버가 확인한 사용자 행동을 30일 보관한다.
+  # 컨테이너 표준 출력은 컨테이너를 교체할 때마다 사라져서, 지난 오류를 뒤져 볼 방법이 없었다.
+  loki:
+    image: grafana/loki:3.7.9
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./monitoring/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    # 포트를 열지 않는다. 백엔드가 밀어 넣고 Grafana가 읽는 것 모두 이 docker 네트워크 안에서 일어난다.
+    mem_limit: 384m
+
   grafana:
     image: grafana/grafana:12.1.1
     restart: unless-stopped
     depends_on:
       - prometheus
+      - loki
     environment:
       GF_SECURITY_ADMIN_USER: admin
       # 폴백 기본값을 두지 않는다. 비어 있으면 Grafana 기본 비밀번호(admin)로 뜬다.
@@ -153,3 +170,4 @@ volumes:
   redis_data:
   prometheus_data:
   grafana_data:
+  loki_data:

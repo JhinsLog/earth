@@ -1,0 +1,49 @@
+# Loki 단일 프로세스 설정. 백엔드(loki4j)가 직접 밀어 넣고, Grafana가 읽는다. 포트는 docker 내부망에만 있다.
+#
+# 인증을 끈다(auth_enabled: false). 바깥으로 열린 포트가 없고, 같은 네트워크의 백엔드·Grafana만 닿는다.
+# 켜면 모든 요청에 테넌트 헤더가 필요해지는데, 테넌트가 하나뿐이라 얻는 것이 없다.
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  log_level: warn
+
+common:
+  path_prefix: /loki
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+
+schema_config:
+  configs:
+    - from: 2026-11-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # 30일이 지난 로그는 compactor가 지운다. Prometheus 수치 보관 기간과 맞췄다.
+  retention_period: 720h
+  # 백엔드가 늦게 보낸 묶음(재시도)도 받되, 너무 오래된 시각은 거절한다.
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  # 브라우저 로그 API가 뚫려도 Loki가 먼저 버티지 못하는 일이 없게 수집 속도에 상한을 둔다(백엔드에도 한도가 있다).
+  ingestion_rate_mb: 4
+  ingestion_burst_size_mb: 8
+  max_query_lookback: 720h
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+
+analytics:
+  reporting_enabled: false

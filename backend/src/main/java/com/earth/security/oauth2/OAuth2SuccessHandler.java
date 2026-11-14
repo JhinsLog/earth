@@ -1,6 +1,7 @@
 package com.earth.security.oauth2;
 
 import com.earth.config.OAuth2Properties;
+import com.earth.logging.ActivityLog;
 import com.earth.security.jwt.JwtTokenProvider;
 import com.earth.service.RefreshTokenService;
 import jakarta.servlet.ServletException;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 @Component
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
@@ -34,6 +36,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         String accessToken = jwtTokenProvider.createAccessToken(principal.getUserId());
         String refreshToken = jwtTokenProvider.createRefreshToken(principal.getUserId());
         refreshTokenService.save(principal.getUserId(), refreshToken);
+        // 로그인은 OAuth 콜백이 처리해 /api 인터셉터(ApiActivityInterceptor)를 지나지 않으므로 여기서 남긴다.
+        ActivityLog.record(principal.getUserId(), "auth.login", Map.of("source", "oauth2", "provider", "google"));
 
         String redirectUrl = UriComponentsBuilder.fromUriString(oAuth2Properties.redirectUrl())
                 .queryParam("accessToken", accessToken)

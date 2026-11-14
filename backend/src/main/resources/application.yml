@@ -84,6 +84,11 @@ earth:
       # 폴백 기본값을 두지 않는다. 켜져 있는데 비어 있으면 SeoulIncidentScheduler가 기동을 막는다.
       api-key: ${SEOUL_OPENAPI_KEY:}
       refresh-interval-ms: 600000
+  logs:
+    # Loki 수신 주소. prod 프로파일의 logback-spring.xml만 읽는다. 로컬·테스트에서는 비어 있어도 된다.
+    loki-url: ${LOKI_URL:}
+    client-events-per-minute: 30
+    max-body-bytes: 65536
   clouds:
     # 홈 라스 실시간 구름(NOAA GMGSI). 출처는 docs/data-sources.md
     enabled: true

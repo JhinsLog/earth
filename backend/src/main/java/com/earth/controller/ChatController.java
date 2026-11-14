@@ -7,6 +7,7 @@ import com.earth.dto.ChatMessageResponse;
 import com.earth.exception.EarthApiException;
 import com.earth.exception.ErrorCode;
 import com.earth.exception.ErrorResponse;
+import com.earth.logging.ActivityLog;
 import com.earth.service.ChatService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -60,7 +62,16 @@ public class ChatController {
         }
         User sender = userRepository.findById(Long.valueOf(principal.getName()))
                 .orElseThrow(() -> new EarthApiException(ErrorCode.USER_NOT_FOUND));
-        chatService.postMessage(flareId, sender, request.content());
+        // 채팅은 STOMP로 와서 HTTP 인터셉터(ApiActivityInterceptor)를 지나지 않는다. 그래서 여기서 직접 남긴다.
+        // 본문은 남기지 않는다(ActivityLog 참고). 거절된 시도(도배·검열)도 사유와 함께 남긴다.
+        try {
+            chatService.postMessage(flareId, sender, request.content());
+            ActivityLog.record(sender.getId(), "chat.send", Map.of("source", "ws", "flareId", flareId, "result", "ok"));
+        } catch (EarthApiException e) {
+            ActivityLog.record(sender.getId(), "chat.send",
+                    Map.of("source", "ws", "flareId", flareId, "result", e.getErrorCode().name()));
+            throw e;
+        }
     }
 
     /*

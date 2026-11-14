@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Spring Boot 기본 콘솔 출력은 그대로 두고, 운영(prod 프로파일)에서만 Loki 전송을 더한다.
+
+  Loki로 가는 흐름은 세 갈래이고 stream 라벨로 나뉜다.
+    app      : 백엔드 자체 로그(INFO 이상). 오류 스택까지 30일 남는다 — 컨테이너 표준 출력은 재생성되면 사라진다.
+    client   : 브라우저가 보낸 오류·행동(로거 earth.client, ClientEventService)
+    activity : 서버가 확인한 사용자 행동(로거 earth.activity, ActivityLog)
+
+  라벨은 값 종류가 적은 것만 둔다(app·stream·level). Loki는 라벨 조합마다 저장 단위를 따로 만들어서, userId나
+  세션처럼 값이 무한한 것을 라벨로 쓰면 색인이 폭증한다. 그런 값은 JSON 본문 필드로 두고 LogQL `| json`으로 거른다.
+
+  Loki가 죽어 있어도 백엔드는 영향을 받지 않는다. 전송은 별도 스레드에서 묶음으로 하고, 실패한 묶음은 몇 번 재시도한
+  뒤 버린다(loki4j 기본 동작). 그동안 app 로그는 콘솔에 계속 남는다.
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <springProfile name="prod">
+        <springProperty name="LOKI_URL" source="earth.logs.loki-url"/>
+
+        <appender name="LOKI_APP" class="com.github.loki4j.logback.Loki4jAppender">
+            <http>
+                <url>${LOKI_URL}</url>
+            </http>
+            <labels>
+                app = earth-backend
+                stream = app
+                level = %level
+            </labels>
+            <structuredMetadata>off</structuredMetadata>
+            <message class="com.github.loki4j.logback.JsonLayout">
+                <kvp>
+                    <noPrefix>true</noPrefix>
+                </kvp>
+            </message>
+        </appender>
+
+        <!-- 로거 이름의 마지막 조각(client·activity)이 그대로 stream 라벨이 된다. -->
+        <appender name="LOKI_EVENTS" class="com.github.loki4j.logback.Loki4jAppender">
+            <http>
+                <url>${LOKI_URL}</url>
+            </http>
+            <labels>
+                app = earth-backend
+                stream = %logger{0}
+                level = %level
+            </labels>
+            <structuredMetadata>off</structuredMetadata>
+            <message class="com.github.loki4j.logback.JsonLayout">
+                <kvp>
+                    <noPrefix>true</noPrefix>
+                </kvp>
+                <threadName>
+                    <enabled>false</enabled>
+                </threadName>
+            </message>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="LOKI_APP"/>
+        </root>
+        <!-- additivity=false: 행동·브라우저 로그는 양이 많아 콘솔(earth-ctl logs)을 덮는다. Loki에만 보낸다. -->
+        <logger name="earth.client" level="INFO" additivity="false">
+            <appender-ref ref="LOKI_EVENTS"/>
+        </logger>
+        <logger name="earth.activity" level="INFO" additivity="false">
+            <appender-ref ref="LOKI_EVENTS"/>
+        </logger>
+    </springProfile>
+</configuration>

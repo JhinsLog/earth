@@ -61,6 +61,8 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/geo/me").permitAll()
                         // 홈 라스의 구름 이미지. 누구에게나 같은 위성 영상이다
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/globe/clouds").permitAll()
+                        // 브라우저 오류·행동 로그. 오류는 로그인 전에도 나므로 열어 둔다. 한도는 ClientEventController 참고
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, com.earth.controller.ClientEventController.PATH).permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()
                 )

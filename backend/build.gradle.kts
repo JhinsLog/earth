@@ -52,6 +52,10 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     // Micrometer가 모은 수치를 Prometheus 형식(/actuator/prometheus)으로 내보낸다. 관리 포트에만 열린다(application.yml).
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
+    // 로그를 Loki로 직접 보낸다(logback-spring.xml, prod 프로파일에서만). 2.0.x가 Spring Boot 4의 Logback 1.5용이다 —
+    // 2.1.0부터는 Logback 1.6을 요구한다. 컨테이너 로그 파일을 긁는 수집기(Promtail·Alloy)를 쓰지 않는 이유는 그러려면
+    // docker 소켓이나 /var/lib/docker를 마운트해야 해서, 그 컨테이너가 사실상 호스트 root가 되기 때문이다.
+    runtimeOnly("com.github.loki4j:loki-logback-appender:2.0.3")
     developmentOnly("org.springframework.boot:spring-boot-devtools")
 
     compileOnly("org.projectlombok:lombok")

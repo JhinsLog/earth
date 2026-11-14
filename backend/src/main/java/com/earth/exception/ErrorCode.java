@@ -18,7 +18,8 @@ public enum ErrorCode {
     CANNOT_CONFIRM_OWN_FLARE(HttpStatus.BAD_REQUEST, "자신이 등록한 플레어에는 공감할 수 없습니다."),
     ALREADY_CONFIRMED(HttpStatus.CONFLICT, "이미 공감한 플레어입니다."),
     INVALID_BOUNDS(HttpStatus.BAD_REQUEST, "조회 범위가 올바르지 않습니다."),
-    COUNTRY_RESTRICTED(HttpStatus.FORBIDDEN, "로그인하지 않으면 접속한 국가의 플레어만 자세히 볼 수 있습니다.");
+    COUNTRY_RESTRICTED(HttpStatus.FORBIDDEN, "로그인하지 않으면 접속한 국가의 플레어만 자세히 볼 수 있습니다."),
+    CLIENT_EVENT_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "로그를 너무 자주 보내고 있습니다.");
 
     private final HttpStatus status;
     private final String defaultMessage;

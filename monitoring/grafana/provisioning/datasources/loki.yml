@@ -1,0 +1,11 @@
+# 로그 저장소(Loki)를 데이터 소스로 자동 등록한다. 백엔드 로그·브라우저 오류·사용자 행동이 여기 있다.
+apiVersion: 1
+datasources:
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      maxLines: 1000
