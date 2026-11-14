@@ -77,7 +77,7 @@ class ContentModerationFlowTest extends IntegrationTest {
     }
 
     private User user(String key) {
-        return new User(AuthProvider.GOOGLE, key, key + "@test.local", key, null);
+        return new User(AuthProvider.GOOGLE, key, key);
     }
 
     private FlareCreateRequest request(String title, String content) {

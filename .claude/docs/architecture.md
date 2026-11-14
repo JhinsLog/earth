@@ -69,7 +69,7 @@
 
 ```
 GET /oauth2/authorization/google
-  → CustomOAuth2UserService (사용자 upsert)
+  → EarthOidcUserService (구글 ID 토큰의 sub만 사용) → GoogleUserRegistrar (처음이면 자동 닉네임으로 가입)
   → OAuth2SuccessHandler (access/refresh 발급, refresh는 Redis 저장)
   → 302 → OAUTH_REDIRECT_URL?accessToken=..&refreshToken=..
   → 프론트 OAuthRedirectPage → localStorage(earth:accessToken / earth:refreshToken)

@@ -58,9 +58,7 @@ export interface DraftFlare {
 
 export interface EarthUser {
   id: number
-  email: string
   nickname: string
-  profileImageUrl: string | null
   level: number
   exp: number
 }

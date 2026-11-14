@@ -85,7 +85,7 @@ class AnonymousRealtimeVisibilityTest extends IntegrationTest {
         // 구독 프레임이 서버에 먼저 도착하도록 잠깐 기다린다(구독보다 발행이 빠르면 아무것도 못 받는다).
         Thread.sleep(500);
 
-        User author = userRepository.save(new User(AuthProvider.GOOGLE, "rt", "rt@test.local", "작성자", null));
+        User author = userRepository.save(new User(AuthProvider.GOOGLE, "rt", "작성자"));
         flareService.create(author, new FlareCreateRequest("서울 소식", "내용", FlareCategory.ETC, 37.5665, 126.9780));
         flareService.create(author, new FlareCreateRequest("도쿄 소식", "내용", FlareCategory.ETC, 35.6762, 139.6503));
 

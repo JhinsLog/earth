@@ -1,7 +1,7 @@
 package com.earth.config;
 
 import com.earth.security.jwt.JwtAuthenticationFilter;
-import com.earth.security.oauth2.CustomOAuth2UserService;
+import com.earth.security.oauth2.EarthOidcUserService;
 import com.earth.security.oauth2.OAuth2SuccessHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,16 +24,16 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final CustomOAuth2UserService customOAuth2UserService;
+    private final EarthOidcUserService earthOidcUserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CorsProperties corsProperties;
 
-    public SecurityConfig(CustomOAuth2UserService customOAuth2UserService,
+    public SecurityConfig(EarthOidcUserService earthOidcUserService,
                            OAuth2SuccessHandler oAuth2SuccessHandler,
                            JwtAuthenticationFilter jwtAuthenticationFilter,
                            CorsProperties corsProperties) {
-        this.customOAuth2UserService = customOAuth2UserService;
+        this.earthOidcUserService = earthOidcUserService;
         this.oAuth2SuccessHandler = oAuth2SuccessHandler;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.corsProperties = corsProperties;
@@ -74,7 +74,7 @@ public class SecurityConfig {
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
                 )
                 .oauth2Login(oauth2 -> oauth2
-                        .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
+                        .userInfoEndpoint(userInfo -> userInfo.oidcUserService(earthOidcUserService))
                         .successHandler(oAuth2SuccessHandler)
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

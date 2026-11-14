@@ -14,7 +14,6 @@ import java.time.Instant;
 public class User {
 
     public static final int NICKNAME_MAX_LENGTH = 50;
-    public static final int PROFILE_IMAGE_URL_MAX_LENGTH = 2048;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,14 +26,8 @@ public class User {
     @Column(name = "provider_id", nullable = false, length = 100)
     private String providerId;
 
-    @Column(nullable = false)
-    private String email;
-
     @Column(nullable = false, length = NICKNAME_MAX_LENGTH)
     private String nickname;
-
-    @Column(name = "profile_image_url", length = PROFILE_IMAGE_URL_MAX_LENGTH)
-    private String profileImageUrl;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -49,12 +42,14 @@ public class User {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    public User(AuthProvider provider, String providerId, String email, String nickname, String profileImageUrl) {
+    /**
+     * 구글에서는 계정 ID(sub)만 받는다. 이메일·이름·사진은 서비스에 필요하지 않아 받지도 저장하지도 않는다
+     * (docs/decisions.md D-16). 닉네임은 가입 때 자동으로 정하고 사용자가 바꿀 수 있다.
+     */
+    public User(AuthProvider provider, String providerId, String nickname) {
         this.provider = provider;
         this.providerId = providerId;
-        this.email = email;
         this.nickname = nickname;
-        this.profileImageUrl = profileImageUrl;
     }
 
     @PrePersist
@@ -62,9 +57,8 @@ public class User {
         this.createdAt = Instant.now();
     }
 
-    public void updateProfile(String nickname, String profileImageUrl) {
+    public void changeNickname(String nickname) {
         this.nickname = nickname;
-        this.profileImageUrl = profileImageUrl;
     }
 
     public boolean hasAtLeastLevel(int requiredLevel) {

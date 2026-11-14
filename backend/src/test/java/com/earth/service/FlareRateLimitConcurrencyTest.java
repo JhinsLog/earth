@@ -55,7 +55,7 @@ class FlareRateLimitConcurrencyTest extends IntegrationTest {
     @DisplayName("같은 사용자의 동시 등록 요청이 한도를 넘겨 저장되지 않는다")
     void concurrentCreateRespectsHourlyLimit() throws InterruptedException {
         User author = userRepository.save(
-                new User(AuthProvider.GOOGLE, "concurrency-test", "concurrency@test.local", "동시성테스터", null));
+                new User(AuthProvider.GOOGLE, "concurrency-test", "동시성테스터"));
         int limit = flareProperties.maxPerHour();
         int attempts = limit * 3;
 

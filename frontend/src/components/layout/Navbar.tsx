@@ -25,7 +25,6 @@ export default function Navbar({ onBrandClick }: Props) {
         <SettingsMenu />
         {user ? (
           <div className="navbar__user">
-            {user.profileImageUrl && <img src={user.profileImageUrl} alt="" className="navbar__avatar" />}
             <span className="navbar__nickname">{user.nickname}</span>
             <span className="navbar__level">Lv.{user.level}</span>
             <button

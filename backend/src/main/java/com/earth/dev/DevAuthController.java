@@ -61,7 +61,7 @@ public class DevAuthController {
         String providerId = "dev:" + trimmed;
         User user = userRepository.findByProviderAndProviderId(AuthProvider.GOOGLE, providerId)
                 .orElseGet(() -> userRepository.save(new User(
-                        AuthProvider.GOOGLE, providerId, trimmed + "@dev.local", trimmed, null)));
+                        AuthProvider.GOOGLE, providerId, trimmed)));
 
         String accessToken = jwtTokenProvider.createAccessToken(user.getId());
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());

@@ -177,7 +177,7 @@ class ClientEventAndActivityLogTest extends IntegrationTest {
 
     private static User user(String prefix) {
         String key = prefix + "-" + UUID.randomUUID();
-        return new User(AuthProvider.GOOGLE, key, key + "@test.local", prefix, null);
+        return new User(AuthProvider.GOOGLE, key, key);
     }
 
     private static Map<String, Object> fields(ILoggingEvent event) {

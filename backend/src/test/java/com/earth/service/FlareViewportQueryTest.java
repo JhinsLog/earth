@@ -127,7 +127,7 @@ class FlareViewportQueryTest extends IntegrationTest {
     }
 
     private static User user() {
-        return new User(AuthProvider.GOOGLE, "viewport", "viewport@test.local", "viewport", null);
+        return new User(AuthProvider.GOOGLE, "viewport", "viewport");
     }
 
     private static Flare flare(User author, double lat, double lng) {

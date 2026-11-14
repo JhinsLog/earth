@@ -145,7 +145,7 @@ class ExternalFlareSyncTest extends IntegrationTest {
     void confirmationDoesNotExtendExternal() {
         sync(true, draft("1", "교통사고"));
         Flare before = find("1");
-        User viewer = userRepository.save(new User(AuthProvider.GOOGLE, "viewer", "v@test.local", "viewer", null));
+        User viewer = userRepository.save(new User(AuthProvider.GOOGLE, "viewer", "viewer"));
 
         flareService.confirm(viewer, before.getId());
 

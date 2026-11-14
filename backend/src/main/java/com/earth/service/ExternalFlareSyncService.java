@@ -137,7 +137,6 @@ public class ExternalFlareSyncService {
      */
     private User systemUser(SystemAccount account) {
         return userRepository.findByProviderAndProviderId(AuthProvider.SYSTEM, account.id())
-                .orElseGet(() -> userRepository.save(new User(AuthProvider.SYSTEM, account.id(),
-                        account.id() + "@system.invalid", account.nickname(), null)));
+                .orElseGet(() -> userRepository.save(new User(AuthProvider.SYSTEM, account.id(), account.nickname())));
     }
 }

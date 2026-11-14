@@ -19,7 +19,9 @@ public enum ErrorCode {
     ALREADY_CONFIRMED(HttpStatus.CONFLICT, "이미 공감한 플레어입니다."),
     INVALID_BOUNDS(HttpStatus.BAD_REQUEST, "조회 범위가 올바르지 않습니다."),
     COUNTRY_RESTRICTED(HttpStatus.FORBIDDEN, "로그인하지 않으면 접속한 국가의 플레어만 자세히 볼 수 있습니다."),
-    CLIENT_EVENT_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "로그를 너무 자주 보내고 있습니다.");
+    CLIENT_EVENT_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "로그를 너무 자주 보내고 있습니다."),
+    INVALID_NICKNAME(HttpStatus.BAD_REQUEST, "닉네임은 2~16자의 한글·영문·숫자로 정해 주세요."),
+    NICKNAME_TAKEN(HttpStatus.CONFLICT, "이미 쓰이고 있는 닉네임입니다.");
 
     private final HttpStatus status;
     private final String defaultMessage;

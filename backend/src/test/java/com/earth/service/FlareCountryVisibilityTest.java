@@ -45,7 +45,7 @@ class FlareCountryVisibilityTest extends IntegrationTest {
 
     @BeforeEach
     void setUp() {
-        author = userRepository.save(new User(AuthProvider.GOOGLE, "author", "a@test.local", "작성자", null));
+        author = userRepository.save(new User(AuthProvider.GOOGLE, "author", "작성자"));
         seoulId = flareService.create(author, request("서울", 37.5665, 126.9780)).id();
         dokdoId = flareService.create(author, request("독도", 37.2414, 131.8697)).id();
         tokyoId = flareService.create(author, request("도쿄", 35.6762, 139.6503)).id();
@@ -94,7 +94,7 @@ class FlareCountryVisibilityTest extends IntegrationTest {
     @Test
     @DisplayName("로그인 사용자는 국가와 무관하게 전부 상세")
     void loggedInSeesEverything() {
-        User viewer = userRepository.save(new User(AuthProvider.GOOGLE, "viewer", "v@test.local", "보는사람", null));
+        User viewer = userRepository.save(new User(AuthProvider.GOOGLE, "viewer", "보는사람"));
 
         assertThat(flareService.findVisible(viewer, "KR", null, null, null, null))
                 .allSatisfy(flare -> assertThat(flare.restricted()).isFalse());

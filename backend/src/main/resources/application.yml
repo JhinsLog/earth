@@ -41,9 +41,10 @@ spring:
           google:
             client-id: ${GOOGLE_CLIENT_ID:}
             client-secret: ${GOOGLE_CLIENT_SECRET:}
+            # 계정을 구별할 ID(sub)만 받는다. email·profile을 요청하지 않으므로 구글 동의 화면에도 이름·이메일·사진
+            # 항목이 나오지 않는다. userinfo API도 부르지 않는다(EarthOidcUserService, D-16).
             scope:
-              - email
-              - profile
+              - openid
 
 earth:
   cors:

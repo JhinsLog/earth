@@ -1,14 +1,79 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useSettingsStore } from '../../store/settingsStore'
 import { useAuthStore } from '../../store/authStore'
 import { useBlockStore } from '../../store/blockStore'
+import { api } from '../../lib/api'
 import { trackAction } from '../../lib/telemetry'
+import type { EarthUser } from '../../types'
 import './SettingsMenu.css'
+
+/** 서버 규칙(Nicknames.java)과 같은 길이. 형식 검사는 서버가 최종 판정한다. */
+const NICKNAME_MAX = 16
+
+/**
+ * 닉네임 바꾸기. 가입하면 '지구인-XXXXXX'가 자동으로 붙는다(구글 계정 이름은 받지 않는다).
+ * 서버가 거절하면(형식 400, 욕설 400, 중복 409) 그 사유를 그대로 보여 준다.
+ */
+function NicknameEditor({ user }: { user: EarthUser }) {
+  const setUser = useAuthStore((s) => s.setUser)
+  const [value, setValue] = useState(user.nickname)
+  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null)
+  const [saving, setSaving] = useState(false)
+  const changed = value.trim() !== user.nickname
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!changed || saving) return
+    setSaving(true)
+    setMessage(null)
+    try {
+      const { data } = await api.patch<EarthUser>('/api/users/me/nickname', { nickname: value })
+      setUser(data)
+      setValue(data.nickname)
+      setMessage({ text: '바꿨습니다.', error: false })
+      trackAction('settings.nickname')
+    } catch (err) {
+      const response = (err as { response?: { status?: number; data?: { message?: string } } }).response
+      const known = response?.status === 400 || response?.status === 409
+      setMessage({ text: (known && response?.data?.message) || '잠시 후 다시 시도해 주세요.', error: true })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form className="settings__section" onSubmit={(e) => void submit(e)}>
+      <label className="settings__label" htmlFor="settings-nickname">
+        닉네임
+      </label>
+      <div className="settings__nickname">
+        <input
+          id="settings-nickname"
+          value={value}
+          maxLength={NICKNAME_MAX}
+          autoComplete="off"
+          spellCheck={false}
+          onChange={(e) => {
+            setValue(e.target.value)
+            setMessage(null)
+          }}
+        />
+        <button type="submit" disabled={!changed || saving}>
+          {saving ? '저장 중' : '저장'}
+        </button>
+      </div>
+      <p className={message?.error ? 'settings__hint settings__hint--error' : 'settings__hint'} role="status">
+        {message?.text ?? '2~16자, 한글·영문·숫자'}
+      </p>
+    </form>
+  )
+}
 
 /** 화면 표시 설정. 브라우저에만 기억한다. */
 export default function SettingsMenu() {
   const { cityLights, setCityLights, publicFlares, setPublicFlares, subwayLines, setSubwayLines } = useSettingsStore()
   const loggedIn = useAuthStore((s) => s.accessToken != null)
+  const user = useAuthStore((s) => s.user)
   const { blocked, unblock } = useBlockStore()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -88,6 +153,7 @@ export default function SettingsMenu() {
               onChange={(e) => setSubwayLines(e.target.checked)}
             />
           </label>
+          {loggedIn && user && <NicknameEditor key={user.id} user={user} />}
           {loggedIn && (
             <div className="settings__section">
               <div className="settings__label">
