@@ -93,6 +93,10 @@ services:
       # Loki로 직접 보낸다. Loki가 죽어 있어도 백엔드는 정상 동작하고 콘솔 로그(earth-ctl logs)는 그대로 남는다.
       SPRING_PROFILES_ACTIVE: prod
       LOKI_URL: http://loki:3100/loki/api/v1/push
+      # 이미지 기본값(75%)을 덮어쓴다. 75%면 힙 밖 메모리(메타스페이스·코드 캐시·스레드 스택, 약 200MB)를 담을 자리가
+      # 모자라 컨테이너가 상한에 붙었다(1GB 중 1,014MB, 상한 도달 14회, 2026-11-14). 65%면 힙 상한 약 1GB,
+      # 힙 밖 몫 약 540MB.
+      JAVA_OPTS: -XX:MaxRAMPercentage=65
     # 127.0.0.1에만 묶는다. 집 LAN 전체에 노출되지 않고, 호스트의 cloudflared만 여기로 붙는다.
     ports:
       - "127.0.0.1:8080:8080"
@@ -102,7 +106,8 @@ services:
       timeout: 5s
       retries: 10
       start_period: 90s
-    mem_limit: 1g
+    # 서버 메모리 7.4GB 중 다른 컨테이너 상한 합계가 약 1.7GB라 1.5GB를 줘도 여유가 충분하다.
+    mem_limit: 1536m
 
   # ── 모니터링 ───────────────────────────────────────────────────────────────
   # 백엔드가 관리 포트(8081)의 /actuator/prometheus로 내놓는 수치를 Prometheus가 15초마다 긁어 저장하고,
