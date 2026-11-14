@@ -7,6 +7,7 @@ import com.earth.support.IntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,10 +22,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 class GoogleUserUpsertTest extends IntegrationTest {
 
     @Autowired
-    private CustomOAuth2UserService service;
+    private GoogleUserRegistrar service;
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private CustomOAuth2UserService oAuth2UserService;
 
     @AfterEach
     void tearDown() {
@@ -36,7 +40,7 @@ class GoogleUserUpsertTest extends IntegrationTest {
     void signUpWithUrlOver500() {
         String url = longUrl(600);
 
-        User user = service.upsertGoogleUser("g-600", "a@example.com", "지구인", url);
+        User user = service.upsert("g-600", "a@example.com", "지구인", url);
 
         assertThat(reload(user).getProfileImageUrl()).isEqualTo(url);
     }
@@ -44,7 +48,7 @@ class GoogleUserUpsertTest extends IntegrationTest {
     @Test
     @DisplayName("상한(2048자)을 넘는 사진 주소는 비우고 가입은 진행한다")
     void signUpWithUrlOverLimit() {
-        User user = service.upsertGoogleUser("g-3000", "b@example.com", "지구인", longUrl(3000));
+        User user = service.upsert("g-3000", "b@example.com", "지구인", longUrl(3000));
 
         assertThat(reload(user).getProfileImageUrl()).isNull();
     }
@@ -52,9 +56,9 @@ class GoogleUserUpsertTest extends IntegrationTest {
     @Test
     @DisplayName("기존 사용자의 사진 주소가 상한을 넘게 바뀌어도 로그인은 성공한다")
     void existingUserWithUrlOverLimit() {
-        User first = service.upsertGoogleUser("g-existing", "c@example.com", "지구인", longUrl(100));
+        User first = service.upsert("g-existing", "c@example.com", "지구인", longUrl(100));
 
-        User again = service.upsertGoogleUser("g-existing", "c@example.com", "지구인", longUrl(3000));
+        User again = service.upsert("g-existing", "c@example.com", "지구인", longUrl(3000));
 
         assertThat(again.getId()).isEqualTo(first.getId());
         assertThat(reload(again).getProfileImageUrl()).isNull();
@@ -67,7 +71,7 @@ class GoogleUserUpsertTest extends IntegrationTest {
         // "가" 49개 뒤에 이모지(서로게이트 쌍) — String.length()로 자르면 50번째에서 쪼개진다.
         String name = "가".repeat(49) + "🌍" + "나".repeat(10);
 
-        User user = service.upsertGoogleUser("g-name", "d@example.com", name, null);
+        User user = service.upsert("g-name", "d@example.com", name, null);
 
         String saved = reload(user).getNickname();
         assertThat(saved.codePointCount(0, saved.length())).isEqualTo(User.NICKNAME_MAX_LENGTH);
@@ -77,9 +81,16 @@ class GoogleUserUpsertTest extends IntegrationTest {
     @Test
     @DisplayName("이름이 없으면 이메일 앞부분을 닉네임으로 쓴다")
     void blankNameFallsBackToEmailLocalPart() {
-        User user = service.upsertGoogleUser("g-noname", "earthling@example.com", null, null);
+        User user = service.upsert("g-noname", "earthling@example.com", null, null);
 
         assertThat(reload(user).getNickname()).isEqualTo("earthling");
+    }
+
+    @Test
+    @DisplayName("구글 프로필 조회 서비스는 프록시가 아니다 — 트랜잭션이 구글 HTTP 호출을 감싸지 않는다")
+    void oAuth2UserServiceIsNotTransactionalProxy() {
+        assertThat(AopUtils.isAopProxy(oAuth2UserService)).isFalse();
+        assertThat(AopUtils.isAopProxy(service)).isTrue();
     }
 
     private User reload(User user) {
