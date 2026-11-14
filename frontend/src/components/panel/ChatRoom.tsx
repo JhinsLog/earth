@@ -4,6 +4,7 @@ import { onReconnect, publish, subscribeTopic } from '../../lib/ws'
 import { useAuthStore } from '../../store/authStore'
 import { useBlockStore } from '../../store/blockStore'
 import type { ChatMessage } from '../../types'
+import { trackAction } from '../../lib/telemetry'
 import './ChatRoom.css'
 
 interface Props {
@@ -19,6 +20,8 @@ export default function ChatRoom({ flareId }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => trackAction('chat.open', { flareId }), [flareId])
 
   useEffect(() => {
     let cancelled = false

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuthStore } from '../../store/authStore'
 import LoginModal from '../auth/LoginModal'
 import SettingsMenu from '../settings/SettingsMenu'
+import { trackAction } from '../../lib/telemetry'
 import './Navbar.css'
 
 interface Props {
@@ -27,12 +28,24 @@ export default function Navbar({ onBrandClick }: Props) {
             {user.profileImageUrl && <img src={user.profileImageUrl} alt="" className="navbar__avatar" />}
             <span className="navbar__nickname">{user.nickname}</span>
             <span className="navbar__level">Lv.{user.level}</span>
-            <button className="navbar__logout" onClick={logout}>
+            <button
+              className="navbar__logout"
+              onClick={() => {
+                trackAction('auth.logout')
+                logout()
+              }}
+            >
               로그아웃
             </button>
           </div>
         ) : (
-          <button className="navbar__login" onClick={() => setShowLogin(true)}>
+          <button
+            className="navbar__login"
+            onClick={() => {
+              trackAction('login.open')
+              setShowLogin(true)
+            }}
+          >
             로그인
           </button>
         )}

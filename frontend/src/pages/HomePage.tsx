@@ -15,6 +15,7 @@ import { api } from '../lib/api'
 import { onReconnect } from '../lib/ws'
 import { approximateLongitudeFromTimezone, detectApproximateLocation, type GeoPoint } from '../lib/geolocate'
 import type { EarthUser } from '../types'
+import { trackAction } from '../lib/telemetry'
 import './HomePage.css'
 
 // 첫 화면은 홈 라스(three)고 지도(MapLibre, 번들의 큰 몫)는 지구를 클릭해 들어갈 때만 필요하다.
@@ -140,6 +141,8 @@ export default function HomePage() {
     leavingTimerRef.current = window.setTimeout(() => setLeaving(null), GLOBE_TRANSITION_MS)
   }
   useEffect(() => () => window.clearTimeout(leavingTimerRef.current), [])
+  // 라스↔지도 전환. 화면이 굳는 문제가 전환 직후에 몰렸으므로, 오류 로그와 시간순으로 맞춰 보려고 남긴다.
+  useEffect(() => trackAction(view === 'map' ? 'view.map' : 'view.globe'), [view])
 
   // 비로그인도 그대로 들어간다. 다른 나라 플레어는 서버가 위치만 내려 주고 상세 요청은 거부하므로(restricted, 403),
   // 입구에서 로그인을 물을 이유가 없다. 로그인은 오른쪽 위 버튼으로 한다(D-8: 제한은 상세만).
@@ -216,6 +219,7 @@ export default function HomePage() {
       flashLoginHint('로그인하면 다른 나라의 플레어도 자세히 볼 수 있습니다')
       return
     }
+    if (id != null) trackAction('flare.open', { flareId: id })
     selectFlare(id)
   }
   // 수명이 다해 목록에서 빠지면 selectedDraft도 자연히 null이 되어 모달이 닫힌다.
@@ -230,6 +234,7 @@ export default function HomePage() {
       flashLoginHint('더 확대해야 플레어를 남길 수 있습니다')
       return
     }
+    trackAction('flare.draft')
     addDraft(latitude, longitude)
   }
 

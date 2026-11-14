@@ -16,6 +16,7 @@ import { useSettingsStore } from '../../store/settingsStore'
 import { FLARE_CATEGORY_COLOR, RESTRICTED_FLARE_COLOR, type Flare } from '../../types'
 import './GlobeHalo.css'
 import './HomeGlobe.css'
+import { rememberGpu, trackError } from '../../lib/telemetry'
 import { MOON_CURSOR } from './moonCursor'
 
 interface Props {
@@ -597,7 +598,11 @@ export default function HomeGlobe({ flares, center, onZoomEnter, initialView = n
     const canvas = renderer.domElement
     // GPU 메모리가 모자라면 브라우저가 WebGL 컨텍스트를 끊는다. 그러면 화면이 마지막 그림 그대로 굳고 조작도 먹지 않는다.
     // 휴대폰에서 확대·축소로 라스와 지도를 빠르게 오가다(둘이 잠깐 함께 떠 텍스처를 올린다) 화면이 굳는 일이 있었다(2026-11-14).
-    const onContextLostEvent = () => onContextLostRef.current?.()
+    rememberGpu(renderer.getContext())
+    const onContextLostEvent = () => {
+      trackError('webgl.context_lost', undefined, { view: 'globe', texture: size })
+      onContextLostRef.current?.()
+    }
     canvas.addEventListener('webglcontextlost', onContextLostEvent)
     // 우클릭 손전등. 비추는 지점은 지구 좌표로 들고 있어야 자전해도 같은 땅을 비춘다.
     const flashLocal = new THREE.Vector3()

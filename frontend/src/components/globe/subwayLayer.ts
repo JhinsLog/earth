@@ -151,6 +151,8 @@ export function ensureSubwayData(map: MapLibreMap, visible: boolean) {
 }
 
 export function setSubwayVisible(map: MapLibreMap, visible: boolean) {
+  // GPU 연결을 잃은 지도는 스타일이 파기돼(map.style = null) 내려가기 전까지 레이어를 조회할 수 없다(MapGlobe rotate 참고).
+  if (!map.style) return
   for (const id of LAYER_IDS) {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none')
   }

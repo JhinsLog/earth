@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { trackAction } from '../lib/telemetry'
 
 interface SettingsState {
   /** 홈 라스 밤 지역의 도시 불빛. 플레어와 겹쳐 보여 기본은 끈다. 밤 지역의 도시 위치를 찾을 때 켠다. */
@@ -45,16 +46,19 @@ function save(key: string, on: boolean) {
 export const useSettingsStore = create<SettingsState>((set) => ({
   cityLights: readCityLights(),
   setCityLights: (on) => {
+    trackAction('settings.change', { key: 'cityLights', on })
     save(CITY_LIGHTS_KEY, on)
     set({ cityLights: on })
   },
   publicFlares: readOnByDefault(PUBLIC_FLARES_KEY),
   setPublicFlares: (on) => {
+    trackAction('settings.change', { key: 'publicFlares', on })
     save(PUBLIC_FLARES_KEY, on)
     set({ publicFlares: on })
   },
   subwayLines: readOnByDefault(SUBWAY_LINES_KEY),
   setSubwayLines: (on) => {
+    trackAction('settings.change', { key: 'subwayLines', on })
     save(SUBWAY_LINES_KEY, on)
     set({ subwayLines: on })
   },

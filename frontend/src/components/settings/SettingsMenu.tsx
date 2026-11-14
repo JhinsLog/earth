@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSettingsStore } from '../../store/settingsStore'
 import { useAuthStore } from '../../store/authStore'
 import { useBlockStore } from '../../store/blockStore'
+import { trackAction } from '../../lib/telemetry'
 import './SettingsMenu.css'
 
 /** 화면 표시 설정. 브라우저에만 기억한다. */
@@ -33,7 +34,10 @@ export default function SettingsMenu() {
     <div className="settings" ref={rootRef}>
       <button
         className="settings__button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (!open) trackAction('settings.open')
+          setOpen((v) => !v)
+        }}
         aria-label="설정"
         aria-expanded={open}
         title="설정"

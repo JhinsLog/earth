@@ -1,8 +1,12 @@
 import type { CustomLayerInterface, CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
 import { API_BASE_URL } from '../../lib/api'
 import { subsolarPoint } from '../../lib/sun'
+import { rememberGpu, trackError } from '../../lib/telemetry'
 import { useSettingsStore } from '../../store/settingsStore'
 import { MAP_CLOUDS_NONE_ZOOM, MAP_DAYLIGHT_FULL_ZOOM, MAP_DAYLIGHT_NONE_ZOOM } from './constants'
+
+/** 마지막으로 올린 도시 불빛 텍스처 크기. 지도가 GPU 연결을 잃었을 때 오류 로그에 같이 남긴다(MapGlobe). */
+export let lastNightTextureSize: number | undefined
 
 /**
  * 지도(MapLibre 라스) 위에 홈 라스(HomeGlobe)와 같은 실제 낮·밤, 실시간 구름, 도시 불빛을 얹는 커스텀 레이어.
@@ -170,9 +174,15 @@ function createTexture(gl: WebGL2RenderingContext, image?: TexImageSource, mipma
 async function fetchImage(url: string, signal: AbortSignal): Promise<ImageBitmap | null> {
   try {
     const response = await fetch(url, { signal })
-    if (!response.ok) return null
+    if (!response.ok) {
+      trackError('texture.load_failed', undefined, { url: url.split('?')[0], status: response.status })
+      return null
+    }
     return await createImageBitmap(await response.blob())
-  } catch {
+  } catch (error) {
+    // 8K 이미지(해독하면 약 134MB)는 메모리가 모자란 기기에서 createImageBitmap이 실패할 수 있다. 화면을 떠나며 취소한
+    // 요청(AbortError)은 오류가 아니다.
+    if (!signal.aborted) trackError('texture.load_failed', error, { url: url.split('?')[0] })
     return null
   }
 }
@@ -290,6 +300,8 @@ export function createDaylightLayer(id: string): DaylightLayer {
     onAdd(m, context) {
       map = m
       gl = context as WebGL2RenderingContext
+      // 지도로 바로 들어오면(로그인 직후) 라스를 거치지 않아 GPU 이름을 여기서 읽는다.
+      rememberGpu(gl)
       const mesh = buildGrid()
       vertexBuffer = gl.createBuffer()
       gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer)
@@ -307,13 +319,15 @@ export function createDaylightLayer(id: string): DaylightLayer {
         staticClouds = texture
       })
       // 도시 불빛은 지도에서 홈 라스보다 훨씬 크게 확대된 채(줌 MAP_DAYLIGHT_NONE_ZOOM까지) 보인다. 2K는 줌 3.5에서
-      // 한 텍셀이 화면 몇 픽셀로 늘어나 뭉개졌다. PC는 GPU가 받는 만큼 8K(밉맵 포함 약 170MB).
-      // 휴대폰은 4K까지만 쓴다. 8K로 올린 직후 갤럭시 S23 Ultra에서 라스↔지도를 오가다 화면이 굳는 일이 생겼다
-      // (2026-11-14, GPU 메모리 부족으로 컨텍스트를 잃은 것으로 추정). 전환 중에는 홈 라스의 4K 텍스처 셋과 이 텍스처가
-      // 함께 GPU에 올라간다. 휴대폰 화질은 타일 방식으로 따로 푼다.
+      // 한 텍셀이 화면 몇 픽셀로 늘어나 뭉개졌다. 그래서 휴대폰·PC 구분 없이 8K(밉맵 포함 약 170MB)로 고정한다.
+      // 한때 휴대폰만 4K로 내렸었다(2026-11-14). 갤럭시 S23 Ultra에서 라스↔지도를 오가다 화면이 굳어 GPU 메모리
+      // 부족을 의심했기 때문이다. 그런데 그 원인은 확정되지 않았고 4K는 휴대폰에서 눈에 띄게 흐렸다. 그래서 화질을
+      // 우선해 8K로 되돌렸다(사용자 결정). 컨텍스트를 잃어도 MapGlobe가 라스로 되돌아가 굳지 않고, 실제로 잃었는지는
+      // 'webgl.context_lost' 클라이언트 로그(lib/telemetry.ts)로 기기·GPU와 함께 Loki에 남는다.
+      // 8K 텍스처를 아예 만들 수 없는 GPU(MAX_TEXTURE_SIZE < 8192)만 받을 수 있는 크기로 내린다.
       const maxTexture = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number
-      const coarse = window.matchMedia('(pointer: coarse)').matches
-      const nightSize = !coarse && maxTexture >= 8192 ? 8192 : maxTexture >= 4096 ? 4096 : 2048
+      const nightSize = maxTexture >= 8192 ? 8192 : maxTexture >= 4096 ? 4096 : 2048
+      lastNightTextureSize = nightSize
       void loadInto(
         `/textures/night_${nightSize}.jpg`,
         (texture) => {

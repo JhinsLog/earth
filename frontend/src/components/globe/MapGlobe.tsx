@@ -10,7 +10,7 @@ import {
   createEarthMapStyle,
 } from './mapStyle'
 import { FLARE_SPRITE_PIXEL_RATIO, createFlareBodyImage, createFlareSparkleImage } from './flareTexture'
-import { createDaylightLayer, isNight } from './mapDaylightLayer'
+import { createDaylightLayer, isNight, lastNightTextureSize } from './mapDaylightLayer'
 import { addSubwayLayer, ensureSubwayData, setSubwayVisible } from './subwayLayer'
 import { useSettingsStore } from '../../store/settingsStore'
 import { MOON_CURSOR } from './moonCursor'
@@ -50,6 +50,7 @@ import {
 import { FLARE_CATEGORY_COLOR, RESTRICTED_FLARE_COLOR, type DraftFlare, type Flare } from '../../types'
 import type { ViewportBounds } from '../../store/flareStore'
 import type { HandoffView } from './HomeGlobe'
+import { trackError } from '../../lib/telemetry'
 import './MapGlobe.css'
 
 const FLARES_SOURCE_ID = 'earth-flares-source'
@@ -153,6 +154,8 @@ interface Props {
  * 안에서 추가되니, 아직 없다면 load가 아직 오지 않은 것이라 기다려도 안전하다.
  */
 function whenSourceReady(map: MapLibreMap, sourceId: string, run: () => void): () => void {
+  // GPU 연결을 잃은 지도는 스타일이 없고(rotate 참고) 다시 load되지도 않는다.
+  if (!map.style) return () => {}
   if (map.getSource(sourceId)) {
     run()
     return () => {}
@@ -470,6 +473,7 @@ export default function MapGlobe({
     // 레이어(NASA)만 보이게 하고, 준비되면 원래 램프를 되돌린다. 전환 400ms는
     // 스타일에 정의돼 있어 화면 전체가 한 번에 자연스럽게 바뀐다.
     const syncRasterGates = () => {
+      if (!map.style) return
       if (map.getLayer('satellite-base')) {
         const gated =
           map.getZoom() < ESRI_GATE_MAX_ZOOM && !map.isSourceLoaded('esri-satellite')
@@ -531,6 +535,11 @@ export default function MapGlobe({
     const onWebglContextLost = () => {
       if (exited) return
       exited = true
+      trackError('webgl.context_lost', undefined, {
+        view: 'map',
+        zoom: map.getZoom().toFixed(2),
+        texture: lastNightTextureSize,
+      })
       const center = map.getCenter()
       onContextLostRef.current?.({ center: { latitude: center.lat, longitude: center.lng }, globeRadiusPx: globeRadiusOnScreen(map) })
     }
@@ -777,7 +786,7 @@ export default function MapGlobe({
       // 스타일 filter의 `distance` 식은 이 라이브러리 버전에서 filter 컨텍스트를 지원하지
       // 않아 항상 false로 평가되므로, querySourceFeatures로 직접 거리순 필터를 만든다.
       const updateNearbyCountryFilter = () => {
-        if (!map.getLayer('place-country-labels')) return
+        if (!map.style || !map.getLayer('place-country-labels')) return
         const center = map.getCenter()
         const features = map.querySourceFeatures('openmaptiles', {
           sourceLayer: 'place',
@@ -914,6 +923,10 @@ export default function MapGlobe({
 
     let rafId: number
     const rotate = () => {
+      // GPU 연결을 잃으면 MapLibre가 스타일을 바로 파기한다(map.style = null). 그 뒤 라스로 넘어가는 동안(GLOBE_TRANSITION_MS)
+      // 이 루프가 레이어를 조회하다 매 프레임 TypeError를 냈다 — 클라이언트 오류 로그로 처음 드러났다(2026-11-14).
+      // 스타일이 없으면 루프를 멈춘다. 어차피 이 지도는 곧 내려간다.
+      if (!map.style) return
       // isEasing() 확인이 반드시 필요하다. flyTo는 곡선 궤적이라 초반에 줌이 오히려
       // 낮아지는데, 그때 자전이 setCenter를 호출하면 진행 중이던 이동이 통째로 취소된다.
       // (플레어를 클릭해도 확대되지 않던 원인이 이것이었다. 타이머로 자전을 멈추는 것만으로는

@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { useAuthStore } from '../store/authStore'
+import { trackError } from './telemetry'
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
@@ -54,6 +55,16 @@ api.interceptors.response.use(
         original.headers.Authorization = `Bearer ${newToken}`
         return api(original)
       }
+    }
+    // 서버 오류(5xx)와 서버에 닿지 못한 실패만 남긴다. 4xx는 대부분 정상 흐름(401 갱신, 403 국가 제한, 429 도배 제한)이고
+    // 그 결과는 서버 활동 로그에 상태 코드로 남는다. 경로의 숫자 ID는 지워 같은 API끼리 묶이게 한다.
+    const status: number | undefined = error.response?.status
+    if (status === undefined || status >= 500) {
+      trackError('api.error', error, {
+        status: status ?? 'network',
+        method: original?.method?.toUpperCase(),
+        url: original?.url?.split('?')[0].replace(/\/\d+(?=\/|$)/g, '/{id}'),
+      })
     }
     return Promise.reject(error)
   },
