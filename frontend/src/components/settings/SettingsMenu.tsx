@@ -145,7 +145,7 @@ export default function SettingsMenu() {
           </label>
           <label className="settings__row">
             <span className="settings__label">
-              공공데이터 플레어
+              공공 정보
             </span>
             <input
               type="checkbox"
