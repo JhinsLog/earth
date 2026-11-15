@@ -27,6 +27,7 @@ import {
   FLARE_FOCUS_ZOOM,
   FLARE_PANEL_WIDTH_PX,
   HOME_GLOBE_LONG_PRESS_MS,
+  FLASHLIGHT_TOUCH_OFFSET_PX,
   HOME_GLOBE_LONG_PRESS_TOLERANCE_PX,
   INITIAL_ZOOM,
   MAP_DAYLIGHT_NONE_ZOOM,
@@ -622,26 +623,29 @@ export default function MapGlobe({
     // 휴대폰: 손가락 하나로 움직이지 않고 오래 누르면 켠다. 켜진 동안은 지도가 끌려가지 않게 끌기를 잠시 끈다.
     let longPressId = 0
     let touchStart: { x: number; y: number } | null = null
-    let touchLngLat = { lng: 0, lat: 0 }
+    let touchPoint = { x: 0, y: 0 }
     let touchFlashing = false
+    // 손가락보다 위를 비춘다(FLASHLIGHT_TOUCH_OFFSET_PX).
+    const aimAboveFinger = ({ x, y }: { x: number; y: number }) =>
+      aimFlashlight(map.unproject([x, y - FLASHLIGHT_TOUCH_OFFSET_PX]))
     map.on('touchstart', (e: MapTouchEvent) => {
       window.clearTimeout(longPressId)
       touchStart = e.points.length === 1 && flashlightZoom() ? { x: e.point.x, y: e.point.y } : null
       if (!touchStart) return
-      touchLngLat = e.lngLat
+      touchPoint = e.point
       longPressId = window.setTimeout(() => {
         touchFlashing = true
         map.dragPan.disable()
-        aimFlashlight(touchLngLat)
+        aimAboveFinger(touchPoint)
       }, HOME_GLOBE_LONG_PRESS_MS)
     })
     map.on('touchmove', (e: MapTouchEvent) => {
       if (touchFlashing) {
-        aimFlashlight(e.lngLat)
+        aimAboveFinger(e.point)
         return
       }
       if (!touchStart) return
-      touchLngLat = e.lngLat
+      touchPoint = e.point
       const moved = Math.hypot(e.point.x - touchStart.x, e.point.y - touchStart.y)
       if (e.points.length !== 1 || moved > HOME_GLOBE_LONG_PRESS_TOLERANCE_PX) {
         touchStart = null

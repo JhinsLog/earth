@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import HomeGlobe, { type HandoffView } from '../components/globe/HomeGlobe'
 import { DRAFT_MIN_ZOOM, GLOBE_TRANSITION_MS } from '../components/globe/constants'
 import Navbar from '../components/layout/Navbar'
+import MoonlightSlider from '../components/globe/MoonlightSlider'
 import FlareDetailPanel from '../components/panel/FlareDetailPanel'
 import CreateFlareModal from '../components/panel/CreateFlareModal'
 import { useFlareStore } from '../store/flareStore'
@@ -31,9 +32,10 @@ function formatRemaining(ms: number | null): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
-// 손전등 조작 안내. 마우스가 없는 기기(휴대폰·태블릿)는 우클릭 대신 길게 누른다.
-const FLASHLIGHT_HINT = window.matchMedia('(pointer: coarse)').matches ? (
-  <><strong>길게 눌러</strong> 비춰 보기</>
+// 달빛 조작 안내. 마우스가 없는 기기(휴대폰·태블릿)는 우클릭 대신 달빛 막대를 쓴다(길게 누르기도 남아 있다).
+const TOUCH_DEVICE = window.matchMedia('(pointer: coarse)').matches
+const FLASHLIGHT_HINT = TOUCH_DEVICE ? (
+  <><strong>달빛</strong>을 밀어 밝혀 보기</>
 ) : (
   <><strong>우클릭</strong>으로 비춰 보기</>
 )
@@ -270,7 +272,9 @@ export default function HomePage() {
 
       {view === 'globe' && (
         <div className="home__hint">
-          지구를 <strong>확대</strong>해 들어가 보세요 · 밤 지역은 {FLASHLIGHT_HINT}
+          지구를 <strong>확대</strong>해 들어가 보세요
+          {/* 휴대폰은 바로 위에 달빛 막대가 보이고, 문구가 길면 화면 폭(390px)을 넘는다. */}
+          {!TOUCH_DEVICE && <> · 밤 지역은 {FLASHLIGHT_HINT}</>}
         </div>
       )}
 
@@ -310,6 +314,8 @@ export default function HomePage() {
           </Suspense>
         </div>
       )}
+
+      {TOUCH_DEVICE && (view === 'globe' || flashlightZoom) && <MoonlightSlider />}
 
       {loginHint && (
         <div className="home__hint home__hint--warn">{loginHint}</div>

@@ -87,6 +87,11 @@ export const MY_LOCATION_COLOR = '#4dd2ff'
 export const HOME_GLOBE_LONG_PRESS_TOLERANCE_PX = 8
 /** 휴대폰에서 이만큼 누르고 있으면 손전등을 켠다(우클릭 대신). */
 export const HOME_GLOBE_LONG_PRESS_MS = 450
+/**
+ * 길게 눌러 비출 때 달빛을 손가락보다 이만큼(px) 위에 비춘다. 누른 자리를 그대로 비추면 정작 보려는 곳이
+ * 손가락에 가렸다(휴대폰 문자 선택 돋보기와 같은 이유).
+ */
+export const FLASHLIGHT_TOUCH_OFFSET_PX = 80
 /** 홈 라스와 지도를 오갈 때의 교차 페이드 시간. HomePage.css의 transition과 맞춘다. */
 export const GLOBE_TRANSITION_MS = 600
 

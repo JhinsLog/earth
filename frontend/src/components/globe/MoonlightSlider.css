@@ -1,0 +1,33 @@
+/* 아래쪽 안내 문구(.home__hint, bottom 28px) 바로 위. 오른쪽 내 위치 버튼(right 16px, 폭 42px)과 겹치지 않는 폭. */
+.moonlight-slider {
+  position: absolute;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(240px, calc(100% - 150px));
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(160, 190, 230, 0.25);
+  background: rgba(10, 16, 28, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.moonlight-slider__label {
+  flex: none;
+  font-size: 12px;
+  color: #c9d8ee;
+}
+
+.moonlight-slider input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  margin: 0;
+  accent-color: #b9cdf0;
+  /* 막대를 끄는 동안 페이지가 함께 밀리지 않게. */
+  touch-action: none;
+}

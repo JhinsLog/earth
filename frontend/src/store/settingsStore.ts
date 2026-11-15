@@ -11,6 +11,12 @@ interface SettingsState {
   /** 지도를 도시 단위로 확대했을 때 지하철·전철 노선을 보일지. 기본은 켠다. 플레어보다 아래에 그려져 가리지 않는다. */
   subwayLines: boolean
   setSubwayLines: (on: boolean) => void
+  /**
+   * 휴대폰 달빛 막대(0~1). 해가 진 지역 전체를 이만큼 달빛으로 밝힌다. 길게 눌러 비추면 그 자리가 손가락에 가려서
+   * 따로 둔다. 현실 지구 우선 원칙에 따라 저장하지 않고 방문마다 0(실제 밤)에서 시작한다.
+   */
+  moonlight: number
+  setMoonlight: (level: number) => void
 }
 
 const CITY_LIGHTS_KEY = 'earth:cityLights'
@@ -62,4 +68,6 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     save(SUBWAY_LINES_KEY, on)
     set({ subwayLines: on })
   },
+  moonlight: 0,
+  setMoonlight: (level) => set({ moonlight: Math.min(1, Math.max(0, level)) }),
 }))
