@@ -1,6 +1,8 @@
 package com.earth.domain.user;
 
 import java.security.SecureRandom;
+import java.time.Duration;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
@@ -13,6 +15,9 @@ public final class Nicknames {
 
     public static final int MIN_LENGTH = 2;
     public static final int MAX_LENGTH = 16;
+
+    /** 닉네임은 이 기간에 한 번 바꿀 수 있고, 버린 닉네임은 이 기간 동안 다른 사람이 가져가지 못한다. */
+    public static final Duration CHANGE_COOLDOWN = Duration.ofDays(30);
 
     /** 자동 닉네임 앞부분. 사용자가 이 형식으로 직접 정하지는 못하게 해 자동 닉네임과 겹치지 않게 한다. */
     static final String AUTO_PREFIX = "지구인-";
@@ -28,6 +33,33 @@ public final class Nicknames {
     private static final Pattern AUTO_FORMAT = Pattern.compile("^지구인\\s*-", Pattern.CASE_INSENSITIVE);
 
     private Nicknames() {
+    }
+
+    /**
+     * 같은 이름인지 판정하는 비교용 키. 눈으로 구별되지 않는 이름을 같은 키로 모은다(사칭 방지, D-17).
+     * 소문자로 바꾸고, 공백·밑줄·하이픈을 지우고, 생김새가 같은 글자(l·1 → i, 0 → o)를 하나로 모은다.
+     *
+     * <p>V12 마이그레이션의 translate(lower(nickname), 'l10 _-', 'iio')와 같은 규칙이다. 한쪽을 고치면 다른 쪽도 맞춘다.
+     * 허용 문자가 한글·영문·숫자뿐이라 다른 나라 문자로 흉내 내는 경우(키릴 문자 а 등)는 형식 검사에서 이미 걸린다.
+     */
+    public static String key(String nickname) {
+        String lower = nickname.toLowerCase(Locale.ROOT);
+        StringBuilder sb = new StringBuilder(lower.length());
+        for (int i = 0; i < lower.length(); i++) {
+            char c = lower.charAt(i);
+            switch (c) {
+                case ' ', '_', '-' -> { }
+                case 'l', '1' -> sb.append('i');
+                case '0' -> sb.append('o');
+                default -> sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    /** 가입 때 붙인 자동 닉네임인가. 사용자는 이 형식으로 정할 수 없으므로 형식만 보면 된다. */
+    public static boolean isAuto(String nickname) {
+        return AUTO_FORMAT.matcher(nickname).find();
     }
 
     public static String random() {

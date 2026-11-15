@@ -34,7 +34,7 @@ public class GoogleUserRegistrar {
     private String uniqueRandomNickname() {
         for (int i = 0; i < MAX_NICKNAME_ATTEMPTS; i++) {
             String candidate = Nicknames.random();
-            if (!userRepository.existsByNicknameIgnoreCase(candidate)) return candidate;
+            if (!userRepository.existsByNicknameKey(Nicknames.key(candidate))) return candidate;
         }
         throw new IllegalStateException("자동 닉네임을 " + MAX_NICKNAME_ATTEMPTS + "번 뽑았지만 모두 이미 쓰이고 있습니다.");
     }

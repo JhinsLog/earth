@@ -11,10 +11,10 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByProviderAndProviderId(AuthProvider provider, String providerId);
 
-    /** 닉네임은 대소문자를 가리지 않고 하나뿐이다(V11의 lower(nickname) 유니크 인덱스와 같은 기준). */
-    boolean existsByNicknameIgnoreCase(String nickname);
+    /** 닉네임은 비교용 키({@link Nicknames#key}) 기준으로 하나뿐이다(V12의 유니크 제약과 같은 기준). */
+    boolean existsByNicknameKey(String nicknameKey);
 
-    boolean existsByNicknameIgnoreCaseAndIdNot(String nickname, Long id);
+    boolean existsByNicknameKeyAndIdNot(String nicknameKey, Long id);
 
     /**
      * 사용자 행을 잠그고 읽는다. 같은 사용자의 요청을 직렬화하는 데 쓴다.

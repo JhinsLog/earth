@@ -61,6 +61,8 @@ export interface EarthUser {
   nickname: string
   level: number
   exp: number
+  /** 닉네임을 다른 이름으로 다시 바꿀 수 있는 시각(ISO). 지금 바꿀 수 있으면 null. */
+  nicknameChangeableAt: string | null
 }
 
 export interface ChatMessage {

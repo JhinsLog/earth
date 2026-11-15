@@ -10,6 +10,8 @@ import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -45,7 +47,7 @@ class GoogleUserRegistrarTest extends IntegrationTest {
     @DisplayName("같은 구글 계정으로 다시 로그인하면 같은 사용자이고, 바꾼 닉네임이 유지된다")
     void loginAgainKeepsUserAndNickname() {
         User first = registrar.findOrCreate("google-sub-2");
-        first.changeNickname("별헤는밤");
+        first.changeNickname("별헤는밤", Instant.now());
         userRepository.save(first);
 
         User again = registrar.findOrCreate("google-sub-2");
@@ -65,13 +67,13 @@ class GoogleUserRegistrarTest extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("DB가 대소문자만 다른 닉네임도 막는다 — 서비스 검사를 건너뛴 저장도 V11 인덱스가 거절한다")
+    @DisplayName("DB가 대소문자·구분 기호만 다른 닉네임도 막는다 — 서비스 검사를 건너뛴 저장도 V12 제약이 거절한다")
     void databaseRejectsCaseInsensitiveDuplicate() {
         User a = registrar.findOrCreate("google-sub-c");
-        a.changeNickname("Earth");
+        a.changeNickname("Earth", Instant.now());
         userRepository.saveAndFlush(a);
         User b = registrar.findOrCreate("google-sub-d");
-        b.changeNickname("earth");
+        b.changeNickname("ear_th", Instant.now());
 
         assertThatThrownBy(() -> userRepository.saveAndFlush(b)).isInstanceOf(DataIntegrityViolationException.class);
     }

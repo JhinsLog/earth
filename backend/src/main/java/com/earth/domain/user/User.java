@@ -29,6 +29,14 @@ public class User {
     @Column(nullable = false, length = NICKNAME_MAX_LENGTH)
     private String nickname;
 
+    /** 같은 이름인지 판정하는 키({@link Nicknames#key}). 유니크 제약이 이 칸에 걸려 있다(V12). */
+    @Column(name = "nickname_key", nullable = false, length = NICKNAME_MAX_LENGTH)
+    private String nicknameKey;
+
+    /** 사용자가 마지막으로 닉네임을 바꾼 시각. 자동 닉네임만 쓰는 동안은 null. */
+    @Column(name = "nickname_changed_at")
+    private Instant nicknameChangedAt;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private Role role = Role.USER;
@@ -50,6 +58,7 @@ public class User {
         this.provider = provider;
         this.providerId = providerId;
         this.nickname = nickname;
+        this.nicknameKey = Nicknames.key(nickname);
     }
 
     @PrePersist
@@ -57,8 +66,24 @@ public class User {
         this.createdAt = Instant.now();
     }
 
-    public void changeNickname(String nickname) {
+    /**
+     * 닉네임을 바꾼다. 키가 같은 변경(대소문자·띄어쓰기만 다름)은 같은 이름을 다듬는 것이라
+     * 변경 주기에 넣지 않는다.
+     */
+    public void changeNickname(String nickname, Instant now) {
+        String key = Nicknames.key(nickname);
+        if (!key.equals(this.nicknameKey)) {
+            this.nicknameChangedAt = now;
+        }
         this.nickname = nickname;
+        this.nicknameKey = key;
+    }
+
+    /** 다음에 다른 이름으로 바꿀 수 있는 시각. 지금 바로 바꿀 수 있으면 null. */
+    public Instant nicknameChangeableAt(Instant now) {
+        if (nicknameChangedAt == null) return null;
+        Instant next = nicknameChangedAt.plus(Nicknames.CHANGE_COOLDOWN);
+        return next.isAfter(now) ? next : null;
     }
 
     public boolean hasAtLeastLevel(int requiredLevel) {

@@ -10,9 +10,15 @@ import './SettingsMenu.css'
 /** 서버 규칙(Nicknames.java)과 같은 길이. 형식 검사는 서버가 최종 판정한다. */
 const NICKNAME_MAX = 16
 
+/** 다음에 바꿀 수 있는 날까지 남은 날(올림). 서버 문구와 같은 계산이다. */
+function daysUntil(iso: string | null): number {
+  if (!iso) return 0
+  return Math.max(0, Math.ceil((Date.parse(iso) - Date.now()) / 86_400_000))
+}
+
 /**
  * 닉네임 바꾸기. 가입하면 '지구인-XXXXXX'가 자동으로 붙는다(구글 계정 이름은 받지 않는다).
- * 서버가 거절하면(형식 400, 욕설 400, 중복 409) 그 사유를 그대로 보여 준다.
+ * 서버가 거절하면(형식 400, 욕설 400, 중복·비슷한 이름 409, 30일 안에 다시 바꿈 429) 그 사유를 그대로 보여 준다.
  */
 function NicknameEditor({ user }: { user: EarthUser }) {
   const setUser = useAuthStore((s) => s.setUser)
@@ -34,7 +40,7 @@ function NicknameEditor({ user }: { user: EarthUser }) {
       trackAction('settings.nickname')
     } catch (err) {
       const response = (err as { response?: { status?: number; data?: { message?: string } } }).response
-      const known = response?.status === 400 || response?.status === 409
+      const known = response?.status === 400 || response?.status === 409 || response?.status === 429
       setMessage({ text: (known && response?.data?.message) || '잠시 후 다시 시도해 주세요.', error: true })
     } finally {
       setSaving(false)
@@ -63,7 +69,10 @@ function NicknameEditor({ user }: { user: EarthUser }) {
         </button>
       </div>
       <p className={message?.error ? 'settings__hint settings__hint--error' : 'settings__hint'} role="status">
-        {message?.text ?? '2~16자, 한글·영문·숫자'}
+        {message?.text ??
+          (daysUntil(user.nicknameChangeableAt) > 0
+            ? `${daysUntil(user.nicknameChangeableAt)}일 뒤에 다른 이름으로 바꿀 수 있습니다 (띄어쓰기·대소문자는 지금 가능)`
+            : '2~16자, 한글·영문·숫자 · 30일에 한 번 바꿀 수 있습니다')}
       </p>
     </form>
   )
