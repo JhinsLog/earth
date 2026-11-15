@@ -192,7 +192,7 @@ const EARTH_FRAGMENT = /* glsl */ `
     color += day * vec3(0.35, 0.45, 0.8) * 0.12 * (1.0 - dayMix);
     color += night * vec3(1.0, 0.85, 0.6) * 1.4 * (1.0 - dayMix) * cityLights;
     // 달빛. 낮 사진의 색을 대부분 빼고 푸른 은빛을 입혀 낮보다 어둡게 비춘다. 낮 지역은 이미 밝으니 밤인 만큼만 더한다.
-    // 휴대폰 달빛 막대(moonlight)는 밤 지역 전체를 같은 세기로 비춘다. 손전등과 겹치면 더 밝은 쪽을 쓴다.
+    // 옵션의 달빛 막대(moonlight)는 밤 지역 전체를 같은 세기로 비춘다. 손전등과 겹치면 더 밝은 쪽을 쓴다.
     float spot = max(smoothstep(flashCos, mix(flashCos, 1.0, 0.9), dot(n, flashWorld)) * flashStrength, moonlight);
     vec3 moon = mix(vec3(dot(day, vec3(0.299, 0.587, 0.114))), day, 0.3) * vec3(0.7, 0.82, 1.1);
     color += moon * 0.75 * spot * (1.0 - dayMix);

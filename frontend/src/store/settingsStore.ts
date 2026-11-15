@@ -12,8 +12,8 @@ interface SettingsState {
   subwayLines: boolean
   setSubwayLines: (on: boolean) => void
   /**
-   * 휴대폰 달빛 막대(0~1). 해가 진 지역 전체를 이만큼 달빛으로 밝힌다. 길게 눌러 비추면 그 자리가 손가락에 가려서
-   * 따로 둔다. 현실 지구 우선 원칙에 따라 저장하지 않고 방문마다 0(실제 밤)에서 시작한다.
+   * 달빛(0~1, 옵션 창의 막대). 해가 진 지역 전체를 이만큼 달빛으로 밝힌다. 휴대폰에서 길게 눌러 비추면 그 자리가
+   * 손가락에 가려서 따로 둔다. 현실 지구 우선 원칙에 따라 저장하지 않고 방문마다 0(실제 밤)에서 시작한다.
    */
   moonlight: number
   setMoonlight: (level: number) => void

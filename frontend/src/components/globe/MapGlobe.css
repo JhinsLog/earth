@@ -115,13 +115,6 @@
   backdrop-filter: blur(6px);
 }
 
-/* 휴대폰에서는 화면 아래 가운데에 달빛 막대(MoonlightSlider, bottom 76~118px)가 떠 있어, 겹치지 않게 그 위로 올린다. */
-@media (pointer: coarse) {
-  .my-location-note {
-    bottom: 128px;
-  }
-}
-
 .my-location-note--error {
   border-color: rgba(255, 140, 130, 0.45);
   color: #ffc9c4;

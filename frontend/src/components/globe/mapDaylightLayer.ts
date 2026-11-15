@@ -98,7 +98,7 @@ void main() {
   // 달빛: 비추는 자리의 밤 어두움을 절반쯤 걷어 아래 위성사진을 드러내고 푸른 은빛을 얹는다. 구름은 그대로 덮는다.
   // 아래 지도 색을 읽을 수 없어 홈 라스처럼 색을 빼지는 못하고, 덜 걷고 푸른빛을 더해 비슷하게 맞춘다.
   float flashCos = cos(${FLASHLIGHT_RADIUS_RAD.toFixed(2)});
-  // 휴대폰 달빛 막대(u_moonlight)는 밤 지역 전체를 같은 세기로 비춘다. 손전등과 겹치면 더 밝은 쪽을 쓴다.
+  // 옵션의 달빛 막대(u_moonlight)는 밤 지역 전체를 같은 세기로 비춘다. 손전등과 겹치면 더 밝은 쪽을 쓴다.
   float spot = max(smoothstep(flashCos, mix(flashCos, 1.0, 0.9), dot(n, u_flash)) * u_flash_strength, u_moonlight) * (1.0 - dayMix);
   keep = mix(keep, 0.55 * (1.0 - cloud), spot);
 

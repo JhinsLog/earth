@@ -45,6 +45,13 @@
   color: #8fa3bf;
 }
 
+/* 줄 사이를 띄운다. 스위치끼리 위아래로 붙어 보였다(2026-11-16). */
+.settings__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .settings__row {
   display: flex;
   align-items: center;
@@ -66,8 +73,8 @@
   appearance: none;
   flex-shrink: 0;
   position: relative;
-  width: 40px;
-  height: 22px;
+  width: 36px;
+  height: 20px;
   margin: 0;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.18);
@@ -80,8 +87,8 @@
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: #eaf2ff;
   transition: transform 0.2s ease;
@@ -92,12 +99,24 @@
 }
 
 .settings__switch:checked::after {
-  transform: translateX(18px);
+  transform: translateX(16px);
 }
 
 .settings__switch:focus-visible {
   outline: 2px solid #9fd6ff;
   outline-offset: 2px;
+}
+
+.settings__range {
+  flex: 1;
+  min-width: 0;
+  max-width: 150px;
+  height: 20px;
+  margin: 0;
+  accent-color: #b9cdf0;
+  cursor: pointer;
+  /* 막대를 끄는 동안 화면이 함께 밀리지 않게. */
+  touch-action: none;
 }
 
 .settings__section {

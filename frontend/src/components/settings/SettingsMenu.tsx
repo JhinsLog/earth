@@ -78,9 +78,13 @@ function NicknameEditor({ user }: { user: EarthUser }) {
   )
 }
 
-/** 화면 표시 설정. 브라우저에만 기억한다. */
+/**
+ * 화면 표시 옵션. 브라우저에만 기억한다(달빛은 기억하지 않는다).
+ * 화면에는 '옵션'으로 보인다. 코드의 이름(Settings*)은 저장소·로그 키와 맞추려고 그대로 둔다.
+ */
 export default function SettingsMenu() {
-  const { cityLights, setCityLights, publicFlares, setPublicFlares, subwayLines, setSubwayLines } = useSettingsStore()
+  const { cityLights, setCityLights, publicFlares, setPublicFlares, subwayLines, setSubwayLines, moonlight, setMoonlight } =
+    useSettingsStore()
   const loggedIn = useAuthStore((s) => s.accessToken != null)
   const user = useAuthStore((s) => s.user)
   const { blocked, unblock } = useBlockStore()
@@ -112,9 +116,9 @@ export default function SettingsMenu() {
           if (!open) trackAction('settings.open')
           setOpen((v) => !v)
         }}
-        aria-label="설정"
+        aria-label="옵션"
         aria-expanded={open}
-        title="설정"
+        title="옵션"
       >
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
           <path
@@ -124,8 +128,9 @@ export default function SettingsMenu() {
         </svg>
       </button>
       {open && (
-        <div className="settings__panel" role="dialog" aria-label="설정">
-          <div className="settings__title">설정</div>
+        <div className="settings__panel" role="dialog" aria-label="옵션">
+          <div className="settings__title">옵션</div>
+          <div className="settings__rows">
           <label className="settings__row">
             <span className="settings__label">
               도시 불빛
@@ -162,6 +167,26 @@ export default function SettingsMenu() {
               onChange={(e) => setSubwayLines(e.target.checked)}
             />
           </label>
+          {/*
+            달빛: 해가 진 지역 전체를 이만큼 밝힌다. 원래 휴대폰 첫 화면 아래에 막대로 띄웠으나, 화면을 가려
+            옵션으로 옮겼다(2026-11-16). 우클릭·길게 누르기 손전등은 그대로 있다.
+          */}
+          <label className="settings__row settings__row--range">
+            <span className="settings__label">달빛</span>
+            <input
+              type="range"
+              className="settings__range"
+              min={0}
+              max={100}
+              step={1}
+              value={Math.round(moonlight * 100)}
+              aria-label="밤 지역 달빛 밝기"
+              onChange={(e) => setMoonlight(Number(e.target.value) / 100)}
+              // 끌 때마다 남기면 로그가 넘친다. 손을 뗀 값만 남긴다.
+              onPointerUp={(e) => trackAction('settings.change', { key: 'moonlight', level: Number(e.currentTarget.value) })}
+            />
+          </label>
+          </div>
           {loggedIn && user && <NicknameEditor key={user.id} user={user} />}
           {loggedIn && (
             <div className="settings__section">
