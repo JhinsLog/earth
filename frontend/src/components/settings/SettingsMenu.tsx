@@ -131,30 +131,10 @@ export default function SettingsMenu() {
         <div className="settings__panel" role="dialog" aria-label="옵션">
           <div className="settings__title">옵션</div>
           <div className="settings__rows">
-          <label className="settings__row">
-            <span className="settings__label">
-              도시 불빛
-            </span>
-            <input
-              type="checkbox"
-              role="switch"
-              className="settings__switch"
-              checked={cityLights}
-              onChange={(e) => setCityLights(e.target.checked)}
-            />
-          </label>
-          <label className="settings__row">
-            <span className="settings__label">
-              공공 정보
-            </span>
-            <input
-              type="checkbox"
-              role="switch"
-              className="settings__switch"
-              checked={publicFlares}
-              onChange={(e) => setPublicFlares(e.target.checked)}
-            />
-          </label>
+          {/*
+            순서는 영향이 미치는 범위가 넓은 것부터: 지구 전체(자전) → 밤 지역 전체(달빛) → 밤의 도시(도시 불빛)
+            → 도시 안(지하철 노선) → 한 지점(공공 정보). 새 옵션도 이 기준으로 끼워 넣는다(2026-11-16 사용자 지정).
+          */}
           <label className="settings__row">
             <span className="settings__label">
               자전
@@ -165,18 +145,6 @@ export default function SettingsMenu() {
               className="settings__switch"
               checked={autoRotate}
               onChange={(e) => setAutoRotate(e.target.checked)}
-            />
-          </label>
-          <label className="settings__row">
-            <span className="settings__label">
-              지하철 노선
-            </span>
-            <input
-              type="checkbox"
-              role="switch"
-              className="settings__switch"
-              checked={subwayLines}
-              onChange={(e) => setSubwayLines(e.target.checked)}
             />
           </label>
           {/*
@@ -196,6 +164,42 @@ export default function SettingsMenu() {
               onChange={(e) => setMoonlight(Number(e.target.value) / 100)}
               // 끌 때마다 남기면 로그가 넘친다. 손을 뗀 값만 남긴다.
               onPointerUp={(e) => trackAction('settings.change', { key: 'moonlight', level: Number(e.currentTarget.value) })}
+            />
+          </label>
+          <label className="settings__row">
+            <span className="settings__label">
+              도시 불빛
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              className="settings__switch"
+              checked={cityLights}
+              onChange={(e) => setCityLights(e.target.checked)}
+            />
+          </label>
+          <label className="settings__row">
+            <span className="settings__label">
+              지하철 노선
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              className="settings__switch"
+              checked={subwayLines}
+              onChange={(e) => setSubwayLines(e.target.checked)}
+            />
+          </label>
+          <label className="settings__row">
+            <span className="settings__label">
+              공공 정보
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              className="settings__switch"
+              checked={publicFlares}
+              onChange={(e) => setPublicFlares(e.target.checked)}
             />
           </label>
           </div>
