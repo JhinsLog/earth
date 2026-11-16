@@ -10,6 +10,7 @@ import { useAuthStore } from '../store/authStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useBlockStore } from '../store/blockStore'
 import { useQuakes } from '../hooks/useQuakes'
+import SettingsMenu from '../components/settings/SettingsMenu'
 import { useDraftFlares } from '../hooks/useDraftFlares'
 import { useMyLocation } from '../hooks/useMyLocation'
 import { api } from '../lib/api'
@@ -273,6 +274,14 @@ export default function HomePage() {
           />
         </div>
       )}
+
+      {/*
+        옵션은 지구본을 어떻게 볼지 정하는 조작이라 상단바(계정 자리)가 아니라 오른쪽 아래 지구본 조작 자리에 둔다
+        (지도 앱의 레이어 단추 관례, 휴대폰 엄지가 닿는 자리). 라스와 지도에서 같은 자리이고, 지도에서는 '내 위치'가 그 위에 쌓인다.
+      */}
+      <div className="home__options">
+        <SettingsMenu />
+      </div>
 
       {view === 'globe' && (
         <div className="home__hint">

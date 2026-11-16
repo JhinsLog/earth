@@ -53,8 +53,10 @@
   outline: none;
 }
 
-/* 마이페이지 판은 옵션 창과 같은 판이다. 첫 칸 위의 구분선만 없앤다. */
+/* 마이페이지 판은 옵션 창과 같은 판이다. 옵션 창은 오른쪽 아래에서 위로 열리고, 이 판은 상단바에서 아래로 연다. */
 .user-menu__page {
+  top: calc(100% + 8px);
+  bottom: auto;
   z-index: 20;
 }
 
@@ -62,4 +64,19 @@
   margin-top: 0;
   padding-top: 0;
   border-top: none;
+}
+
+/*
+ * 휴대폰 너비에서는 화면 양옆에 맞춘다. 사용자 단추 기준으로 오른쪽 정렬하면 창 왼쪽이 화면 밖으로 잘렸다
+ * (390px 폭에서 x=-91, 2026-11-15, 옵션 창이 상단바에 있을 때 확인한 문제).
+ */
+@media (max-width: 600px) {
+  .user-menu__page {
+    position: fixed;
+    top: 64px;
+    left: 16px;
+    right: 16px;
+    width: auto;
+    max-width: none;
+  }
 }

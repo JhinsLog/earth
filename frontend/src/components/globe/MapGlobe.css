@@ -20,21 +20,21 @@
 }
 
 
-/* 우하단 출처 표기만 남기고 나머지 컨트롤은 감춘다. */
-.map-globe .maplibregl-ctrl-bottom-left,
+/* 좌하단 출처 표기만 남기고 나머지 컨트롤은 감춘다. 오른쪽 아래는 옵션·내 위치 단추 자리다. */
+.map-globe .maplibregl-ctrl-bottom-right,
 .map-globe .maplibregl-ctrl-top-left,
 .map-globe .maplibregl-ctrl-top-right {
   display: none;
 }
 
 /* 어두운 우주 배경에 묻히도록 톤을 낮춘다. 접힌 상태에서는 ⓘ 버튼만 보인다. */
-.map-globe .maplibregl-ctrl-bottom-right {
+.map-globe .maplibregl-ctrl-bottom-left {
   z-index: 3;
   opacity: 0.55;
   transition: opacity 0.2s ease;
 }
 
-.map-globe .maplibregl-ctrl-bottom-right:hover {
+.map-globe .maplibregl-ctrl-bottom-left:hover {
   opacity: 1;
 }
 
@@ -44,17 +44,22 @@
   font-size: 11px;
 }
 
+/* 아래쪽 안내 문구(bottom 28px)와 겹치지 않게 모서리에 붙인다. */
+.map-globe .maplibregl-ctrl-bottom-left .maplibregl-ctrl {
+  margin: 0 0 6px 8px;
+}
+
 .map-globe .maplibregl-ctrl-attrib a {
   color: #9dc4ef;
 }
 
 /* ── 내 위치로 이동 ────────────────────────────────────────────────
-   지도 사이트의 GPS 버튼과 같은 자리(우하단)에 둔다. 출처 표기가 그 아래
-   깔려 있으므로 겹치지 않도록 띄운다. */
+   지도 사이트의 GPS 버튼과 같은 자리(우하단)에 둔다. 옵션 단추(HomePage.css .home__options, bottom 44px)
+   위에 쌓는다: 44 + 42(단추) + 10(간격). */
 .my-location-btn {
   position: absolute;
   right: 16px;
-  bottom: 44px;
+  bottom: 96px;
   z-index: 4;
 
   display: grid;
@@ -101,7 +106,7 @@
 .my-location-note {
   position: absolute;
   right: 16px;
-  bottom: 94px;
+  bottom: 146px;
   z-index: 4;
 
   max-width: 260px;

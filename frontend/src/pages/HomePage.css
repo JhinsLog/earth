@@ -86,3 +86,28 @@
   border-left: 1px solid rgba(255, 255, 255, 0.15);
   color: #8fd3ff;
 }
+
+/* 옵션 단추(SettingsMenu). 지도의 '내 위치' 단추가 이 위에 쌓인다(MapGlobe.css .my-location-btn). */
+.home__options {
+  position: absolute;
+  right: 16px;
+  bottom: 44px;
+  z-index: 11;
+}
+
+/* 상세 패널이 열리면 '내 위치'와 함께 패널 폭만큼 비켜 간다(FlareDetailPanel 360px + 16px). */
+@media (min-width: 900px) {
+  .home--panel-open .home__options {
+    right: 376px;
+  }
+}
+
+/*
+ * 휴대폰에서는 안내 문구를 조금 올린다. 왼쪽 아래 출처 표기가 처음 5초 동안 펼쳐져(OSM 표기 지침) 좁은 폭에서 두 줄이
+ * 되는데, 그 줄이 안내 문구 아래쪽에 10px 겹쳤다(390px 폭, 2026-11-16).
+ */
+@media (max-width: 600px) {
+  .home__hint {
+    bottom: 40px;
+  }
+}

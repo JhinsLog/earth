@@ -474,17 +474,22 @@ export default function MapGlobe({
       touchPitch: false,
       // ⓘ 버튼 하나로 접히는 형태. 라스 화면을 해치지 않으면서 출처 표기 의무를
       // 충족한다 — 특히 OpenStreetMap 파생 데이터는 ODbL상 표기가 의무다.
-      attributionControl: {
-        compact: true,
-        // 구름은 타일 소스가 아니라 커스텀 레이어(mapDaylightLayer)라 표기를 직접 단다. EUMETSAT 표기는 CC BY 4.0
-        // 조건이다(docs/data-sources.md).
-        customAttribution: `Clouds: NASA GIBS · EUMETSAT · NOAA GMGSI, contains modified EUMETSAT Meteosat data ${new Date().getFullYear()}`,
-      },
+      // 기본 자리(오른쪽 아래)는 옵션·내 위치 단추 자리라, 기본 컨트롤을 끄고 아래에서 왼쪽 아래에 직접 붙인다.
+      attributionControl: false,
       // 줌을 오갈 때 상위 줌 타일이 캐시에서 밀려나면 그 영역이 다시 빈 채로 그려진다.
       // 캐시를 넉넉히 잡아 되돌아왔을 때 재요청 없이 즉시 표시되게 한다.
       maxTileCacheSize: 500,
     })
     mapRef.current = map
+    map.addControl(
+      new maplibregl.AttributionControl({
+        compact: true,
+        // 구름은 타일 소스가 아니라 커스텀 레이어(mapDaylightLayer)라 표기를 직접 단다. EUMETSAT 표기는 CC BY 4.0
+        // 조건이다(docs/data-sources.md).
+        customAttribution: `Clouds: NASA GIBS · EUMETSAT · NOAA GMGSI, contains modified EUMETSAT Meteosat data ${new Date().getFullYear()}`,
+      }),
+      'bottom-left',
+    )
     // 라스 투영(globe)은 스타일에 들어 있어서, 스타일이 적용되기 전에는 평면 지도로 잰 크기가 나온다.
     // 스타일이 준비된 첫 프레임에 맞춘다. 화면은 reveal 전이라 이 보정이 보이지 않는다.
     if (startView) {

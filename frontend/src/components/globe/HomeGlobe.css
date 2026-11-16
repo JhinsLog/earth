@@ -40,8 +40,9 @@
 
 .home-globe__credit {
   position: absolute;
-  right: 12px;
-  bottom: 10px;
+  /* 왼쪽 아래. 오른쪽 아래는 옵션 단추 자리다. 아래쪽 안내 문구(bottom 28px)와 겹치지 않게 모서리에 붙인다. */
+  left: 8px;
+  bottom: 4px;
   z-index: 2;
   max-width: calc(100% - 24px);
   display: flex;
@@ -52,13 +53,13 @@
 }
 
 .home-globe__credit--open {
-  padding: 2px 2px 2px 8px;
+  padding: 2px 8px 2px 2px;
   border-radius: 12px;
   background: rgba(10, 32, 56, 0.6);
 }
 
 .home-globe__credit-text {
-  text-align: right;
+  text-align: left;
 }
 
 .home-globe__credit-text a {
@@ -77,12 +78,6 @@
   color: #cfe4ff;
   font: italic 600 11px/1 Georgia, serif;
   cursor: pointer;
-}
-
-/* 좁은 화면에서는 아래쪽 안내 문구와 겹치므로 로그인 버튼 아래로 올린다. */
-@media (max-width: 600px) {
-  .home-globe__credit {
-    top: 68px;
-    bottom: auto;
-  }
+  /* 왼쪽 모서리에 오도록 글보다 앞에 둔다. */
+  order: -1;
 }

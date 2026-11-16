@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useAuthStore } from '../../store/authStore'
 import LoginModal from '../auth/LoginModal'
-import SettingsMenu from '../settings/SettingsMenu'
 import UserMenu from '../account/UserMenu'
 import { trackAction } from '../../lib/telemetry'
 import './Navbar.css'
@@ -23,7 +22,6 @@ export default function Navbar({ onBrandClick }: Props) {
       </button>
 
       <div className="navbar__actions">
-        <SettingsMenu />
         {user ? (
           <UserMenu user={user} />
         ) : (
