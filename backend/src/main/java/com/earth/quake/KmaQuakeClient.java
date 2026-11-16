@@ -64,10 +64,16 @@ public class KmaQuakeClient {
         this.rest = RestClient.builder().requestFactory(factory).build();
     }
 
-    /** 오늘(한국 시각) 포함 {@code lookbackDays}일치 통보를 받아, 지진 하나에 하나씩 남긴 목록을 진앙시 최신순으로 돌려준다. */
+    /**
+     * 진앙시가 최근 {@code displayHours}시간 안인 지진을, 지진 하나에 하나씩 남겨 진앙시 최신순으로 돌려준다.
+     *
+     * <p>API는 발표 시각을 날짜(한국)로만 거를 수 있다. 그래서 기간의 시작이 걸친 날부터 오늘까지 받고, 시각은 여기서 자른다.
+     * 날짜로만 자르면 지진마다 보이는 시간이 달라지고(밤늦게 난 지진은 짧다) 자정마다 여러 개가 한꺼번에 사라졌다.
+     */
     public List<Quake> fetch(Instant now) {
+        Duration window = Duration.ofHours(properties.displayHours());
         LocalDate today = now.atZone(SEOUL).toLocalDate();
-        LocalDate from = today.minusDays(Math.max(0, properties.lookbackDays() - 1));
+        LocalDate from = now.minus(window).atZone(SEOUL).toLocalDate();
         List<Quake> notices = new ArrayList<>();
         for (int page = 1; page <= MAX_PAGES; page++) {
             Page result = parse(get(from, today, page));
@@ -76,7 +82,13 @@ public class KmaQuakeClient {
                 break;
             }
         }
-        return merge(notices);
+        return recent(merge(notices), now, window);
+    }
+
+    /** 진앙시가 {@code now - window} 이후인 것만. 진앙시가 앞날 자정 직전이고 발표가 다음 날인 지진도 진앙시로 판단한다. */
+    static List<Quake> recent(List<Quake> quakes, Instant now, Duration window) {
+        Instant cutoff = now.minus(window);
+        return quakes.stream().filter(q -> q.occurredAt().isAfter(cutoff)).toList();
     }
 
     private byte[] get(LocalDate from, LocalDate to, int page) {

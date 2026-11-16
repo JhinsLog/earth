@@ -11,6 +11,12 @@ import type { Quake } from '../../types'
  * 그래서 원은 '어디서 몇 규모가 났는지 알리는 표식'으로만 그린다. 규모가 크면 원이 더 크게 퍼지고, 오래된 지진일수록 어둡다.
  */
 
+/**
+ * 서버가 지진을 보여 주는 기간(application.yml earth.quakes.kma.display-hours)과 맞춘다. 밝기가 이 기간에 걸쳐 줄어
+ * 사라질 무렵 가장 어둡다.
+ */
+const DISPLAY_HOURS = 24
+
 /** 규모를 모르는 통보(드물다)는 이 규모로 그린다. */
 const UNKNOWN_MAGNITUDE = 3
 
@@ -20,7 +26,7 @@ export interface QuakeLook {
   reachPx: number
   /** 진앙 점의 반지름(px). 3~6px. */
   dotPx: number
-  /** 밝기. 방금 난 지진 1, 3일(72시간) 지나면 0.35. */
+  /** 밝기. 방금 난 지진 1, 표시 기간(24시간)이 끝날 때 0.35. */
   strength: number
   /** 원 하나가 퍼지는 데 걸리는 초. 1시간 안에 난 지진은 더 자주 퍼진다. */
   period: number
@@ -46,7 +52,7 @@ export function quakeLook(quake: Quake, now: number): QuakeLook {
   return {
     reachPx: Math.min(59, Math.max(14, 14 + 9 * (m - 2))),
     dotPx: Math.min(6, Math.max(3, 3 + 0.6 * (m - 2))),
-    strength: 1 - 0.65 * smoothstep(0, 72, ageHours),
+    strength: 1 - 0.65 * smoothstep(0, DISPLAY_HOURS, ageHours),
     period: 2.2 + 1.4 * smoothstep(0, 1, ageHours),
     phase: phaseOf(quake.id),
   }

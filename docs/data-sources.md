@@ -251,7 +251,7 @@ SeoulIncidentScheduler (10분, fixedRate)
 ```
 KmaQuakeScheduler (1분, fixedRate)
   → KmaQuakeClient: https://apis.data.go.kr/1360000/EqkInfoService/getEqkMsg?serviceKey=…&dataType=JSON
-      발표 시각(fromTmFc~toTmFc) 기준 오늘 포함 3일, 100건씩 최대 5쪽
+      발표 날짜(fromTmFc~toTmFc)로 24시간 전이 걸친 날부터 오늘까지, 100건씩 최대 5쪽 → 진앙시가 최근 24시간인 것만 남김
       같은 지진의 통보(조기경보 → 지진정보 → 재통보)는 진앙시 2분·거리 100km 안이면 하나로, 가장 늦은 발표를 남김
   → QuakeStore (메모리, 실패하면 그대로)
   → GET /api/globe/quakes (공개, 30초 캐시) → 브라우저가 1분마다 물음

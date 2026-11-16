@@ -103,6 +103,18 @@ class KmaQuakeClientTest {
         assertThat(merged).containsExactly(later, otherPlace, refined);
     }
 
+    @Test
+    @DisplayName("진앙시가 표시 기간(24시간) 안인 지진만 남긴다 — 날짜가 아니라 시각으로 자른다")
+    void keepsOnlyRecent() {
+        Instant now = Instant.parse("2026-11-17T03:00:00Z");
+        Quake fresh = quake(now.minusSeconds(3600), now.minusSeconds(3000), 35.0, 129.0, 2.0, 3);
+        Quake edge = quake(now.minusSeconds(24 * 3600 - 60), now.minusSeconds(24 * 3600 - 120), 36.0, 128.0, 2.1, 3);
+        Quake old = quake(now.minusSeconds(24 * 3600 + 60), now.minusSeconds(24 * 3600), 37.0, 127.0, 2.2, 3);
+
+        assertThat(KmaQuakeClient.recent(List.of(fresh, edge, old), now, java.time.Duration.ofHours(24)))
+                .containsExactly(fresh, edge);
+    }
+
     private static Quake quake(Instant occurredAt, Instant announcedAt, double lat, double lon, double mt, int type) {
         return new Quake("q-" + announcedAt.getEpochSecond(), occurredAt, announcedAt, lat, lon, mt, null, "", "", "", type);
     }
