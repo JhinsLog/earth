@@ -12,6 +12,12 @@ interface SettingsState {
   subwayLines: boolean
   setSubwayLines: (on: boolean) => void
   /**
+   * 자전. 홈 라스는 실제 자전(하루 한 바퀴), 지도는 저배율에서 천천히 돈다(1시간 한 바퀴). 끄면 보던 자리가 멈춰 있고,
+   * 홈 라스의 낮·밤 경계는 실제 시각대로 계속 지표 위를 지나간다(태양 위치는 그대로 현실). 기본은 켠다(현실 지구 우선).
+   */
+  autoRotate: boolean
+  setAutoRotate: (on: boolean) => void
+  /**
    * 달빛(0~1, 옵션 창의 막대). 해가 진 지역 전체를 이만큼 달빛으로 밝힌다. 휴대폰에서 길게 눌러 비추면 그 자리가
    * 손가락에 가려서 따로 둔다. 현실 지구 우선 원칙에 따라 저장하지 않고 방문마다 0(실제 밤)에서 시작한다.
    */
@@ -22,6 +28,7 @@ interface SettingsState {
 const CITY_LIGHTS_KEY = 'earth:cityLights'
 const PUBLIC_FLARES_KEY = 'earth:publicFlares'
 const SUBWAY_LINES_KEY = 'earth:subwayLines'
+const AUTO_ROTATE_KEY = 'earth:autoRotate'
 
 // 화면 취향일 뿐이라 브라우저에만 둔다. 저장소를 못 쓰는 환경(사생활 보호 창 등)에서는 기본값으로 동작한다.
 function readCityLights(): boolean {
@@ -67,6 +74,12 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     trackAction('settings.change', { key: 'subwayLines', on })
     save(SUBWAY_LINES_KEY, on)
     set({ subwayLines: on })
+  },
+  autoRotate: readOnByDefault(AUTO_ROTATE_KEY),
+  setAutoRotate: (on) => {
+    trackAction('settings.change', { key: 'autoRotate', on })
+    save(AUTO_ROTATE_KEY, on)
+    set({ autoRotate: on })
   },
   moonlight: 0,
   setMoonlight: (level) => set({ moonlight: Math.min(1, Math.max(0, level)) }),

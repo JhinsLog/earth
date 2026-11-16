@@ -1037,6 +1037,8 @@ export default function MapGlobe({
         !map.isEasing() &&
         !map.isZooming() &&
         !zoomedRecently &&
+        // 옵션의 '자전'. 스토어를 매 프레임 직접 읽어 구독 없이 바로 따른다.
+        useSettingsStore.getState().autoRotate &&
         map.getZoom() < AUTO_ROTATE_MAX_ZOOM
       ) {
         const center = map.getCenter()

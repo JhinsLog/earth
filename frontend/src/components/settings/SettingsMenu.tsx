@@ -83,7 +83,7 @@ function NicknameEditor({ user }: { user: EarthUser }) {
  * 화면에는 '옵션'으로 보인다. 코드의 이름(Settings*)은 저장소·로그 키와 맞추려고 그대로 둔다.
  */
 export default function SettingsMenu() {
-  const { cityLights, setCityLights, publicFlares, setPublicFlares, subwayLines, setSubwayLines, moonlight, setMoonlight } =
+  const { cityLights, setCityLights, publicFlares, setPublicFlares, subwayLines, setSubwayLines, autoRotate, setAutoRotate, moonlight, setMoonlight } =
     useSettingsStore()
   const loggedIn = useAuthStore((s) => s.accessToken != null)
   const user = useAuthStore((s) => s.user)
@@ -153,6 +153,18 @@ export default function SettingsMenu() {
               className="settings__switch"
               checked={publicFlares}
               onChange={(e) => setPublicFlares(e.target.checked)}
+            />
+          </label>
+          <label className="settings__row">
+            <span className="settings__label">
+              자전
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              className="settings__switch"
+              checked={autoRotate}
+              onChange={(e) => setAutoRotate(e.target.checked)}
             />
           </label>
           <label className="settings__row">

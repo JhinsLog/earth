@@ -411,6 +411,12 @@ export default function HomeGlobe({ flares, quakes, center, onZoomEnter, initial
   useEffect(() => {
     cityLightsTargetRef.current = cityLights ? 1 : 0
   }, [cityLights])
+  // 자전 스위치. 렌더 루프가 ref를 읽는다(장면 effect는 한 번만 돈다).
+  const autoRotate = useSettingsStore((state) => state.autoRotate)
+  const autoRotateRef = useRef(autoRotate)
+  useEffect(() => {
+    autoRotateRef.current = autoRotate
+  }, [autoRotate])
   const moonlight = useSettingsStore((state) => state.moonlight)
   const moonlightRef = useRef(moonlight)
   useEffect(() => {
@@ -445,7 +451,10 @@ export default function HomeGlobe({ flares, quakes, center, onZoomEnter, initial
     )
     // 자전은 실제 시각에서 바로 구한다: 태양 쪽 경도를 정면에서 늘 같은 각도에 둔다(아래 animate).
     // 이 값은 '처음 정면에 둘 경도'와 '지금 태양 직하점 경도'의 차이이고, 사용자가 끌면 바뀐다.
-    let viewOffset = THREE.MathUtils.degToRad(subsolarPoint(new Date()).longitude - initialCenterRef.current.longitude)
+    // 정면이 따라가는 경도. 자전이 켜져 있으면 매 프레임 태양 직하점 경도이고, 꺼져 있으면 끈 순간의 값에 멈춘다.
+    let spinLongitude = subsolarPoint(new Date()).longitude
+    let wasRotating = autoRotateRef.current
+    let viewOffset = THREE.MathUtils.degToRad(spinLongitude - initialCenterRef.current.longitude)
 
     // 화면이 크면 4K 텍스처. 모바일이나 저사양 GPU에는 2K로 충분하고 로딩도 짧다.
     const useLarge =
@@ -810,12 +819,23 @@ export default function HomeGlobe({ flares, quakes, center, onZoomEnter, initial
       // 방향은 고정되고, 지구가 그 아래에서 하루 한 바퀴 돌며 낮·밤 경계가 지표 위를 시간당 15°씩 지나간다.
       // 경과 시간(dt)을 쌓지 않고 시각에서 바로 구하는 이유: 탭이 백그라운드였다 돌아와도 태양과 어긋나지 않는다.
       const sun = subsolarPoint(new Date())
+      // 자전을 끄면 정면이 따라가는 경도(spinLongitude)를 멈춘다. 지구는 그 자리에 서고 태양(낮·밤 경계)만 실제대로 움직인다.
+      // 다시 켤 때는 멈춰 있던 동안 태양이 간 만큼 viewOffset을 옮겨, 지구가 순간이동하지 않고 지금 화면에서 다시 돈다.
+      const rotating = autoRotateRef.current
+      if (rotating && !wasRotating) {
+        viewOffset += THREE.MathUtils.euclideanModulo(
+          THREE.MathUtils.degToRad(sun.longitude - spinLongitude) + Math.PI,
+          Math.PI * 2,
+        ) - Math.PI
+      }
+      if (rotating) spinLongitude = sun.longitude
+      wasRotating = rotating
       const focus = focusTargetRef.current
       if (focus) {
         const k = texturesReady ? Math.min(1, dt * 3) : 1
         // 경도 차는 -180°~180°로 접어 짧은 쪽으로 돈다.
         const offsetDelta = THREE.MathUtils.euclideanModulo(
-          THREE.MathUtils.degToRad(sun.longitude - focus.longitude) - viewOffset + Math.PI,
+          THREE.MathUtils.degToRad(spinLongitude - focus.longitude) - viewOffset + Math.PI,
           Math.PI * 2,
         ) - Math.PI
         const tiltDelta =
@@ -825,7 +845,7 @@ export default function HomeGlobe({ flares, quakes, center, onZoomEnter, initial
         if (Math.abs(offsetDelta) < 1e-4 && Math.abs(tiltDelta) < 1e-4) focusTargetRef.current = null
       }
       sunLocal.copy(toVector(sun.latitude, sun.longitude, 1))
-      spin.rotation.y = spinFacing(sun.longitude) + viewOffset
+      spin.rotation.y = spinFacing(spinLongitude) + viewOffset
       spin.updateMatrixWorld()
       sunWorld.copy(sunLocal).applyQuaternion(earth.getWorldQuaternion(earthRotation))
       if (zoom !== zoomTarget) {
