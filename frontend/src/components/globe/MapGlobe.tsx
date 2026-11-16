@@ -395,6 +395,8 @@ export default function MapGlobe({
   const mapRef = useRef<MapLibreMap | null>(null)
   const isInteractingRef = useRef(false)
   const suppressNextMapClickRef = useRef(false)
+  /** 열려 있는 지진 정보 창. 열려 있는 동안은 자전을 멈춘다(rotate 참고). */
+  const quakePopupRef = useRef<maplibregl.Popup | null>(null)
   /** 임시 플레어 위에서 우클릭한 경우, 전역 우클릭(=새 플레어 생성)까지 실행되지 않게 막는다. */
   const suppressNextContextMenuRef = useRef(false)
   const appliedInitialFocusRef = useRef(false)
@@ -741,11 +743,19 @@ export default function MapGlobe({
         const id = e.features?.[0]?.properties?.id
         const quake = quakesRef.current.find((q) => q.id === id)
         if (!quake) return
+        // 정보 창은 진앙 좌표에 붙어 있어, 자전이 진앙을 화면 가장자리로 밀면 창이 잘렸다(2026-11-17 휴대폰).
+        // 진앙을 화면 가운데로 옮기고 창이 열린 동안 자전을 멈춘다. 창 자리는 MapLibre가 화면 안에 들어가는 쪽(위·아래·옆)으로 정한다.
+        quakePopupRef.current?.remove()
         // 진앙 점(반지름 최대 6px)과 빛무리(그 2.6배)를 덮지 않게 점에서 충분히 띄운다.
-        new maplibregl.Popup({ className: 'quake-popup', maxWidth: '280px', offset: 24 })
+        const popup = new maplibregl.Popup({ className: 'quake-popup', maxWidth: '280px', offset: 24 })
           .setLngLat([quake.longitude, quake.latitude])
           .setDOMContent(quakePopupContent(quake))
           .addTo(map)
+        quakePopupRef.current = popup
+        popup.on('close', () => {
+          if (quakePopupRef.current === popup) quakePopupRef.current = null
+        })
+        map.easeTo({ center: [quake.longitude, quake.latitude], duration: 600 })
       })
       map.on('mouseenter', QUAKE_HIT_LAYER_ID, () => {
         map.getCanvas().style.cursor = 'pointer'
@@ -1009,6 +1019,8 @@ export default function MapGlobe({
       const zoomedRecently = performance.now() - lastZoomInputAt < ZOOM_INPUT_ROTATE_PAUSE_MS
       if (
         !isInteractingRef.current &&
+        // 지진 정보 창이 열려 있으면 멈춘다. 돌면 진앙과 창이 화면 밖으로 밀려 잘린다.
+        !quakePopupRef.current &&
         !map.isEasing() &&
         !map.isZooming() &&
         !zoomedRecently &&
