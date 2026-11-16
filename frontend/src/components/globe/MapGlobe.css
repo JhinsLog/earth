@@ -169,6 +169,8 @@
 .quake-popup__remark {
   margin-top: 6px;
   font-size: 12px;
+  /* 통보문 참고사항은 줄바꿈으로 항목을 나눠 온다(예: "지진피해 없을 것으로 예상됨\n자연지진으로 분석됨"). */
+  white-space: pre-line;
 }
 
 .quake-popup__source {
