@@ -197,6 +197,10 @@ const EARTH_FRAGMENT = /* glsl */ `
     float cloudShadow = cloudDensity(vUv, vUv - vec2(cloudOffset, 0.0));
     vec3 color = day * (light * 1.7 + 0.01) * (1.0 - cloudShadow * 0.4 * light);
     color += day * vec3(0.35, 0.45, 0.8) * 0.12 * (1.0 - dayMix);
+    // 밤 사진(NASA 블랙 마블)에는 도시 불빛 말고도 달빛에 비친 듯한 푸른 땅·얼음이 옅게 깔려 있다(sRGB 밝기 땅 약 25,
+    // 사하라 최대 63, 얼음 52). 그대로 더하면 '도시 불빛'을 켰는데 달빛까지 켜진 것처럼 보였다(2026-11-17). 그 밑바닥보다
+    // 밝은 곳(sRGB 약 56~76에서 서서히 = 선형 0.035~0.07)만 불빛으로 남긴다. 지도(mapDaylightLayer)도 같은 값을 쓴다.
+    night *= smoothstep(0.035, 0.07, dot(night, vec3(0.299, 0.587, 0.114)));
     color += night * vec3(1.0, 0.85, 0.6) * 1.4 * (1.0 - dayMix) * cityLights;
     // 달빛. 낮 사진의 색을 대부분 빼고 푸른 은빛을 입혀 낮보다 어둡게 비춘다. 낮 지역은 이미 밝으니 밤인 만큼만 더한다.
     // 옵션의 달빛 막대(moonlight)는 밤 지역 전체를 같은 세기로 비춘다. 손전등과 겹치면 더 밝은 쪽을 쓴다.

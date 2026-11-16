@@ -105,7 +105,12 @@ void main() {
   // 밤 지역에서도 대륙 윤곽이 보이도록 남기는 옅은 푸른빛. 위성사진(낮)의 밝기에 비례하게 하려고
   // 아래 지도 색을 알 수 없으므로 일정한 값으로 둔다.
   vec3 add = vec3(0.35, 0.45, 0.8) * 0.06 * (1.0 - dayMix) * (1.0 - cloud);
-  add += toGamma(texture(u_night, uv).rgb * vec3(1.0, 0.85, 0.6) * 1.4) * (1.0 - dayMix) * u_city_lights * (1.0 - cloud);
+  // 밤 사진은 sRGB로 저장돼 있는데 텍스처를 그냥 RGBA로 올려 그 값을 선형으로 읽고 있었다. 그 위에 toGamma를 한 번 더
+  // 거치니 어두운 값이 크게 들려(sRGB 25 → 약 0.4), 도시 불빛을 켜고 확대하면 밤 지역 전체가 보랏빛으로 밝아졌다
+  // (2026-11-17). 먼저 선형으로 되돌리고, 홈 라스와 같은 기준으로 사진 밑바닥의 푸른 땅·얼음을 걷어 불빛만 남긴다.
+  vec3 night = pow(texture(u_night, uv).rgb, vec3(2.2));
+  night *= smoothstep(0.035, 0.07, dot(night, vec3(0.299, 0.587, 0.114)));
+  add += toGamma(night * vec3(1.0, 0.85, 0.6) * 1.4) * (1.0 - dayMix) * u_city_lights * (1.0 - cloud);
   add += vec3(0.05, 0.08, 0.16) * spot * (1.0 - cloud);
   add *= u_strength;
   add += toGamma(vec3(cloudLight * 1.5 + 0.015) * mix(0.55, 1.0, cloud)) * cloud;
