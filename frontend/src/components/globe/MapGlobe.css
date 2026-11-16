@@ -128,3 +128,51 @@
     right: 376px;
   }
 }
+
+/* 지진을 눌렀을 때의 기상청 통보문. 어두운 지도 위라 밝은 기본 팝업 대신 플레어 패널과 비슷한 어두운 판으로 둔다. */
+.quake-popup .maplibregl-popup-content {
+  background: rgba(12, 16, 26, 0.92);
+  color: #e6ebf5;
+  border: 1px solid rgba(255, 140, 80, 0.35);
+  border-radius: 10px;
+  padding: 12px 28px 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  backdrop-filter: blur(6px);
+}
+
+.quake-popup .maplibregl-popup-tip {
+  display: none;
+}
+
+.quake-popup .maplibregl-popup-close-button {
+  color: #b9c6d9;
+  font-size: 18px;
+  padding: 2px 8px;
+}
+
+.quake-popup__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffb08a;
+}
+
+.quake-popup__location {
+  margin-bottom: 4px;
+}
+
+.quake-popup__row {
+  color: #b9c6d9;
+  font-size: 12px;
+}
+
+.quake-popup__remark {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.quake-popup__source {
+  margin-top: 8px;
+  color: #8793a8;
+  font-size: 11px;
+}

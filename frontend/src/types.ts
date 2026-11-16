@@ -106,3 +106,20 @@ export const FLARE_CATEGORY_COLOR: Record<FlareCategory, string> = {
   CROWD: '#c98bff',
   ETC: '#ffe14d',
 }
+
+/**
+ * 기상청이 통보한 지진(GET /api/globe/quakes). 글은 통보문 원문 그대로다 — 자연현상은 기상청 발표만 전달하고
+ * 우리가 판단을 덧붙이지 않는다(docs/data-sources.md). 플레어와 달리 사람이 남기지 않으므로 채팅·공감이 없다.
+ */
+export interface Quake {
+  id: string
+  occurredAt: string
+  announcedAt: string
+  latitude: number
+  longitude: number
+  magnitude: number | null
+  depthKm: number | null
+  intensity: string
+  location: string
+  remark: string
+}

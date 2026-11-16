@@ -9,6 +9,7 @@ import { useFlareStore } from '../store/flareStore'
 import { useAuthStore } from '../store/authStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useBlockStore } from '../store/blockStore'
+import { useQuakes } from '../hooks/useQuakes'
 import { useDraftFlares } from '../hooks/useDraftFlares'
 import { useMyLocation } from '../hooks/useMyLocation'
 import { api } from '../lib/api'
@@ -65,6 +66,8 @@ export default function HomePage() {
       ),
     [flares, publicFlares, blockedIds],
   )
+  // 기상청 지진 통보. 사람이 남기는 플레어가 아니라 공공 자료라 '공공 정보' 스위치를 함께 따른다.
+  const quakes = useQuakes(publicFlares)
   const { drafts, addDraft, removeDraft, soonestRemainingMs } = useDraftFlares()
   // 내 위치는 여기서만 소유하고 필요한 두 곳에만 내려보낸다. 서버로는 나가지 않는다.
   const { myLocation, locating, locateError, locate } = useMyLocation()
@@ -262,6 +265,7 @@ export default function HomePage() {
           <HomeGlobe
             key={globeKey}
             flares={visibleFlares}
+            quakes={quakes}
             center={initialFocusLatLng ?? globeCenter}
             initialView={returnView}
             onZoomEnter={handleGlobeZoomEnter}
@@ -287,6 +291,7 @@ export default function HomePage() {
               key={mapKey}
               onViewportChange={loadFlares}
               flares={visibleFlares}
+              quakes={quakes}
               selectedFlareId={selectedFlareId}
               selectionToken={selectionToken}
               onSelect={handleSelect}
