@@ -50,12 +50,14 @@ vec3 quakeLight(float d, float px, float reach, float age, float phase, float ti
   float strength = mix(1.0, 0.35, smoothstep(0.0, 72.0, age));
   // 1시간 안에 난 지진은 원이 더 자주 퍼진다.
   float period = mix(2.2, 3.6, smoothstep(0.0, 1.0, age));
-  // 진앙 점: 실제 크기(퍼지는 거리의 4%)와 화면 4px 중 큰 쪽.
-  float dotR = max(reach * 0.04, 4.0 * px);
+  // 진앙 점: 실제 크기(퍼지는 거리의 4%)를 쓰되 화면에서 4~8px 안으로 묶는다. 묶지 않으면 크게 확대했을 때
+  // 점이 수백 px로 커져 지명을 덮었다(규모 5.1이면 반지름 약 27km, 2026-11-16).
+  float dotR = clamp(reach * 0.04, 4.0 * px, 8.0 * px);
   float core = 1.0 - smoothstep(dotR * 0.3, dotR * 0.6, d);
   float halo = exp(-(d * d) / (dotR * dotR) * 1.6);
   // 세 개의 원이 번갈아 진앙에서 퍼져 나가며 옅어진다.
-  float width = max(reach * 0.022, 1.3 * px);
+  // 원의 선 두께도 화면에서 1.3~3px 안으로 묶는다(확대하면 선이 띠처럼 두꺼워지지 않게).
+  float width = clamp(reach * 0.022, 1.3 * px, 3.0 * px);
   float rings = 0.0;
   for (int k = 0; k < 3; k++) {
     float t = fract(time / period + phase + float(k) / 3.0);

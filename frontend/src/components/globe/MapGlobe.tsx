@@ -772,7 +772,8 @@ export default function MapGlobe({
         const id = e.features?.[0]?.properties?.id
         const quake = quakesRef.current.find((q) => q.id === id)
         if (!quake) return
-        new maplibregl.Popup({ className: 'quake-popup', maxWidth: '280px', offset: 12 })
+        // 진앙 점(최대 반지름 8px)과 빛무리를 덮지 않게 점에서 충분히 띄운다.
+        new maplibregl.Popup({ className: 'quake-popup', maxWidth: '280px', offset: 28 })
           .setLngLat([quake.longitude, quake.latitude])
           .setDOMContent(quakePopupContent(quake))
           .addTo(map)
