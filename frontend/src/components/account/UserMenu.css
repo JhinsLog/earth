@@ -1,0 +1,65 @@
+.user-menu {
+  position: relative;
+  min-width: 0;
+}
+
+/* 레벨 + 닉네임 묶음이 이제 단추다. 모양은 그대로 두고 단추 기본 모양만 지운다(Navbar.css의 .navbar__user). */
+.user-menu .navbar__user {
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 6px 14px 6px 10px;
+  max-width: 100%;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.user-menu .navbar__user:hover,
+.user-menu .navbar__user[aria-expanded='true'] {
+  background: rgba(30, 60, 110, 0.6);
+  border-color: rgba(120, 180, 255, 0.6);
+}
+
+.user-menu__list {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 140px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(10, 16, 28, 0.92);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  z-index: 20;
+}
+
+.user-menu__list button {
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: #eaf2ff;
+  font-family: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.user-menu__list button:hover,
+.user-menu__list button:focus-visible {
+  background: rgba(42, 123, 255, 0.22);
+  outline: none;
+}
+
+/* 마이페이지 판은 옵션 창과 같은 판이다. 첫 칸 위의 구분선만 없앤다. */
+.user-menu__page {
+  z-index: 20;
+}
+
+.user-menu__page .settings__section:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}

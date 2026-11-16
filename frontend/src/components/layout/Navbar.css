@@ -54,8 +54,7 @@
   pointer-events: auto;
 }
 
-.navbar__login,
-.navbar__logout {
+.navbar__login {
   white-space: nowrap;
   font-family: inherit;
   font-size: 13px;
@@ -69,8 +68,7 @@
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.navbar__login:hover,
-.navbar__logout:hover {
+.navbar__login:hover {
   background: rgba(30, 60, 110, 0.6);
   border-color: rgba(120, 180, 255, 0.6);
 }
@@ -105,16 +103,8 @@
   padding: 2px 7px;
 }
 
-.navbar__logout {
-  white-space: nowrap;
-  border: none;
-  padding: 5px 10px;
-  font-size: 12px;
-  color: #b9c6d9;
-}
-
 /*
- * 휴대폰 너비. 로그인하면 로고·설정·사용자 표시가 한 줄에 다 들어가지 않아 오른쪽이 화면 밖으로 밀렸다
+ * 휴대폰 너비. 로그인하면 로고·옵션·사용자 표시가 한 줄에 다 들어가지 않아 오른쪽이 화면 밖으로 밀렸다
  * (390px 폭, 자동 닉네임 기준). 여백을 줄이고, 그래도 모자라면 닉네임을 말줄임표로 줄인다.
  */
 @media (max-width: 600px) {
@@ -130,10 +120,6 @@
   }
 
   .navbar__user {
-    padding-left: 12px;
-  }
-
-  .navbar__logout {
-    padding: 7px 10px;
+    padding-left: 10px;
   }
 }

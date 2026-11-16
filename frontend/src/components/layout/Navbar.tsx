@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuthStore } from '../../store/authStore'
 import LoginModal from '../auth/LoginModal'
 import SettingsMenu from '../settings/SettingsMenu'
+import UserMenu from '../account/UserMenu'
 import { trackAction } from '../../lib/telemetry'
 import './Navbar.css'
 
@@ -11,7 +12,7 @@ interface Props {
 }
 
 export default function Navbar({ onBrandClick }: Props) {
-  const { user, logout } = useAuthStore()
+  const user = useAuthStore((s) => s.user)
   const [showLogin, setShowLogin] = useState(false)
 
   return (
@@ -24,19 +25,7 @@ export default function Navbar({ onBrandClick }: Props) {
       <div className="navbar__actions">
         <SettingsMenu />
         {user ? (
-          <div className="navbar__user">
-            <span className="navbar__nickname">{user.nickname}</span>
-            <span className="navbar__level">Lv.{user.level}</span>
-            <button
-              className="navbar__logout"
-              onClick={() => {
-                trackAction('auth.logout')
-                logout()
-              }}
-            >
-              로그아웃
-            </button>
-          </div>
+          <UserMenu user={user} />
         ) : (
           <button
             className="navbar__login"

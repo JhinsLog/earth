@@ -45,11 +45,11 @@
   color: #8fa3bf;
 }
 
-/* 줄 사이를 띄운다. 스위치끼리 위아래로 붙어 보였다(2026-11-16). */
+/* 줄 사이 간격. 붙어 보여 16px로 띄웠다가, 너무 벌어져 절반으로 줄였다(2026-11-16). */
 .settings__rows {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
 }
 
 .settings__row {

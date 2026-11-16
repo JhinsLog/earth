@@ -1,93 +1,16 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSettingsStore } from '../../store/settingsStore'
-import { useAuthStore } from '../../store/authStore'
-import { useBlockStore } from '../../store/blockStore'
-import { api } from '../../lib/api'
 import { trackAction } from '../../lib/telemetry'
-import type { EarthUser } from '../../types'
 import './SettingsMenu.css'
 
-/** 서버 규칙(Nicknames.java)과 같은 길이. 형식 검사는 서버가 최종 판정한다. */
-const NICKNAME_MAX = 16
-
-/** 다음에 바꿀 수 있는 날까지 남은 날(올림). 서버 문구와 같은 계산이다. */
-function daysUntil(iso: string | null): number {
-  if (!iso) return 0
-  return Math.max(0, Math.ceil((Date.parse(iso) - Date.now()) / 86_400_000))
-}
-
 /**
- * 닉네임 바꾸기. 가입하면 '지구인-XXXXXX'가 자동으로 붙는다(구글 계정 이름은 받지 않는다).
- * 서버가 거절하면(형식 400, 욕설 400, 중복·비슷한 이름 409, 30일 안에 다시 바꿈 429) 그 사유를 그대로 보여 준다.
- */
-function NicknameEditor({ user }: { user: EarthUser }) {
-  const setUser = useAuthStore((s) => s.setUser)
-  const [value, setValue] = useState(user.nickname)
-  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null)
-  const [saving, setSaving] = useState(false)
-  const changed = value.trim() !== user.nickname
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!changed || saving) return
-    setSaving(true)
-    setMessage(null)
-    try {
-      const { data } = await api.patch<EarthUser>('/api/users/me/nickname', { nickname: value })
-      setUser(data)
-      setValue(data.nickname)
-      setMessage({ text: '바꿨습니다.', error: false })
-      trackAction('settings.nickname')
-    } catch (err) {
-      const response = (err as { response?: { status?: number; data?: { message?: string } } }).response
-      const known = response?.status === 400 || response?.status === 409 || response?.status === 429
-      setMessage({ text: (known && response?.data?.message) || '잠시 후 다시 시도해 주세요.', error: true })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <form className="settings__section" onSubmit={(e) => void submit(e)}>
-      <label className="settings__label" htmlFor="settings-nickname">
-        닉네임
-      </label>
-      <div className="settings__nickname">
-        <input
-          id="settings-nickname"
-          value={value}
-          maxLength={NICKNAME_MAX}
-          autoComplete="off"
-          spellCheck={false}
-          onChange={(e) => {
-            setValue(e.target.value)
-            setMessage(null)
-          }}
-        />
-        <button type="submit" disabled={!changed || saving}>
-          {saving ? '저장 중' : '저장'}
-        </button>
-      </div>
-      <p className={message?.error ? 'settings__hint settings__hint--error' : 'settings__hint'} role="status">
-        {message?.text ??
-          (daysUntil(user.nicknameChangeableAt) > 0
-            ? `${daysUntil(user.nicknameChangeableAt)}일 뒤에 다른 이름으로 바꿀 수 있습니다 (띄어쓰기·대소문자는 지금 가능)`
-            : '2~16자, 한글·영문·숫자 · 30일에 한 번 바꿀 수 있습니다')}
-      </p>
-    </form>
-  )
-}
-
-/**
- * 화면 표시 옵션. 브라우저에만 기억한다(달빛은 기억하지 않는다).
+ * 화면 표시 옵션. 브라우저에만 기억한다(달빛은 기억하지 않는다). 계정 정보(닉네임·차단한 사용자)는 여기가 아니라
+ * 마이페이지(account/UserMenu)에 둔다 — 옵션은 화면을 어떻게 볼지, 마이페이지는 나에 관한 것이다(2026-11-16).
  * 화면에는 '옵션'으로 보인다. 코드의 이름(Settings*)은 저장소·로그 키와 맞추려고 그대로 둔다.
  */
 export default function SettingsMenu() {
   const { cityLights, setCityLights, publicFlares, setPublicFlares, subwayLines, setSubwayLines, autoRotate, setAutoRotate, moonlight, setMoonlight } =
     useSettingsStore()
-  const loggedIn = useAuthStore((s) => s.accessToken != null)
-  const user = useAuthStore((s) => s.user)
-  const { blocked, unblock } = useBlockStore()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -203,26 +126,6 @@ export default function SettingsMenu() {
             />
           </label>
           </div>
-          {loggedIn && user && <NicknameEditor key={user.id} user={user} />}
-          {loggedIn && (
-            <div className="settings__section">
-              <div className="settings__label">
-                차단한 사용자
-              </div>
-              {blocked.length === 0 ? (
-                <p className="settings__empty">없음</p>
-              ) : (
-                <ul className="settings__blocked">
-                  {blocked.map((b) => (
-                    <li key={b.userId}>
-                      <span>{b.nickname}</span>
-                      <button onClick={() => void unblock(b.userId).catch(() => {})}>해제</button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
         </div>
       )}
     </div>
