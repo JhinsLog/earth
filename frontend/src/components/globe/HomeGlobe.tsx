@@ -15,7 +15,7 @@ import { API_BASE_URL } from '../../lib/api'
 import { subsolarPoint } from '../../lib/sun'
 import { useSettingsStore } from '../../store/settingsStore'
 import { FLARE_CATEGORY_COLOR, RESTRICTED_FLARE_COLOR, type Flare, type Quake } from '../../types'
-import { QUAKE_GLSL, buildQuakePatches } from './quakeShader'
+import { QUAKE_CORE, QUAKE_WARM, RING_COUNT, quakeLook } from './quakeShader'
 import './GlobeHalo.css'
 import './HomeGlobe.css'
 import { rememberGpu, trackError } from '../../lib/telemetry'
@@ -45,8 +45,10 @@ export interface HandoffView {
 const EARTH_RADIUS = 1
 // 플레어를 지표면에 딱 붙이면 지구와 깊이가 같아 깜빡이며 가려진다(z-fighting). 살짝 띄운다.
 const FLARE_RADIUS = 1.012
-// 지진의 원은 구름(1.006) 위, 플레어 아래. 구름에 덮여 흐려지지 않게 하고, 플레어는 가리지 않는다.
+// 지진 점은 구름(1.006) 위, 플레어 아래. 구름에 덮여 흐려지지 않게 하고, 플레어는 가리지 않는다.
 const QUAKE_RADIUS = 1.009
+/** 지진 하나를 그리는 점 스프라이트의 여백(px). 원 가장자리의 흐림이 잘리지 않게. */
+const QUAKE_SPRITE_MARGIN_PX = 6
 const MAX_TILT_RAD = (60 * Math.PI) / 180
 const FOV_DEG = 30
 const CREDIT_COLLAPSE_MS = 5000
@@ -332,32 +334,55 @@ const FLARE_FRAGMENT = /* glsl */ `
   }
 `
 
+/**
+ * '#ff6b29' → 'vec3(1.000, 0.420, 0.161)'. 지도 레이어와 같은 색 상수를 셰이더에 넣는다.
+ * THREE.Color로 바꾸지 않는다: three의 색 관리가 선형 값으로 바꿔 더 어둡게 나온다. 이 셰이더는 값을 그대로 화면에 쓴다.
+ */
+function glslColor(hex: string): string {
+  const [r, g, b] = [1, 3, 5].map((i) => (parseInt(hex.slice(i, i + 2), 16) / 255).toFixed(3))
+  return `vec3(${r}, ${g}, ${b})`
+}
+
+// 지진: 진앙마다 점 스프라이트 하나. 화면 픽셀 크기로 점과 퍼지는 원을 그린다(규칙은 quakeShader.ts, 지도와 같다).
+// 지구 뒤편의 점은 지구가 깊이로 가린다.
 const QUAKE_VERTEX = /* glsl */ `
-  attribute vec3 center;
-  attribute vec3 params;
-  varying vec3 vLocal;
-  varying vec3 vCenter;
-  varying vec3 vParams;
+  attribute vec4 look;   // 원 반지름 px, 점 반지름 px, 밝기, 박자
+  attribute float period;
+  uniform float pixelRatio;
+  varying vec4 vLook;
+  varying float vPeriod;
+  varying float vSize;
   void main() {
-    vLocal = position;
-    vCenter = center;
-    vParams = params;
+    vLook = look;
+    vPeriod = period;
+    vSize = 2.0 * (look.x + ${QUAKE_SPRITE_MARGIN_PX.toFixed(1)});
+    gl_PointSize = vSize * pixelRatio;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `
 
-// 지도(mapQuakeLayer)와 같은 quakeLight를 쓴다. 진앙과 조각을 둘 다 지구 반지름 1의 단위벡터로 맞춰 거리를 잰다.
 const QUAKE_FRAGMENT = /* glsl */ `
   uniform float time;
-  varying vec3 vLocal;
-  varying vec3 vCenter;
-  varying vec3 vParams;
-  ${QUAKE_GLSL}
+  varying vec4 vLook;
+  varying float vPeriod;
+  varying float vSize;
   void main() {
-    float d = length(normalize(vLocal) - vCenter);
-    vec3 light = quakeLight(d, fwidth(d), vParams.x, vParams.y, vParams.z, time);
-    if (max(light.r, max(light.g, light.b)) < 0.003) discard;
-    gl_FragColor = vec4(light, 1.0);
+    // 스프라이트 중심에서의 거리(CSS px).
+    float r = length(gl_PointCoord - 0.5) * vSize;
+    float reach = vLook.x;
+    float dotR = vLook.y;
+    float rings = 0.0;
+    for (int k = 0; k < ${RING_COUNT}; k++) {
+      float t = fract(time / vPeriod + vLook.w + float(k) / ${RING_COUNT.toFixed(1)});
+      float offset = (r - t * reach) / 1.1;
+      rings += exp(-offset * offset) * pow(1.0 - t, 1.5) * min(1.0, t / 0.08);
+    }
+    float core = 1.0 - smoothstep(dotR - 1.0, dotR, r);
+    float halo = exp(-(r * r) / (dotR * dotR * 2.6 * 2.6 / 3.0));
+    vec3 col = ${glslColor(QUAKE_WARM)} * (halo * 0.6 + rings * 0.9) * vLook.z
+             + ${glslColor(QUAKE_CORE)} * core * max(0.6, vLook.z);
+    if (max(col.r, max(col.g, col.b)) < 0.003) discard;
+    gl_FragColor = vec4(col, 1.0);
   }
 `
 
@@ -396,7 +421,7 @@ export default function HomeGlobe({ flares, quakes, center, onZoomEnter, initial
   }, [onZoomEnter])
   // 장면은 한 번만 만들고, 플레어 데이터만 바뀔 때마다 갈아 끼운다.
   const flarePointsRef = useRef<{ geometry: THREE.BufferGeometry; points: THREE.Points } | null>(null)
-  const quakeMeshRef = useRef<THREE.Mesh | null>(null)
+  const quakePointsRef = useRef<THREE.Points | null>(null)
   const initialCenterRef = useRef(initialView?.center ?? center)
   const initialViewRef = useRef(initialView)
   // 접속 위치는 라스가 뜬 뒤에 도착한다(IP 조회 약 0.5초). 처음에는 표준시로 짐작한 경도를 보다가, 위치가 오면
@@ -557,25 +582,22 @@ export default function HomeGlobe({ flares, quakes, center, onZoomEnter, initial
     spin.add(flarePoints)
     flarePointsRef.current = { geometry: flareGeometry, points: flarePoints }
 
-    // 지진: 진앙의 점과 지표면을 따라 퍼지는 원(quakeShader.ts). 지진마다 원이 닿는 범위만 덮는 격자를 그린다.
     const quakeMaterial = new THREE.ShaderMaterial({
-      uniforms: { time: { value: 0 } },
+      uniforms: { time: { value: 0 }, pixelRatio: { value: pixelRatio } },
       vertexShader: QUAKE_VERTEX,
       fragmentShader: QUAKE_FRAGMENT,
       transparent: true,
       blending: THREE.AdditiveBlending,
-      // 지구 뒤편의 원은 지구에 가려지고, 원끼리는 서로 가리지 않는다.
+      // 지구 뒤편의 점은 지구에 가려지고, 점끼리는 서로 가리지 않는다.
       depthTest: true,
       depthWrite: false,
-      // 격자는 위경도 순서로 감겨 밖에서 보면 뒷면이다. 지도 쪽(mapQuakeLayer)도 면 추리기를 끄고 그린다.
-      side: THREE.DoubleSide,
     })
     const quakeGeometry = new THREE.BufferGeometry()
-    const quakeMesh = new THREE.Mesh(quakeGeometry, quakeMaterial)
-    quakeMesh.renderOrder = 1
-    quakeMesh.frustumCulled = false
-    spin.add(quakeMesh)
-    quakeMeshRef.current = quakeMesh
+    const quakePoints = new THREE.Points(quakeGeometry, quakeMaterial)
+    quakePoints.renderOrder = 1
+    quakePoints.frustumCulled = false
+    spin.add(quakePoints)
+    quakePointsRef.current = quakePoints
 
     // 확대 배율. 1이 처음 크기이고 HOME_GLOBE_ENTER_ZOOM에 닿으면 지도로 넘어간다.
     // 입력은 목표값만 바꾸고 화면은 매 프레임 그쪽으로 다가가 부드럽게 확대된다.
@@ -891,7 +913,7 @@ export default function HomeGlobe({ flares, quakes, center, onZoomEnter, initial
       canvas.removeEventListener('pointercancel', onPointerUp)
       canvas.removeEventListener('contextmenu', onContextMenu)
       flarePointsRef.current = null
-      quakeMeshRef.current = null
+      quakePointsRef.current = null
       for (const disposable of [
         earthGeometry, earthMaterial, cloudGeometry, cloudMaterial, atmosphereGeometry, atmosphereMaterial,
         flareGeometry, flareMaterial, quakeGeometry, quakeMaterial, dayMap, nightMap, cloudMap, waterMap,
@@ -931,25 +953,24 @@ export default function HomeGlobe({ flares, quakes, center, onZoomEnter, initial
     geometry.computeBoundingSphere()
   }, [flares])
 
-  // 지진 목록이 바뀌면(1분마다 받는다) 격자를 다시 만든다. 오래된 정도(밝기)도 이때 함께 새로 잰다.
+  // 지진 목록이 바뀌면(1분마다 받는다) 점을 다시 만든다. 경과 시간에 따른 밝기도 이때 새로 잰다.
   useEffect(() => {
-    const mesh = quakeMeshRef.current
-    if (!mesh) return
-    const patches = buildQuakePatches(quakes, Date.now())
-    const count = patches.vertices.length
-    const positions = new Float32Array(count * 3)
-    const centers = new Float32Array(count * 3)
-    const params = new Float32Array(count * 3)
-    patches.vertices.forEach((v, i) => {
-      toVector(v.lat, v.lng, QUAKE_RADIUS).toArray(positions, i * 3)
-      toVector(v.centerLat, v.centerLng, 1).toArray(centers, i * 3)
-      params.set([v.reach, v.ageHours, v.phase], i * 3)
+    const points = quakePointsRef.current
+    if (!points) return
+    const now = Date.now()
+    const positions = new Float32Array(quakes.length * 3)
+    const looks = new Float32Array(quakes.length * 4)
+    const periods = new Float32Array(quakes.length)
+    quakes.forEach((quake, i) => {
+      const look = quakeLook(quake, now)
+      toVector(quake.latitude, quake.longitude, QUAKE_RADIUS).toArray(positions, i * 3)
+      looks.set([look.reachPx, look.dotPx, look.strength, look.phase], i * 4)
+      periods[i] = look.period
     })
-    const geometry = mesh.geometry
+    const geometry = points.geometry
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    geometry.setAttribute('center', new THREE.BufferAttribute(centers, 3))
-    geometry.setAttribute('params', new THREE.BufferAttribute(params, 3))
-    geometry.setIndex(new THREE.BufferAttribute(patches.indices, 1))
+    geometry.setAttribute('look', new THREE.BufferAttribute(looks, 4))
+    geometry.setAttribute('period', new THREE.BufferAttribute(periods, 1))
   }, [quakes])
 
   return (

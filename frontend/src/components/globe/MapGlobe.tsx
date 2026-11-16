@@ -12,7 +12,7 @@ import {
 import { FLARE_SPRITE_PIXEL_RATIO, createFlareBodyImage, createFlareSparkleImage } from './flareTexture'
 import { createDaylightLayer, isNight, lastNightTextureSize } from './mapDaylightLayer'
 import { addSubwayLayer, ensureSubwayData, setSubwayVisible } from './subwayLayer'
-import { createQuakeLayer, type QuakeLayer } from './mapQuakeLayer'
+import { QUAKES_SOURCE_ID, QUAKE_HIT_LAYER_ID, addQuakeLayers, animateQuakes, setQuakeData } from './mapQuakeLayer'
 import { useSettingsStore } from '../../store/settingsStore'
 import { MOON_CURSOR } from './moonCursor'
 import Starfield from './Starfield'
@@ -65,10 +65,7 @@ const FLARE_COLORS = [...new Set([...Object.values(FLARE_CATEGORY_COLOR), RESTRI
 const TWINKLE_INTERVAL_MS = 50
 /** 내 위치 표시. 이 좌표는 브라우저 안에만 머무르며 서버로 나가지 않는다. */
 const MY_LOCATION_SOURCE_ID = 'earth-my-location-source'
-// 지진: 원은 커스텀 레이어(mapQuakeLayer)가 그리고, 누르기 판정과 출처 표기는 보이지 않는 원 레이어가 맡는다.
-const QUAKES_SOURCE_ID = 'earth-quakes-source'
-const QUAKE_LAYER_ID = 'quakes'
-const QUAKE_HIT_LAYER_ID = 'quakes-hit'
+// 지진(mapQuakeLayer)의 출처 표기. 지진 소스에 달아 MapLibre 출처 컨트롤에 함께 보인다.
 const KMA_ATTRIBUTION = '지진: <a href="https://www.weather.go.kr/">기상청</a>'
 /** 공감이 이 수를 넘어도 플레어가 더 커지지는 않는다. 하나가 화면을 뒤덮지 않도록. */
 const CONFIRM_BOOST_MAX = 10
@@ -151,28 +148,6 @@ interface Props {
   onFlashlightZoomChange?: (available: boolean) => void
 }
 
-/**
- * 소스가 준비된 뒤 콜백을 실행하고, 정리 함수를 돌려준다.
- *
- * isStyleLoaded()로 판단하면 안 된다. 이 값은 "모든 소스의 타일까지 다 왔는가"를
- * 보기 때문에 지도가 조금이라도 움직이는 중이면 false가 된다. 그때 once('load')로
- * 미루면 'load'는 이미 지나가 다시 오지 않으므로 콜백이 영영 실행되지 않는다.
- * 새로 등록한 플레어가 지도에 올라오지 않아 클릭조차 되지 않던 원인이다.
- *
- * setData는 소스만 있으면 안전하므로 소스 존재 여부만 본다. 소스는 map 'load'
- * 안에서 추가되니, 아직 없다면 load가 아직 오지 않은 것이라 기다려도 안전하다.
- */
-function toQuakeGeoJson(quakes: Quake[]) {
-  return {
-    type: 'FeatureCollection' as const,
-    features: quakes.map((q) => ({
-      type: 'Feature' as const,
-      geometry: { type: 'Point' as const, coordinates: [q.longitude, q.latitude] },
-      properties: { id: q.id },
-    })),
-  }
-}
-
 /** "2026. 11. 16. 10:15:03" — 보는 사람의 현지 시각. */
 function formatQuakeTime(iso: string): string {
   return new Date(iso).toLocaleString('ko-KR', {
@@ -204,6 +179,17 @@ function quakePopupContent(quake: Quake): HTMLElement {
   return root
 }
 
+/**
+ * 소스가 준비된 뒤 콜백을 실행하고, 정리 함수를 돌려준다.
+ *
+ * isStyleLoaded()로 판단하면 안 된다. 이 값은 "모든 소스의 타일까지 다 왔는가"를
+ * 보기 때문에 지도가 조금이라도 움직이는 중이면 false가 된다. 그때 once('load')로
+ * 미루면 'load'는 이미 지나가 다시 오지 않으므로 콜백이 영영 실행되지 않는다.
+ * 새로 등록한 플레어가 지도에 올라오지 않아 클릭조차 되지 않던 원인이다.
+ *
+ * setData는 소스만 있으면 안전하므로 소스 존재 여부만 본다. 소스는 map 'load'
+ * 안에서 추가되니, 아직 없다면 load가 아직 오지 않은 것이라 기다려도 안전하다.
+ */
 function whenSourceReady(map: MapLibreMap, sourceId: string, run: () => void): () => void {
   // GPU 연결을 잃은 지도는 스타일이 없고(rotate 참고) 다시 load되지도 않는다.
   if (!map.style) return () => {}
@@ -445,7 +431,6 @@ export default function MapGlobe({
   flaresRef.current = flares
   const quakesRef = useRef(quakes)
   quakesRef.current = quakes
-  const quakeLayerRef = useRef<QuakeLayer | null>(null)
   const subwayLines = useSettingsStore((s) => s.subwayLines)
   const subwayLinesRef = useRef(subwayLines)
   subwayLinesRef.current = subwayLines
@@ -650,14 +635,7 @@ export default function MapGlobe({
     // 'load'는 타일까지 다 받은 뒤라 지도가 이미 보인 다음이다. 그때 붙이면 대낮 지구가 먼저 보였다가 바뀌므로
     // 스타일이 준비되는 즉시 붙인다.
     const daylightLayer = createDaylightLayer(DAYLIGHT_LAYER_ID)
-    // 지진의 원은 낮·밤 위에 더해 그려 밤에도 어두워지지 않게 하고, 국경선·지명·플레어보다는 아래에 둔다.
-    const quakeLayer = createQuakeLayer(QUAKE_LAYER_ID)
-    quakeLayer.setQuakes(quakesRef.current)
-    quakeLayerRef.current = quakeLayer
-    map.once('style.load', () => {
-      map.addLayer(daylightLayer, 'country-boundaries')
-      map.addLayer(quakeLayer, 'country-boundaries')
-    })
+    map.once('style.load', () => map.addLayer(daylightLayer, 'country-boundaries'))
 
     // 손전등(우클릭, 휴대폰은 길게 누르기). 밤이 어둡게 덮이는 배율(MAP_DAYLIGHT_NONE_ZOOM 미만)에서만 켠다. 그보다
     // 확대하면 밤 효과가 없어 비출 것이 없고, 우클릭은 플레어 찍기로 쓴다. 해가 진 곳만 비추고, 누른 채 움직이면
@@ -753,18 +731,9 @@ export default function MapGlobe({
       ensureSubwayData(map, subwayLinesRef.current)
       map.on('zoomend', () => ensureSubwayData(map, subwayLinesRef.current))
 
-      // 지진 누르기 판정. 플레어보다 먼저(아래에) 얹어, 같은 자리에 겹치면 플레어가 눌린다.
-      map.addSource(QUAKES_SOURCE_ID, {
-        type: 'geojson',
-        data: toQuakeGeoJson(quakesRef.current),
-        attribution: KMA_ATTRIBUTION,
-      })
-      map.addLayer({
-        id: QUAKE_HIT_LAYER_ID,
-        type: 'circle',
-        source: QUAKES_SOURCE_ID,
-        paint: { 'circle-radius': 14, 'circle-opacity': 0, 'circle-stroke-opacity': 0 },
-      })
+      // 지진: 지도 스타일 레이어 전체 위, 플레어 아래. 플레어보다 먼저 얹어 같은 자리에 겹치면 플레어가 눌린다.
+      // 'country-boundaries' 앞에 넣으면 라스 배율에서 낮·밤 레이어(커스텀 레이어)에 덮여 보이지 않았다(2026-11-17 헤드리스).
+      addQuakeLayers(map, quakesRef.current, KMA_ATTRIBUTION)
       map.on('click', QUAKE_HIT_LAYER_ID, (e: MapLayerMouseEvent) => {
         // 플레어가 함께 눌렸으면 플레어 쪽이 처리한다.
         if (map.queryRenderedFeatures(e.point, { layers: [...FLARE_CLICK_LAYER_IDS] }).length > 0) return
@@ -772,8 +741,8 @@ export default function MapGlobe({
         const id = e.features?.[0]?.properties?.id
         const quake = quakesRef.current.find((q) => q.id === id)
         if (!quake) return
-        // 진앙 점(최대 반지름 8px)과 빛무리를 덮지 않게 점에서 충분히 띄운다.
-        new maplibregl.Popup({ className: 'quake-popup', maxWidth: '280px', offset: 28 })
+        // 진앙 점(반지름 최대 6px)과 빛무리(그 2.6배)를 덮지 않게 점에서 충분히 띄운다.
+        new maplibregl.Popup({ className: 'quake-popup', maxWidth: '280px', offset: 24 })
           .setLngLat([quake.longitude, quake.latitude])
           .setDOMContent(quakePopupContent(quake))
           .addTo(map)
@@ -1054,6 +1023,7 @@ export default function MapGlobe({
       updateHalo()
       updateDraftPulse()
       updateTwinkle()
+      animateQuakes(map)
       rafId = requestAnimationFrame(rotate)
     }
     rafId = requestAnimationFrame(rotate)
@@ -1129,15 +1099,11 @@ export default function MapGlobe({
     })
   }, [flares])
 
-  // 지진 목록 갱신(1분마다 받는다). 원과 누르기 판정을 함께 바꾼다.
+  // 지진 목록 갱신(1분마다 받는다). 경과 시간에 따른 밝기도 이때 새로 반영된다.
   useEffect(() => {
-    quakeLayerRef.current?.setQuakes(quakes)
     const map = mapRef.current
     if (!map) return
-    return whenSourceReady(map, QUAKES_SOURCE_ID, () => {
-      const source = map.getSource(QUAKES_SOURCE_ID) as GeoJSONSource | undefined
-      source?.setData(toQuakeGeoJson(quakes))
-    })
+    return whenSourceReady(map, QUAKES_SOURCE_ID, () => setQuakeData(map, quakes))
   }, [quakes])
 
   // 임시 플레어 목록 갱신 (생성 / 등록 완료 / 수명 만료로 바뀐다)

@@ -1,204 +1,151 @@
-import type { CustomLayerInterface, CustomRenderMethodInput, Map as MapLibreMap } from 'maplibre-gl'
+import type { ExpressionSpecification, GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl'
 import type { Quake } from '../../types'
-import { QUAKE_GLSL, buildQuakePatches } from './quakeShader'
+import { QUAKE_CORE, QUAKE_WARM, RING_COUNT, quakeLook } from './quakeShader'
 
 /**
- * 지도(MapLibre 라스) 위의 지진: 진앙의 점과 지표면을 따라 퍼지는 원(quakeShader.ts).
+ * 지도(MapLibre 라스) 위의 지진: 진앙의 점과 그 둘레로 퍼지는 원(규칙은 quakeShader.ts).
  *
- * 홈 라스와 같은 셰이더 함수를 쓰려고 MapLibre 원 레이어(circle)가 아니라 커스텀 레이어로 그린다. 원 레이어는 반지름이
- * 화면 픽셀이라 지구 곡면을 따라 휘지 않고, 확대해도 실제 거리만큼 커지지 않는다.
- * 누르면 기상청 통보문을 보여 주는 일은 MapGlobe가 보이지 않는 원 레이어로 따로 맡는다(클릭 판정은 그쪽이 쉽다).
+ * MapLibre 원 레이어(circle)로 그린다. 반지름이 화면 픽셀이라 확대해도 매끈하고, 원이 영향 범위로 읽히지 않는다.
+ * 'circle-pitch-alignment: map'으로 원을 지표면에 눕혀, 라스 가장자리에서는 곡면을 따라 납작해 보인다.
+ * 원이 퍼지는 정도는 지진마다 feature-state(t0~t2)로 매 프레임 넣는다. 처음에는 시각만 바꾼 식을 setPaintProperty로
+ * 넣었는데(플레어 반짝임 방식), 데이터를 쓰는 식(['get', …])을 바꾸면 MapLibre가 소스를 워커에서 처음부터 다시 처리해,
+ * 라스 배율(타일이 많다)에서는 처리가 끝나기 전에 다음 프레임이 와 지진이 한 번도 그려지지 않았다(2026-11-17 헤드리스).
+ * feature-state는 다시 처리하지 않고 그리는 값만 바꾼다.
  */
 
-// 원이 퍼지는 동안은 계속 다시 그린다. 초당 30번이면 충분히 부드럽고, 60번의 절반만 GPU를 쓴다.
+export const QUAKES_SOURCE_ID = 'earth-quakes-source'
+/** 누르기 판정. 점이 작아(3~6px) 손가락으로 누르기 어려워 보이지 않는 14px 원을 따로 둔다. */
+export const QUAKE_HIT_LAYER_ID = 'quakes-hit'
+const RING_LAYER_IDS = Array.from({ length: RING_COUNT }, (_, k) => `quakes-ring-${k}`)
+const HALO_LAYER_ID = 'quakes-halo'
+const DOT_LAYER_ID = 'quakes-dot'
+// 초당 30번이면 충분히 부드럽다.
 const FRAME_MS = 1000 / 30
 
-const VERTEX = (prelude: string, define: string) => `#version 300 es
-${prelude}
-${define}
-in vec2 a_pos;
-in vec2 a_lnglat;
-in vec2 a_center;
-in vec3 a_params;
-out vec2 v_lnglat;
-out vec2 v_center;
-out vec3 v_params;
-void main() {
-  v_lnglat = a_lnglat;
-  v_center = a_center;
-  v_params = a_params;
-  gl_Position = projectTile(a_pos);
-}`
-
-// mapDaylightLayer와 같은 위경도 → 단위벡터 규칙. 진앙과 조각을 같은 규칙으로 바꿔야 거리가 맞다.
-const FRAGMENT = `#version 300 es
-precision highp float;
-uniform float u_time;
-in vec2 v_lnglat;
-in vec2 v_center;
-in vec3 v_params;
-out vec4 fragColor;
-
-vec3 unit(vec2 lnglat) {
-  float lng = radians(lnglat.x);
-  float lat = radians(lnglat.y);
-  return vec3(cos(lat) * cos(lng), sin(lat), cos(lat) * sin(lng));
-}
-${QUAKE_GLSL}
-void main() {
-  float d = length(unit(v_lnglat) - unit(v_center));
-  vec3 light = quakeLight(d, fwidth(d), v_params.x, v_params.y, v_params.z, u_time);
-  if (max(light.r, max(light.g, light.b)) < 0.003) discard;
-  // 미리 곱한 알파로 a = 0: 아래 지도를 덮지 않고 빛만 더한다.
-  fragColor = vec4(min(light, vec3(1.0)), 0.0);
-}`
-
-const FLOATS_PER_VERTEX = 9
-
-function compile(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
-  const shader = gl.createShader(type)!
-  gl.shaderSource(shader, source)
-  gl.compileShader(shader)
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    throw new Error(`quake shader: ${gl.getShaderInfoLog(shader)}`)
-  }
-  return shader
-}
-
-function mercatorY(lat: number): number {
-  return 0.5 - Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360)) / (2 * Math.PI)
-}
-
-export interface QuakeLayer extends CustomLayerInterface {
-  setQuakes(quakes: Quake[]): void
-}
-
-export function createQuakeLayer(id: string): QuakeLayer {
-  let map: MapLibreMap | null = null
-  let gl: WebGL2RenderingContext | null = null
-  const programs = new Map<string, { program: WebGLProgram; uniforms: Record<string, WebGLUniformLocation | null> }>()
-  let vertexBuffer: WebGLBuffer | null = null
-  let indexBuffer: WebGLBuffer | null = null
-  let indexCount = 0
-  let quakes: Quake[] = []
-  let uploadedAt = -1
-  let repaintTimer: number | undefined
-  const startedAt = performance.now()
-
-  const programFor = (shaderData: CustomRenderMethodInput['shaderData']) => {
-    const cached = programs.get(shaderData.variantName)
-    if (cached) return cached
-    const context = gl!
-    const program = context.createProgram()!
-    context.attachShader(program, compile(context, context.VERTEX_SHADER, VERTEX(shaderData.vertexShaderPrelude, shaderData.define)))
-    context.attachShader(program, compile(context, context.FRAGMENT_SHADER, FRAGMENT))
-    context.linkProgram(program)
-    if (!context.getProgramParameter(program, context.LINK_STATUS)) {
-      throw new Error(`quake program: ${context.getProgramInfoLog(program)}`)
-    }
-    const names = [
-      'u_projection_matrix',
-      'u_projection_fallback_matrix',
-      'u_projection_tile_mercator_coords',
-      'u_projection_clipping_plane',
-      'u_projection_transition',
-      'u_time',
-    ]
-    const uniforms = Object.fromEntries(names.map((name) => [name, context.getUniformLocation(program, name)]))
-    const entry = { program, uniforms }
-    programs.set(shaderData.variantName, entry)
-    return entry
-  }
-
-  /** 지진 목록이 바뀌었거나, 지난 시간(밝기에 쓰는 경과 시간)을 1분마다 새로 반영해야 할 때 격자를 다시 올린다. */
-  const upload = (now: number) => {
-    if (!gl) return
-    const patches = buildQuakePatches(quakes, now)
-    const data = new Float32Array(patches.vertices.length * FLOATS_PER_VERTEX)
-    patches.vertices.forEach((v, i) => {
-      data.set(
-        [(v.lng + 180) / 360, mercatorY(v.lat), v.lng, v.lat, v.centerLng, v.centerLat, v.reach, v.ageHours, v.phase],
-        i * FLOATS_PER_VERTEX,
-      )
-    })
-    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer)
-    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW)
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer)
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, patches.indices, gl.DYNAMIC_DRAW)
-    indexCount = patches.indices.length
-    uploadedAt = now
-  }
-
+export function toQuakeGeoJson(quakes: Quake[], now = Date.now()) {
   return {
-    id,
-    type: 'custom',
-    renderingMode: '2d',
-    setQuakes(next) {
-      quakes = next
-      uploadedAt = -1
-      map?.triggerRepaint()
-    },
-    onAdd(m, context) {
-      map = m
-      gl = context as WebGL2RenderingContext
-      vertexBuffer = gl.createBuffer()
-      indexBuffer = gl.createBuffer()
-    },
-    onRemove(_m, context) {
-      window.clearTimeout(repaintTimer)
-      const c = context as WebGL2RenderingContext
-      for (const { program } of programs.values()) c.deleteProgram(program)
-      programs.clear()
-      c.deleteBuffer(vertexBuffer)
-      c.deleteBuffer(indexBuffer)
-      map = null
-      gl = null
-    },
-    render(context, options) {
-      if (!map || quakes.length === 0) return
-      const now = Date.now()
-      if (uploadedAt < 0 || now - uploadedAt > 60_000) upload(now)
-      if (indexCount === 0) return
-      const c = context as WebGL2RenderingContext
-      const { program, uniforms } = programFor(options.shaderData)
-      const projection = options.defaultProjectionData
-      c.useProgram(program)
-      c.uniformMatrix4fv(uniforms.u_projection_matrix, false, projection.mainMatrix)
-      c.uniformMatrix4fv(uniforms.u_projection_fallback_matrix, false, projection.fallbackMatrix)
-      c.uniform4f(uniforms.u_projection_tile_mercator_coords, ...projection.tileMercatorCoords)
-      c.uniform4f(uniforms.u_projection_clipping_plane, ...projection.clippingPlane)
-      c.uniform1f(uniforms.u_projection_transition, projection.projectionTransition)
-      // 셰이더의 float 정밀도를 지키려고 페이지를 연 뒤 지난 초를 쓴다(1970년부터의 초는 너무 커서 원이 끊긴다).
-      c.uniform1f(uniforms.u_time, (performance.now() - startedAt) / 1000)
-
-      c.bindBuffer(c.ARRAY_BUFFER, vertexBuffer)
-      c.bindBuffer(c.ELEMENT_ARRAY_BUFFER, indexBuffer)
-      const stride = FLOATS_PER_VERTEX * 4
-      const attributes: [string, number, number][] = [
-        ['a_pos', 2, 0],
-        ['a_lnglat', 2, 8],
-        ['a_center', 2, 16],
-        ['a_params', 3, 24],
-      ]
-      for (const [name, size, offset] of attributes) {
-        const location = c.getAttribLocation(program, name)
-        if (location < 0) continue
-        c.enableVertexAttribArray(location)
-        c.vertexAttribPointer(location, size, c.FLOAT, false, stride, offset)
+    type: 'FeatureCollection' as const,
+    features: quakes.map((q) => {
+      const look = quakeLook(q, now)
+      return {
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: [q.longitude, q.latitude] },
+        properties: { id: q.id, ...look },
       }
+    }),
+  }
+}
 
-      c.enable(c.BLEND)
-      c.blendFunc(c.ONE, c.ONE_MINUS_SRC_ALPHA)
-      c.disable(c.DEPTH_TEST)
-      c.disable(c.CULL_FACE)
-      // 래스터 타일의 스텐실 상태가 남아 있으면 이 레이어가 통째로 걸러진다(mapDaylightLayer와 같은 이유).
-      c.disable(c.STENCIL_TEST)
-      c.colorMask(true, true, true, true)
-      c.drawElements(c.TRIANGLES, indexCount, c.UNSIGNED_SHORT, 0)
+/** k번째 원이 지금 얼마나 퍼졌는지(0~1). animateQuakes가 넣는다. */
+function progress(k: number): ExpressionSpecification {
+  return ['coalesce', ['feature-state', `t${k}`], 0]
+}
 
-      // 지도가 멈춰 있어도 원은 계속 퍼져야 한다. 다음 그리기를 예약한다.
-      window.clearTimeout(repaintTimer)
-      repaintTimer = window.setTimeout(() => map?.triggerRepaint(), FRAME_MS)
+function ringPaint(k: number) {
+  const t = progress(k)
+  return {
+    radius: ['*', ['get', 'reachPx'], t] as ExpressionSpecification,
+    // 퍼질수록 옅어지고, 막 생길 때는 진앙 점과 겹치지 않게 잠깐 숨긴다.
+    opacity: ['*', ['get', 'strength'], ['^', ['-', 1, t], 1.5], ['min', 1, ['/', t, 0.08]]] as ExpressionSpecification,
+  }
+}
+
+export function addQuakeLayers(map: MapLibreMap, quakes: Quake[], attribution: string, beforeId?: string) {
+  // feature-state는 지진 id로 찾는다.
+  map.addSource(QUAKES_SOURCE_ID, { type: 'geojson', data: toQuakeGeoJson(quakes), attribution, promoteId: 'id' })
+  rememberTiming(quakes)
+  RING_LAYER_IDS.forEach((id, k) => {
+    const paint = ringPaint(k)
+    map.addLayer(
+      {
+        id,
+        type: 'circle',
+        source: QUAKES_SOURCE_ID,
+        paint: {
+          'circle-radius': paint.radius,
+          'circle-color': QUAKE_WARM,
+          'circle-opacity': 0,
+          'circle-stroke-color': QUAKE_WARM,
+          'circle-stroke-width': 1.6,
+          'circle-stroke-opacity': paint.opacity,
+        },
+      },
+      beforeId,
+    )
+  })
+  map.addLayer(
+    {
+      id: HALO_LAYER_ID,
+      type: 'circle',
+      source: QUAKES_SOURCE_ID,
+      paint: {
+        'circle-radius': ['*', ['get', 'dotPx'], 2.6],
+        'circle-color': QUAKE_WARM,
+        'circle-blur': 1,
+        'circle-opacity': ['*', 0.6, ['get', 'strength']],
+      },
     },
+    beforeId,
+  )
+  map.addLayer(
+    {
+      id: DOT_LAYER_ID,
+      type: 'circle',
+      source: QUAKES_SOURCE_ID,
+      paint: {
+        'circle-radius': ['get', 'dotPx'],
+        'circle-color': QUAKE_CORE,
+        'circle-opacity': ['max', 0.6, ['get', 'strength']],
+        'circle-stroke-color': QUAKE_WARM,
+        'circle-stroke-width': 1.2,
+        'circle-stroke-opacity': ['get', 'strength'],
+      },
+    },
+    beforeId,
+  )
+  map.addLayer(
+    {
+      id: QUAKE_HIT_LAYER_ID,
+      type: 'circle',
+      source: QUAKES_SOURCE_ID,
+      paint: { 'circle-radius': 14, 'circle-opacity': 0, 'circle-stroke-opacity': 0 },
+    },
+    beforeId,
+  )
+}
+
+/** 목록이 바뀌었거나(1분마다) 경과 시간에 따른 밝기를 새로 반영할 때. */
+export function setQuakeData(map: MapLibreMap, quakes: Quake[]) {
+  const source = map.getSource(QUAKES_SOURCE_ID) as GeoJSONSource | undefined
+  source?.setData(toQuakeGeoJson(quakes))
+  rememberTiming(quakes)
+}
+
+/** 지진마다 원이 퍼지는 박자. 데이터가 바뀔 때만 다시 잰다. */
+let timings: { id: string; period: number; phase: number }[] = []
+
+function rememberTiming(quakes: Quake[]) {
+  const now = Date.now()
+  timings = quakes.map((q) => {
+    const look = quakeLook(q, now)
+    return { id: q.id, period: look.period, phase: look.phase }
+  })
+}
+
+let lastFrame = 0
+
+/** 렌더 루프(MapGlobe rotate)에서 매 프레임 부른다. 지진이 없으면 아무것도 하지 않는다. */
+export function animateQuakes(map: MapLibreMap) {
+  const now = performance.now()
+  if (timings.length === 0 || now - lastFrame < FRAME_MS || !map.getSource(QUAKES_SOURCE_ID)) return
+  lastFrame = now
+  const time = now / 1000
+  for (const { id, period, phase } of timings) {
+    const state: Record<string, number> = {}
+    for (let k = 0; k < RING_COUNT; k++) {
+      const x = time / period + phase + k / RING_COUNT
+      state[`t${k}`] = x - Math.floor(x)
+    }
+    map.setFeatureState({ source: QUAKES_SOURCE_ID, id }, state)
   }
 }
