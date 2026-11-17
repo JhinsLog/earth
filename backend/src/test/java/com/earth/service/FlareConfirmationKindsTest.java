@@ -2,6 +2,8 @@ package com.earth.service;
 
 import com.earth.domain.flare.ConfirmationKind;
 import com.earth.domain.flare.Flare;
+import com.earth.domain.flare.FlareConfirmationEvent;
+import com.earth.domain.flare.FlareConfirmationEventRepository;
 import com.earth.domain.flare.FlareCategory;
 import com.earth.domain.flare.FlareConfirmationRepository;
 import com.earth.domain.flare.FlareRepository;
@@ -50,6 +52,9 @@ class FlareConfirmationKindsTest extends IntegrationTest {
 
     @Autowired
     private FlareConfirmationRepository confirmationRepository;
+
+    @Autowired
+    private FlareConfirmationEventRepository eventRepository;
 
     @AfterEach
     void tearDown() {
@@ -158,6 +163,26 @@ class FlareConfirmationKindsTest extends IntegrationTest {
         assertThat(reloaded.getEndedCount()).isEqualTo(people / 2);
         assertThat(reloaded.getDisputedCount()).isEqualTo(people / 2);
         assertThat(confirmationRepository.count()).isEqualTo(people);
+    }
+
+    @Test
+    @DisplayName("누르기·바꾸기·취소가 이력에 순서대로 남는다(지금 상태 테이블은 덮어쓰거나 지우므로)")
+    void historyIsRecorded() {
+        User author = userRepository.save(user("author"));
+        User viewer = userRepository.save(user("viewer"));
+        long flareId = flareService.create(author, request()).id();
+
+        flareService.confirm(viewer, flareId, ConfirmationKind.SEEN);
+        flareService.confirm(viewer, flareId, ConfirmationKind.ENDED);
+        flareService.withdrawConfirmation(viewer, flareId);
+
+        assertThat(eventRepository.findByFlareIdOrderByIdAsc(flareId))
+                .extracting(FlareConfirmationEvent::getAction, FlareConfirmationEvent::getFromKind,
+                        FlareConfirmationEvent::getToKind, FlareConfirmationEvent::getUserId)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(FlareConfirmationEvent.Action.ADD, null, ConfirmationKind.SEEN, viewer.getId()),
+                        org.assertj.core.groups.Tuple.tuple(FlareConfirmationEvent.Action.CHANGE, ConfirmationKind.SEEN, ConfirmationKind.ENDED, viewer.getId()),
+                        org.assertj.core.groups.Tuple.tuple(FlareConfirmationEvent.Action.WITHDRAW, ConfirmationKind.ENDED, null, viewer.getId()));
     }
 
     @Test

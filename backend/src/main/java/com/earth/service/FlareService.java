@@ -6,6 +6,8 @@ import com.earth.domain.flare.ConfirmationKind;
 import com.earth.domain.flare.Flare;
 import com.earth.domain.flare.FlareChanged;
 import com.earth.domain.flare.FlareConfirmation;
+import com.earth.domain.flare.FlareConfirmationEvent;
+import com.earth.domain.flare.FlareConfirmationEventRepository;
 import com.earth.domain.flare.FlareConfirmationRepository;
 import com.earth.domain.flare.FlareRepository;
 import com.earth.domain.geo.CountryBoundaryRepository;
@@ -36,6 +38,7 @@ public class FlareService {
 
     private final FlareRepository flareRepository;
     private final FlareConfirmationRepository confirmationRepository;
+    private final FlareConfirmationEventRepository confirmationEventRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher events;
     private final FlareProperties flareProperties;
@@ -44,6 +47,7 @@ public class FlareService {
 
     public FlareService(FlareRepository flareRepository,
                          FlareConfirmationRepository confirmationRepository,
+                         FlareConfirmationEventRepository confirmationEventRepository,
                          UserRepository userRepository,
                          ApplicationEventPublisher events,
                          FlareProperties flareProperties,
@@ -51,6 +55,7 @@ public class FlareService {
                          ContentModerator contentModerator) {
         this.flareRepository = flareRepository;
         this.confirmationRepository = confirmationRepository;
+        this.confirmationEventRepository = confirmationEventRepository;
         this.userRepository = userRepository;
         this.events = events;
         this.flareProperties = flareProperties;
@@ -242,11 +247,14 @@ public class FlareService {
                 ? Duration.ZERO
                 : Duration.ofMinutes(flareProperties.confirmExtensionMinutes());
         Duration granted = flare.addConfirmation(kind, extension, Duration.ofHours(flareProperties.maxLifetimeHours()));
+        ConfirmationKind previousKind = existing.map(FlareConfirmation::getKind).orElse(null);
         if (existing.isPresent()) {
             existing.get().change(kind, granted);
         } else {
             confirmationRepository.save(new FlareConfirmation(flare, user, kind, granted));
         }
+        // 지금 상태(flare_confirmations)와 별개로 행동 이력을 남긴다. 경험치 정산의 근거를 나중에 따져 볼 수 있게(D-21).
+        confirmationEventRepository.save(FlareConfirmationEvent.of(flare.getId(), user.getId(), previousKind, kind));
 
         FlareResponse response = FlareResponse.from(flare, kind);
         // 다른 사람 화면에서도 플레어가 밝아지고 수명이 늘어난 것이 즉시 보이도록 전파한다.
@@ -268,6 +276,8 @@ public class FlareService {
         confirmationRepository.findByFlareAndUser(flare, user).ifPresent(confirmation -> {
             confirmationRepository.delete(confirmation);
             flare.removeConfirmation(confirmation.getKind(), confirmation.granted());
+            confirmationEventRepository.save(
+                    FlareConfirmationEvent.of(flare.getId(), user.getId(), confirmation.getKind(), null));
         });
 
         FlareResponse response = FlareResponse.from(flare, null);

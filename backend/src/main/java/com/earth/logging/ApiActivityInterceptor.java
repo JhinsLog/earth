@@ -54,6 +54,11 @@ public class ApiActivityInterceptor implements HandlerInterceptor {
         if (startedAt instanceof Long start) {
             fields.put("durationMs", (System.nanoTime() - start) / 1_000_000);
         }
+        // 쓰기 요청의 쿼리(예: 사실 확인 종류 ?kind=ENDED)도 남긴다. 이 API의 쓰기 요청은 쿼리에 개인 내용을 싣지 않는다.
+        String query = request.getQueryString();
+        if (query != null && !query.isBlank()) {
+            fields.put("query", query.length() > 200 ? query.substring(0, 200) : query);
+        }
         if (request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE) instanceof Map<?, ?> variables) {
             variables.forEach((name, value) -> fields.put(String.valueOf(name), String.valueOf(value)));
         }

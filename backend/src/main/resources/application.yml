@@ -78,6 +78,18 @@ earth:
     # 만료된 플레어를 정리하고 실시간으로 알리는 주기. 조회는 이미 expires_at으로
     # 걸러지므로 이 값이 커도 만료된 플레어가 보이지는 않는다.
     expiration-scan-interval-ms: 30000
+  exp:
+    # 경험치 정산(D-21). 사용자 플레어가 끝나면(만료·삭제) 사실 확인 수로 작성자 경험치를 한 번 정산한다.
+    settlement-enabled: true
+    settlement-interval-ms: 60000
+    # "나도 봤어요" 3명마다 5점, 플레어 하나에 최대 10단계(50점). 1명당 1점처럼 단순하면 점수를 짐작해 맞추기 쉽다.
+    seen-per-step: 3
+    points-per-step: 5
+    max-steps-per-flare: 10
+    # "사실과 달라요"가 3명 이상이고 "나도 봤어요"보다 많을 때만 3명마다 5점을 뺀다(그때는 더하지 않는다). "끝났어요"는 영향 없음.
+    disputed-min: 3
+    disputed-per-step: 3
+    penalty-per-step: 5
   incidents:
     seoul:
       # 서울시 실시간 돌발정보 → 플레어. 출처·이용조건은 docs/data-sources.md

@@ -83,6 +83,10 @@ public class Flare {
     @Column(name = "disputed_count", nullable = false)
     private int disputedCount = 0;
 
+    /** 작성자 경험치를 정산한 시각(V14, D-21). null이면 아직이다. 플레어 행 잠금 안에서 확인·기록해 한 번만 정산한다. */
+    @Column(name = "settled_at")
+    private Instant settledAt;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private FlareOrigin origin = FlareOrigin.USER;
@@ -198,6 +202,14 @@ public class Flare {
     public void markDeleted() {
         this.status = FlareStatus.DELETED;
         this.updatedAt = Instant.now();
+    }
+
+    public boolean isSettled() {
+        return settledAt != null;
+    }
+
+    public void markSettled(Instant at) {
+        this.settledAt = at;
     }
 
     public void markExpired() {

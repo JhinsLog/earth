@@ -86,6 +86,14 @@ public class User {
         return next.isAfter(now) ? next : null;
     }
 
+    /**
+     * 경험치를 바꾼다(D-21 정산). 0 아래로는 내려가지 않는다 — 감점이 쌓여도 새로 가입한 사람보다 낮아지지는 않게 한다.
+     * 레벨은 아직 경험치 구간이 정해지지 않아 바꾸지 않는다.
+     */
+    public void changeExp(int delta) {
+        this.exp = Math.max(0, this.exp + delta);
+    }
+
     public boolean hasAtLeastLevel(int requiredLevel) {
         return this.level >= requiredLevel;
     }

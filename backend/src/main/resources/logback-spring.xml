@@ -41,7 +41,7 @@
             </message>
         </appender>
 
-        <!-- 로거 이름의 마지막 조각(client·activity)이 그대로 stream 라벨이 된다. -->
+        <!-- 로거 이름의 마지막 조각(client·activity·exp)이 그대로 stream 라벨이 된다. -->
         <appender name="LOKI_EVENTS" class="com.github.loki4j.logback.Loki4jAppender">
             <http>
                 <url>${LOKI_URL}</url>
@@ -70,6 +70,10 @@
             <appender-ref ref="LOKI_EVENTS"/>
         </logger>
         <logger name="earth.activity" level="INFO" additivity="false">
+            <appender-ref ref="LOKI_EVENTS"/>
+        </logger>
+        <!-- 경험치 정산(stream="exp"). 영구 기록은 DB의 exp_ledger이고, 이쪽은 최근 흐름을 Grafana에서 보기 위한 것이다. -->
+        <logger name="earth.exp" level="INFO" additivity="false">
             <appender-ref ref="LOKI_EVENTS"/>
         </logger>
     </springProfile>

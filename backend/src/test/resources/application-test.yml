@@ -14,6 +14,9 @@ earth:
     seoul:
       # 외부(서울 열린데이터광장)에 나가지 않게 끈다. 동기화는 서비스를 직접 불러 검증한다.
       enabled: false
+  exp:
+    # 스케줄러는 끈다. 정산은 ExpSettlementTest가 서비스를 직접 불러 검증한다.
+    settlement-enabled: false
   ski:
     # 스케줄러는 끈다. 날짜 규칙은 SkiResortsTest, 파일 형식은 SkiSeasonTest가 검증한다.
     enabled: false

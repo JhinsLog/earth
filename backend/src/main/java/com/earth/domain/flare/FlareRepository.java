@@ -78,6 +78,19 @@ public interface FlareRepository extends JpaRepository<Flare, Long> {
             """)
     List<Flare> findDueForExpiration(@Param("now") Instant now);
 
+    /**
+     * 경험치를 정산할 플레어 ID: 사용자 플레어 중 끝났고(만료 시각이 지났거나 ACTIVE가 아님 — 삭제도 포함해, 감점을 피하려고
+     * 지우는 것을 막는다) 아직 정산하지 않은 것. 부분 인덱스 idx_flares_unsettled(V14)를 탄다.
+     */
+    @Query("""
+            select e.id from Flare e
+            where e.settledAt is null
+              and e.origin = com.earth.domain.flare.FlareOrigin.USER
+              and (e.expiresAt <= :now or e.status <> com.earth.domain.flare.FlareStatus.ACTIVE)
+            order by e.expiresAt
+            """)
+    List<Long> findIdsDueForSettlement(@Param("now") Instant now, org.springframework.data.domain.Pageable page);
+
     /** 한 출처에서 온 플레어 중 지금 목록에 있는 것들. 동기화가 있으면 갱신, 없으면 생성을 가른다. */
     List<Flare> findBySourceAndExternalIdIn(String source, Collection<String> externalIds);
 
