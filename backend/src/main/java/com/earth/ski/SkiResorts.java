@@ -23,7 +23,7 @@ import java.util.Optional;
  *   <li>폐장일이 있으면 그날까지, 아니면 파일의 validUntil까지. 날짜가 없는 스키장은 띄우지 않는다</li>
  * </ul>
  *
- * <p>글에는 시설 이름·날짜·출처만 담는다. 특정 인물에 관한 내용은 넣지 않는다(자동 플레어 원칙).
+ * <p>글에는 시설 이름·날짜·출처 이름만 담는다. 특정 인물에 관한 내용은 넣지 않는다(자동 플레어 원칙).
  * 날짜 뒤에 근거(리조트 공지)를 붙인다. 눈·기온으로 개장이 미뤄질 수 있고, 우리가 그것까지 확인한 것은 아니기 때문이다.
  */
 public final class SkiResorts {
@@ -74,9 +74,8 @@ public final class SkiResorts {
                 .append("개장 ").append(day(resort.opening())).append(" (리조트 공지 기준, 날씨에 따라 바뀔 수 있음)\n")
                 .append("폐장 ").append(resort.closing() == null ? "발표 전" : day(resort.closing()))
                 .append("\n\n")
-                .append("출처: ").append(resort.source().name())
-                .append(" (").append(resort.source().checkedOn()).append(" 확인)\n")
-                .append(resort.source().url());
+                // 출처는 이름과 공지 날짜만 짧게 보인다. 주소와 확인한 날은 season.json에 남겨 두고 화면에는 싣지 않는다.
+                .append("출처: ").append(resort.source().name());
         return text.toString();
     }
 
