@@ -72,6 +72,8 @@
   line-height: 1.6;
   color: #dbe4f0;
   white-space: pre-wrap;
+  /* 외부 정보 플레어는 본문 끝에 출처 주소가 온다. 긴 주소가 패널 밖으로 넘치지 않게 아무 데서나 끊는다. */
+  overflow-wrap: anywhere;
 }
 
 /* 플레어의 남은 수명. TTL이 지나면 라스에서 사라진다. */

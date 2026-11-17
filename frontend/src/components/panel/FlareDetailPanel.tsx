@@ -31,13 +31,20 @@ function formatCreatedAt(isoString: string): string {
   })
 }
 
-/** 남은 시간을 "12분 30초" 형태로. 이미 지났으면 null. */
+/**
+ * 남은 시간을 "12분 30초" 형태로. 이미 지났으면 null.
+ * 외부 정보 플레어(스키장 개장 등)는 수명이 몇 주라, 1시간이 넘으면 "3일 4시간"·"5시간 20분"처럼 큰 단위 둘만 쓴다.
+ */
 function formatRemaining(expiresAt: string, now: number): string | null {
   const ms = new Date(expiresAt).getTime() - now
   if (ms <= 0) return null
   const totalSeconds = Math.floor(ms / 1000)
-  const minutes = Math.floor(totalSeconds / 60)
+  const days = Math.floor(totalSeconds / 86400)
+  const hours = Math.floor((totalSeconds % 86400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
   const seconds = totalSeconds % 60
+  if (days > 0) return hours > 0 ? `${days}일 ${hours}시간` : `${days}일`
+  if (hours > 0) return `${hours}시간 ${minutes}분`
   return minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`
 }
 

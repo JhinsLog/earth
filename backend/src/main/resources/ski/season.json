@@ -1,0 +1,123 @@
+{
+  "season": "2026-27",
+  "validUntil": "2027-04-30",
+  "resorts": [
+    {
+      "id": "yongpyong",
+      "name": "모나 용평",
+      "latitude": 37.62815,
+      "longitude": 128.67772,
+      "opening": null,
+      "closing": null,
+      "source": null
+    },
+    {
+      "id": "phoenix",
+      "name": "휘닉스 평창",
+      "latitude": 37.57864,
+      "longitude": 128.31635,
+      "opening": null,
+      "closing": null,
+      "source": null
+    },
+    {
+      "id": "high1",
+      "name": "하이원 스키장",
+      "latitude": 37.19391,
+      "longitude": 128.82935,
+      "opening": null,
+      "closing": null,
+      "source": null
+    },
+    {
+      "id": "alpensia",
+      "name": "알펜시아 스키장",
+      "latitude": 37.65281,
+      "longitude": 128.67125,
+      "opening": null,
+      "closing": null,
+      "source": null
+    },
+    {
+      "id": "vivaldi",
+      "name": "비발디파크",
+      "latitude": 37.64176,
+      "longitude": 127.68746,
+      "opening": null,
+      "closing": null,
+      "source": null
+    },
+    {
+      "id": "wellihilli",
+      "name": "웰리힐리파크",
+      "latitude": 37.48523,
+      "longitude": 128.24593,
+      "opening": null,
+      "closing": null,
+      "source": null
+    },
+    {
+      "id": "elysian",
+      "name": "엘리시안 강촌",
+      "latitude": 37.81665,
+      "longitude": 127.58714,
+      "opening": null,
+      "closing": null,
+      "source": null
+    },
+    {
+      "id": "o2",
+      "name": "오투리조트",
+      "latitude": 37.17347,
+      "longitude": 128.93829,
+      "opening": null,
+      "closing": null,
+      "source": null
+    },
+    {
+      "id": "jisan",
+      "name": "지산 포레스트 리조트",
+      "latitude": 37.21568,
+      "longitude": 127.34364,
+      "opening": null,
+      "closing": null,
+      "source": null
+    },
+    {
+      "id": "konjiam",
+      "name": "곤지암 스키장",
+      "latitude": 37.33462,
+      "longitude": 127.28747,
+      "opening": null,
+      "closing": null,
+      "source": null
+    },
+    {
+      "id": "oakvalley",
+      "name": "오크밸리",
+      "latitude": 37.40694,
+      "longitude": 127.80178,
+      "opening": null,
+      "closing": null,
+      "source": null
+    },
+    {
+      "id": "muju",
+      "name": "무주 덕유산 리조트",
+      "latitude": 35.88159,
+      "longitude": 127.73911,
+      "opening": null,
+      "closing": null,
+      "source": null
+    },
+    {
+      "id": "edenvalley",
+      "name": "에덴밸리 리조트",
+      "latitude": 35.42898,
+      "longitude": 128.98588,
+      "opening": null,
+      "closing": null,
+      "source": null
+    }
+  ]
+}

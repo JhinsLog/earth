@@ -1,4 +1,4 @@
-export type FlareCategory = 'FIRE' | 'ACCIDENT' | 'WEATHER' | 'CROWD' | 'ETC'
+export type FlareCategory = 'FIRE' | 'ACCIDENT' | 'WEATHER' | 'CROWD' | 'LEISURE' | 'ETC'
 export type FlareStatus = 'ACTIVE' | 'CLOSED' | 'EXPIRED' | 'DELETED'
 /** 플레어를 만든 주체. USER는 사용자가 직접, API는 공공데이터 등 외부 데이터에서 만든 플레어. */
 export type FlareOrigin = 'USER' | 'API'
@@ -87,13 +87,15 @@ export const FLARE_CATEGORY_LABEL: Record<FlareCategory, string> = {
   ACCIDENT: '사고',
   WEATHER: '기상',
   CROWD: '군중/혼잡',
+  LEISURE: '레저/행사',
   ETC: '기타',
 }
 
 /** 상세 화면의 생성 주체 표시. 외부 데이터 플레어는 작성자 이름 자리에 출처 이름(예: 서울시 교통정보)이 온다. */
 export const FLARE_ORIGIN_LABEL: Record<FlareOrigin, string> = {
   USER: '관측자',
-  API: '공공데이터',
+  // 서울시 돌발정보(공공데이터)와 스키장 개장 정보(리조트 공지)가 함께 쓴다. 출처 이름은 작성자 자리와 본문에 있다.
+  API: '외부 정보',
 }
 
 /** 위치만 아는 플레어의 색. 분류를 모르므로 어느 분류 색과도 겹치지 않는 중립색을 쓴다. */
@@ -104,6 +106,8 @@ export const FLARE_CATEGORY_COLOR: Record<FlareCategory, string> = {
   ACCIDENT: '#ffb84d',
   WEATHER: '#4dc9ff',
   CROWD: '#c98bff',
+  // 눈·잔디 같은 바깥 놀이를 떠올리는 민트. 기상(하늘색)·기타(노랑)와 겹치지 않게 골랐다.
+  LEISURE: '#5ef2b8',
   ETC: '#ffe14d',
 }
 

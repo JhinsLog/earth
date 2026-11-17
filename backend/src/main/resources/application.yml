@@ -85,6 +85,11 @@ earth:
       # 폴백 기본값을 두지 않는다. 켜져 있는데 비어 있으면 SeoulIncidentScheduler가 기동을 막는다.
       api-key: ${SEOUL_OPENAPI_KEY:}
       refresh-interval-ms: 600000
+  ski:
+    # 스키장 개장 정보(resources/ski/season.json) → 플레어. 날짜는 공식 발표만, 출처와 함께 사람이 적는다.
+    # 외부 호출이 없어 키가 필요 없다. 날짜가 바뀌는 것을 따라가기만 하면 되므로 1시간마다.
+    enabled: true
+    refresh-interval-ms: 3600000
   quakes:
     kma:
       # 기상청 지진정보(공공데이터포털 15000420) → 지구본의 지진 표시. 플레어와 따로 둔다. 출처는 docs/data-sources.md
