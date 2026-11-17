@@ -44,10 +44,22 @@ public class FlareConfirmation {
     @Column(name = "granted_seconds", nullable = false)
     private long grantedSeconds;
 
-    public FlareConfirmation(Flare flare, User user, Duration granted) {
+    /** 확인의 종류(V13). 기존 공감은 모두 SEEN이다. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private ConfirmationKind kind = ConfirmationKind.SEEN;
+
+    public FlareConfirmation(Flare flare, User user, ConfirmationKind kind, Duration granted) {
         this.flare = flare;
         this.user = user;
+        this.kind = kind;
         this.createdAt = Instant.now();
+        this.grantedSeconds = granted.toSeconds();
+    }
+
+    /** 다른 종류로 바꾼다. 행을 지우고 새로 만들지 않는다 — (flare_id, user_id) 유니크 제약이 한 사람 한 표를 지킨다. */
+    public void change(ConfirmationKind kind, Duration granted) {
+        this.kind = kind;
         this.grantedSeconds = granted.toSeconds();
     }
 

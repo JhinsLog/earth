@@ -84,19 +84,28 @@
   letter-spacing: 0.02em;
 }
 
-/* 공감 — 같은 사건을 본 사람이 신뢰도를 올린다. */
+/* 사실 확인 — 나도 봤어요 · 끝났어요 · 사실과 달라요. 셋 중 하나만 누른다. */
 .flare-panel__confirm {
   margin: 0 0 14px;
 }
 
+.flare-panel__confirm-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
 .flare-panel__confirm-btn {
-  width: 100%;
-  padding: 9px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 4px;
   border: 1px solid rgba(150, 190, 240, 0.35);
   border-radius: 8px;
   background: rgba(30, 60, 100, 0.55);
   color: #dceaff;
-  font-size: 13px;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
@@ -106,15 +115,39 @@
   border-color: rgba(180, 215, 255, 0.6);
 }
 
-.flare-panel__confirm-btn.is-on {
+/* 마우스를 올려도 선택 색을 지킨다. 위의 :hover:not(:disabled) 규칙이 더 구체적이라 따로 맞춰 둔다. */
+.flare-panel__confirm-btn.is-on,
+.flare-panel__confirm-btn.is-on:hover:not(:disabled) {
   background: rgba(40, 105, 90, 0.6);
   border-color: rgba(120, 230, 190, 0.5);
   color: #c8f5e4;
 }
 
+/* 로그인하지 않았거나 내 플레어면 누를 수 없지만 수는 읽을 수 있게 흐리게만 한다. */
 .flare-panel__confirm-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: default;
+}
+
+.flare-panel__confirm-top {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 15px;
+}
+
+.flare-panel__confirm-count {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.flare-panel__confirm-label {
+  max-width: 100%;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .flare-panel__confirm-note {

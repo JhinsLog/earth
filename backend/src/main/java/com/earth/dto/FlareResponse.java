@@ -1,5 +1,6 @@
 package com.earth.dto;
 
+import com.earth.domain.flare.ConfirmationKind;
 import com.earth.domain.flare.Flare;
 import com.earth.domain.flare.FlareCategory;
 import com.earth.domain.flare.FlareOrigin;
@@ -20,8 +21,12 @@ public record FlareResponse(
         Instant createdAt,
         Instant updatedAt,
         Instant expiresAt,
-        /** "나도 봤다"고 확인한 사람 수. 플레어의 크기·밝기와 수명에 반영된다. */
+        /** "나도 봤어요"를 누른 사람 수. 플레어의 크기·밝기와 수명에 반영된다. */
         int confirmCount,
+        /** "끝났어요"를 누른 사람 수. 지금은 수만 보여 준다(D-20). */
+        int endedCount,
+        /** "사실과 달라요"를 누른 사람 수. 지금은 수만 보여 준다(D-20). */
+        int disputedCount,
         /**
          * 지금 보고 있는 사용자가 이미 공감했는지.
          *
@@ -29,6 +34,11 @@ public record FlareResponse(
          * 화면은 이 값으로 공감 버튼의 눌림 상태를 정한다.
          */
         boolean confirmedByMe,
+        /**
+         * 지금 보고 있는 사용자가 남긴 사실 확인의 종류. 없으면 null. confirmedByMe는 이 값이 SEEN인지와 같다
+         * (이 필드가 없던 화면과의 호환용으로 남겨 둔다). 전파(실시간)에서는 받는 사람마다 달라 늘 null이다.
+         */
+        ConfirmationKind myConfirmation,
         /** 플레어가 속한 국가(ISO 3166-1 alpha-2). 공해 등은 null. */
         String countryCode,
         /**
@@ -39,14 +49,17 @@ public record FlareResponse(
         /** 플레어를 만든 주체(사용자·외부 데이터). 제한된 응답에서는 null. */
         FlareOrigin origin,
         /** 채팅방을 여는지({@link Flare#isChatOpen}). 화면은 false면 채팅을 그리지 않는다. 서버도 메시지를 거절한다. */
-        boolean chatOpen
+        boolean chatOpen,
+        /** 사실 확인을 받는지({@link Flare#acceptsConfirmations}). false면 화면이 버튼을 그리지 않는다. 서버도 거절한다. */
+        boolean confirmationsOpen
 ) {
     /** 실시간 전파처럼 "누가 보는지" 알 수 없는 자리에서 쓴다. */
     public static FlareResponse from(Flare flare) {
-        return from(flare, false);
+        return from(flare, null);
     }
 
-    public static FlareResponse from(Flare flare, boolean confirmedByMe) {
+    /** @param mine 보고 있는 사용자가 남긴 사실 확인. 없거나 모르면 null */
+    public static FlareResponse from(Flare flare, ConfirmationKind mine) {
         return new FlareResponse(
                 flare.getId(),
                 flare.getTitle(),
@@ -61,11 +74,15 @@ public record FlareResponse(
                 flare.getUpdatedAt(),
                 flare.getExpiresAt(),
                 flare.getConfirmCount(),
-                confirmedByMe,
+                flare.getEndedCount(),
+                flare.getDisputedCount(),
+                mine == ConfirmationKind.SEEN,
+                mine,
                 flare.getCountryCode(),
                 false,
                 flare.getOrigin(),
-                flare.isChatOpen()
+                flare.isChatOpen(),
+                flare.acceptsConfirmations()
         );
     }
 
@@ -75,6 +92,6 @@ public record FlareResponse(
      */
     public FlareResponse toRestricted() {
         return new FlareResponse(id, null, null, null, status, latitude, longitude, null, null,
-                null, null, expiresAt, 0, false, countryCode, true, null, false);
+                null, null, expiresAt, 0, 0, 0, false, null, countryCode, true, null, false, false);
     }
 }

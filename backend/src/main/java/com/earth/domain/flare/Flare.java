@@ -75,6 +75,14 @@ public class Flare {
     @Column(name = "confirm_count", nullable = false)
     private int confirmCount = 0;
 
+    /** "끝났어요"를 누른 사람 수(V13). confirmCount처럼 비정규화한 값이다. */
+    @Column(name = "ended_count", nullable = false)
+    private int endedCount = 0;
+
+    /** "사실과 달라요"를 누른 사람 수(V13). */
+    @Column(name = "disputed_count", nullable = false)
+    private int disputedCount = 0;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private FlareOrigin origin = FlareOrigin.USER;
@@ -156,7 +164,20 @@ public class Flare {
      * 사용자가 직접 남긴 레저/행사 플레어와 교통 돌발 같은 외부 플레어는 그대로 연다(그 자리의 상황을 나누는 것이 플레어의 목적).
      */
     public boolean isChatOpen() {
-        return !(isExternal() && category == FlareCategory.LEISURE);
+        return !isOfficialNotice();
+    }
+
+    /**
+     * 사실 확인(나도 봤어요·끝났어요·사실과 달라요)을 받는지. 공식 안내를 옮긴 플레어는 받지 않는다 — 리조트가 공지한
+     * 개장일을 사용자가 "봤다"거나 "끝났다"고 확인할 수 없다.
+     */
+    public boolean acceptsConfirmations() {
+        return !isOfficialNotice();
+    }
+
+    /** 외부 데이터로 만든 레저/행사 플레어. 운영 주체의 공식 안내를 옮긴 것이다(스키장 개장 등). */
+    private boolean isOfficialNotice() {
+        return isExternal() && category == FlareCategory.LEISURE;
     }
 
     @PrePersist
@@ -224,6 +245,34 @@ public class Flare {
             this.confirmCount--;
         }
         this.expiresAt = this.expiresAt.minus(granted);
+    }
+
+    /**
+     * 사실 확인 하나를 더한다. "나도 봤어요"만 수명을 늘리고({@link #applyConfirmation}), 나머지는 수만 올린다.
+     *
+     * @return 실제로 늘어난 수명. SEEN이 아니면 0
+     */
+    public Duration addConfirmation(ConfirmationKind kind, Duration extension, Duration maxLifetime) {
+        return switch (kind) {
+            case SEEN -> applyConfirmation(extension, maxLifetime);
+            case ENDED -> {
+                this.endedCount++;
+                yield Duration.ZERO;
+            }
+            case DISPUTED -> {
+                this.disputedCount++;
+                yield Duration.ZERO;
+            }
+        };
+    }
+
+    /** 사실 확인 하나를 뺀다. "나도 봤어요"면 그것이 늘려준 수명도 정확히 되돌린다({@link #withdrawConfirmation}). */
+    public void removeConfirmation(ConfirmationKind kind, Duration granted) {
+        switch (kind) {
+            case SEEN -> withdrawConfirmation(granted);
+            case ENDED -> this.endedCount = Math.max(0, this.endedCount - 1);
+            case DISPUTED -> this.disputedCount = Math.max(0, this.disputedCount - 1);
+        }
     }
 
     public boolean isAuthor(User user) {

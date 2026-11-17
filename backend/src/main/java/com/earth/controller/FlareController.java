@@ -1,5 +1,6 @@
 package com.earth.controller;
 
+import com.earth.domain.flare.ConfirmationKind;
 import com.earth.domain.user.User;
 import com.earth.dto.FlareCreateRequest;
 import com.earth.dto.FlareResponse;
@@ -66,11 +67,14 @@ public class FlareController {
     }
 
     /**
-     * "나도 봤다" — 목격 확인. 쌓일수록 플레어의 수명이 늘고 라스에서 더 밝게 보인다.
+     * 사실 확인 — 나도 봤어요(SEEN, 기본값)·끝났어요(ENDED)·사실과 달라요(DISPUTED). 한 사람은 하나만 남기고,
+     * 다른 종류를 보내면 바뀐다. "나도 봤어요"가 쌓일수록 플레어의 수명이 늘고 라스에서 더 밝게 보인다.
+     * kind가 없으면 SEEN이다 — 종류가 생기기 전의 화면이 그대로 동작한다.
      */
     @PostMapping("/{flareId}/confirm")
-    public FlareResponse confirm(@AuthenticationPrincipal User user, @PathVariable Long flareId) {
-        return flareService.confirm(user, flareId);
+    public FlareResponse confirm(@AuthenticationPrincipal User user, @PathVariable Long flareId,
+                                 @RequestParam(defaultValue = "SEEN") ConfirmationKind kind) {
+        return flareService.confirm(user, flareId, kind);
     }
 
     @DeleteMapping("/{flareId}/confirm")

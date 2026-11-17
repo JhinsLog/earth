@@ -37,6 +37,8 @@ interface FlareState {
    */
   subscribeRealtime: (viewer: { loggedIn: boolean; country: string | null }) => Promise<() => void>
   addOrUpdate: (flare: Flare) => void
+  /** 실시간 전파로 받은 플레어를 반영한다. 보는 사람마다 다른 값(내가 누른 확인)은 지금 것을 지킨다. */
+  applyBroadcast: (flare: Flare) => void
   removeFlare: (id: number) => void
   /** 만료 시각이 지난 플레어를 목록에서 걷어낸다. 타이머로 주기 호출된다. */
   pruneExpired: () => void
@@ -91,6 +93,17 @@ export const useFlareStore = create<FlareState>((set, get) => ({
     })
   },
 
+  applyBroadcast: (flare) => {
+    // 전파되는 스냅샷은 받는 사람이 누구인지 몰라 myConfirmation이 늘 null, confirmedByMe가 늘 false다. 그대로 덮으면
+    // 다른 사람이 누를 때마다(또는 내 요청의 메아리가 HTTP 응답보다 늦게 오면) 내가 누른 버튼이 꺼져 보인다.
+    const current = get().flares.find((e) => e.id === flare.id)
+    if (current && !current.restricted && !flare.restricted) {
+      get().addOrUpdate({ ...flare, myConfirmation: current.myConfirmation, confirmedByMe: current.confirmedByMe })
+      return
+    }
+    get().addOrUpdate(flare)
+  },
+
   removeFlare: (id) =>
     set((state) => ({
       flares: state.flares.filter((e) => e.id !== id),
@@ -108,7 +121,7 @@ export const useFlareStore = create<FlareState>((set, get) => ({
   },
 
   subscribeRealtime: async ({ loggedIn, country }) => {
-    const apply = (message: IMessage) => get().addOrUpdate(JSON.parse(message.body) as Flare)
+    const apply = (message: IMessage) => get().applyBroadcast(JSON.parse(message.body) as Flare)
     if (loggedIn) return subscribeTopic('/topic/flares', apply)
 
     const unsubscribes = [
@@ -117,7 +130,7 @@ export const useFlareStore = create<FlareState>((set, get) => ({
         // 자기 나라 플레어는 같은 소식이 국가 피드로 상세와 함께 온다. 위치만 담긴 쪽이 늦게 도착해
         // 상세를 덮어쓰지 않도록 공개 피드의 것은 버린다.
         if (flare.restricted && country !== null && flare.countryCode === country) return
-        get().addOrUpdate(flare)
+        get().applyBroadcast(flare)
       }),
     ]
     if (country) unsubscribes.push(await subscribeTopic(`/topic/flares.country.${country}`, apply))

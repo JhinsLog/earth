@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { useAuthStore } from '../../store/authStore'
 import { useBlockStore } from '../../store/blockStore'
-import { FLARE_CATEGORY_LABEL, FLARE_ORIGIN_LABEL, type DetailedFlare } from '../../types'
+import { FLARE_CATEGORY_LABEL, FLARE_ORIGIN_LABEL, type ConfirmationKind, type DetailedFlare } from '../../types'
 import ChatRoom from './ChatRoom'
 import './FlareDetailPanel.css'
 
@@ -48,6 +48,16 @@ function formatRemaining(expiresAt: string, now: number): string | null {
   return minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`
 }
 
+/**
+ * 사실 확인 버튼. "나도 봤어요"만 수명을 늘리고, 나머지 둘은 지금은 수만 보여 준다(D-20).
+ * 감정 반응(좋아요 등)과 섞지 않는다 — 이 셋은 플레어가 사실인지·아직 유효한지를 알리는 신호다.
+ */
+const CONFIRMATION_BUTTONS: { kind: ConfirmationKind; icon: string; label: string }[] = [
+  { kind: 'SEEN', icon: '👀', label: '나도 봤어요' },
+  { kind: 'ENDED', icon: '✅', label: '끝났어요' },
+  { kind: 'DISPUTED', icon: '❓', label: '사실과 달라요' },
+]
+
 export default function FlareDetailPanel({ flare, onClose, onConfirmed }: Props) {
   const user = useAuthStore((s) => s.user)
   const [confirming, setConfirming] = useState(false)
@@ -64,13 +74,16 @@ export default function FlareDetailPanel({ flare, onClose, onConfirmed }: Props)
       setConfirmError('차단하지 못했습니다. 다시 시도해 주세요.')
     }
   }
-  const toggleConfirm = async () => {
+  // 한 사람은 하나만 남긴다. 누른 것을 다시 누르면 취소, 다른 것을 누르면 바뀐다(서버가 이전 것을 정확히 되돌린다).
+  const mine = flare.myConfirmation ?? (flare.confirmedByMe ? 'SEEN' : null)
+  const toggleConfirm = async (kind: ConfirmationKind) => {
     setConfirming(true)
     setConfirmError(null)
     try {
-      const { data } = flare.confirmedByMe
-        ? await api.delete<DetailedFlare>(`/api/flares/${flare.id}/confirm`)
-        : await api.post<DetailedFlare>(`/api/flares/${flare.id}/confirm`)
+      const { data } =
+        mine === kind
+          ? await api.delete<DetailedFlare>(`/api/flares/${flare.id}/confirm`)
+          : await api.post<DetailedFlare>(`/api/flares/${flare.id}/confirm`, null, { params: { kind } })
       onConfirmed(data)
     } catch {
       setConfirmError('처리에 실패했습니다. 다시 시도해 주세요.')
@@ -78,6 +91,13 @@ export default function FlareDetailPanel({ flare, onClose, onConfirmed }: Props)
       setConfirming(false)
     }
   }
+  const counts: Record<ConfirmationKind, number> = {
+    SEEN: flare.confirmCount,
+    ENDED: flare.endedCount ?? 0,
+    DISPUTED: flare.disputedCount ?? 0,
+  }
+  // 로그인하지 않았거나 내 플레어면 수만 보여 주고 누를 수 없다.
+  const canConfirm = user != null && !isAuthor
 
   // 플레어는 수명이 다하면 예고 없이 라스에서 사라진다. 남은 시간을 보여줘야
   // 사라진 것이 오류가 아니라 정책이라는 걸 알 수 있다.
@@ -107,26 +127,37 @@ export default function FlareDetailPanel({ flare, onClose, onConfirmed }: Props)
 
       <p className="flare-panel__expiry">
         {remaining ? `${remaining} 후 사라집니다` : '곧 사라집니다'}
-        {flare.confirmCount > 0 && ` · 공감 ${flare.confirmCount}`}
       </p>
 
-      {user && !isAuthor && (
+      {/* 값이 없으면 보인다. 프론트가 백엔드보다 먼저 배포되면 옛 응답에는 confirmationsOpen이 없다. */}
+      {flare.confirmationsOpen !== false && (
         <div className="flare-panel__confirm">
-          <button
-            className={`flare-panel__confirm-btn${flare.confirmedByMe ? ' is-on' : ''}`}
-            onClick={toggleConfirm}
-            disabled={confirming}
-          >
-            {flare.confirmedByMe ? '✓ 나도 봤어요' : '나도 봤어요'}
-          </button>
-          {/* 공공데이터 플레어는 사람이 쓴 글이 아니다. 끄려면 옵션의 '공공 정보' 스위치를 쓴다. */}
-          {flare.origin !== 'API' && (
-            <button className="flare-panel__block-btn" onClick={blockAuthor}>
-              작성자 차단
-            </button>
-          )}
+          <div className="flare-panel__confirm-row" role="group" aria-label="사실 확인">
+            {CONFIRMATION_BUTTONS.map(({ kind, icon, label }) => (
+              <button
+                key={kind}
+                className={`flare-panel__confirm-btn${mine === kind ? ' is-on' : ''}`}
+                onClick={() => toggleConfirm(kind)}
+                disabled={confirming || !canConfirm}
+                aria-pressed={mine === kind}
+                title={user == null ? '로그인하면 누를 수 있습니다' : isAuthor ? '내 플레어에는 누를 수 없습니다' : undefined}
+              >
+                <span className="flare-panel__confirm-top">
+                  <span aria-hidden="true">{icon}</span>
+                  <span className="flare-panel__confirm-count">{counts[kind]}</span>
+                </span>
+                <span className="flare-panel__confirm-label">{label}</span>
+              </button>
+            ))}
+          </div>
           {confirmError && <p className="flare-panel__confirm-note">{confirmError}</p>}
         </div>
+      )}
+      {/* 공공데이터 플레어는 사람이 쓴 글이 아니다. 끄려면 옵션의 '공공 정보' 스위치를 쓴다. */}
+      {user && !isAuthor && flare.origin !== 'API' && (
+        <button className="flare-panel__block-btn" onClick={blockAuthor}>
+          작성자 차단
+        </button>
       )}
 
       {/* 값이 없으면 연다. 프론트(Pages)가 백엔드보다 먼저 배포되면 옛 응답에는 chatOpen이 없다. */}

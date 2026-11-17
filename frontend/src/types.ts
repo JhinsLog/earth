@@ -1,5 +1,7 @@
 export type FlareCategory = 'FIRE' | 'ACCIDENT' | 'WEATHER' | 'CROWD' | 'LEISURE' | 'ETC'
 export type FlareStatus = 'ACTIVE' | 'CLOSED' | 'EXPIRED' | 'DELETED'
+/** 사실 확인의 종류. 한 사람은 한 플레어에 하나만 남긴다. SEEN만 수명을 늘린다(백엔드 ConfirmationKind, D-20). */
+export type ConfirmationKind = 'SEEN' | 'ENDED' | 'DISPUTED'
 /** 플레어를 만든 주체. USER는 사용자가 직접, API는 공공데이터 등 외부 데이터에서 만든 플레어. */
 export type FlareOrigin = 'USER' | 'API'
 
@@ -35,16 +37,24 @@ export interface DetailedFlare {
   updatedAt: string | null
   /** 이 시각이 지나면 플레어는 라스에서 사라진다(기본 30분, 공감이 쌓이면 연장된다). */
   expiresAt: string
-  /** "나도 봤다"고 확인한 사람 수. 플레어의 크기·밝기와 수명에 반영된다. */
+  /** "나도 봤어요"를 누른 사람 수. 플레어의 크기·밝기와 수명에 반영된다. */
   confirmCount: number
-  /** 지금 로그인한 사용자가 이미 공감했는지. 비로그인이면 항상 false. */
+  /** "끝났어요"를 누른 사람 수. */
+  endedCount: number
+  /** "사실과 달라요"를 누른 사람 수. */
+  disputedCount: number
+  /** 지금 로그인한 사용자가 "나도 봤어요"를 눌렀는지(= myConfirmation === 'SEEN'). 비로그인이면 항상 false. */
   confirmedByMe: boolean
+  /** 지금 로그인한 사용자가 남긴 사실 확인. 없으면 null. 실시간 전파로 온 값에는 늘 null이라 스토어가 이전 값을 지킨다. */
+  myConfirmation: ConfirmationKind | null
   /** 플레어가 속한 국가(ISO 3166-1 alpha-2). 공해 등은 null. */
   countryCode: string | null
   restricted: false
   origin: FlareOrigin
   /** 채팅방을 여는지. 외부 데이터의 레저/행사 플레어(스키장 개장 등)는 false — 서버도 메시지를 거절한다. */
   chatOpen: boolean
+  /** 사실 확인 버튼을 보여 주는지. 공식 안내를 옮긴 플레어(스키장 개장 등)는 false — 서버도 거절한다. */
+  confirmationsOpen: boolean
 }
 
 /**

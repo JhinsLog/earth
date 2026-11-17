@@ -2,6 +2,7 @@ package com.earth.service;
 
 import com.earth.config.FlareProperties;
 import com.earth.domain.flare.BoundingBox;
+import com.earth.domain.flare.ConfirmationKind;
 import com.earth.domain.flare.Flare;
 import com.earth.domain.flare.FlareChanged;
 import com.earth.domain.flare.FlareConfirmation;
@@ -23,7 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Set;
+import java.util.Optional;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -83,21 +85,20 @@ public class FlareService {
         } else {
             flares = flareRepository.findVisibleWithin(now, toBoundingBox(southLat, northLat, westLng, eastLng));
         }
-        // 플레어마다 "내가 공감했나"를 묻으면 플레어 수만큼 쿼리가 나간다(최대 500개). 한 번에 가져온다.
-        Set<Long> confirmedIds = confirmedFlareIds(viewer, flares);
+        // 플레어마다 "내가 무엇을 눌렀나"를 묻으면 플레어 수만큼 쿼리가 나간다(최대 500개). 한 번에 가져온다.
+        Map<Long, ConfirmationKind> mine = myConfirmations(viewer, flares);
         return flares.stream()
                 .map(flare -> {
-                    FlareResponse full = FlareResponse.from(flare, confirmedIds.contains(flare.getId()));
+                    FlareResponse full = FlareResponse.from(flare, mine.get(flare.getId()));
                     return canSeeDetails(viewer, viewerCountry, flare) ? full : full.toRestricted();
                 })
                 .toList();
     }
 
-    private Set<Long> confirmedFlareIds(User viewer, List<Flare> flares) {
-        if (viewer == null || flares.isEmpty()) return Set.of();
+    private Map<Long, ConfirmationKind> myConfirmations(User viewer, List<Flare> flares) {
+        if (viewer == null || flares.isEmpty()) return Map.of();
         return confirmationRepository.findByUserAndFlareIn(viewer, flares).stream()
-                .map(confirmation -> confirmation.getFlare().getId())
-                .collect(Collectors.toSet());
+                .collect(Collectors.toMap(confirmation -> confirmation.getFlare().getId(), FlareConfirmation::getKind));
     }
 
     private static BoundingBox toBoundingBox(double southLat, double northLat, double westLng, double eastLng) {
@@ -113,8 +114,9 @@ public class FlareService {
         if (!canSeeDetails(viewer, viewerCountry, flare)) {
             throw new EarthApiException(ErrorCode.COUNTRY_RESTRICTED);
         }
-        boolean confirmed = viewer != null && confirmationRepository.existsByFlareAndUser(flare, viewer);
-        return FlareResponse.from(flare, confirmed);
+        ConfirmationKind mine = viewer == null ? null : confirmationRepository.findByFlareAndUser(flare, viewer)
+                .map(FlareConfirmation::getKind).orElse(null);
+        return FlareResponse.from(flare, mine);
     }
 
     @Transactional
@@ -208,13 +210,30 @@ public class FlareService {
      */
     @Transactional
     public FlareResponse confirm(User user, Long flareId) {
+        return confirm(user, flareId, ConfirmationKind.SEEN);
+    }
+
+    /**
+     * 사실 확인을 남기거나 다른 종류로 바꾼다(D-20). 한 사람은 한 플레어에 하나만 남긴다.
+     *
+     * <p>바꿀 때는 먼저 남겨 둔 확인을 정확히 되돌리고(SEEN이었다면 늘려준 수명까지) 새 확인을 더한다. 그래서
+     * "봤어요 → 끝났어요 → 봤어요"를 반복해도 한 사람의 순 기여는 1회분을 넘지 않는다(D-5와 같은 원리).
+     * 모두 플레어 행 잠금 안에서 일어나, 여러 사람이 동시에 눌러도 종류별 수가 어긋나지 않는다(D-4).
+     */
+    @Transactional
+    public FlareResponse confirm(User user, Long flareId, ConfirmationKind kind) {
         Flare flare = getVisibleForUpdateOrThrow(flareId);
+        if (!flare.acceptsConfirmations()) {
+            throw new EarthApiException(ErrorCode.CONFIRMATION_CLOSED);
+        }
         if (flare.isAuthor(user)) {
             throw new EarthApiException(ErrorCode.CANNOT_CONFIRM_OWN_FLARE);
         }
-        if (confirmationRepository.existsByFlareAndUser(flare, user)) {
+        Optional<FlareConfirmation> existing = confirmationRepository.findByFlareAndUser(flare, user);
+        if (existing.isPresent() && existing.get().getKind() == kind) {
             throw new EarthApiException(ErrorCode.ALREADY_CONFIRMED);
         }
+        existing.ifPresent(previous -> flare.removeConfirmation(previous.getKind(), previous.granted()));
 
         // 실제로 늘어난 시간을 기록해 둔다. 상한에 걸리면 요청한 5분보다 짧으므로,
         // 취소할 때 5분을 그냥 빼면 자기가 준 것보다 많이 회수하게 된다.
@@ -222,10 +241,14 @@ public class FlareService {
         Duration extension = flare.isExternal()
                 ? Duration.ZERO
                 : Duration.ofMinutes(flareProperties.confirmExtensionMinutes());
-        Duration granted = flare.applyConfirmation(extension, Duration.ofHours(flareProperties.maxLifetimeHours()));
-        confirmationRepository.save(new FlareConfirmation(flare, user, granted));
+        Duration granted = flare.addConfirmation(kind, extension, Duration.ofHours(flareProperties.maxLifetimeHours()));
+        if (existing.isPresent()) {
+            existing.get().change(kind, granted);
+        } else {
+            confirmationRepository.save(new FlareConfirmation(flare, user, kind, granted));
+        }
 
-        FlareResponse response = FlareResponse.from(flare, true);
+        FlareResponse response = FlareResponse.from(flare, kind);
         // 다른 사람 화면에서도 플레어가 밝아지고 수명이 늘어난 것이 즉시 보이도록 전파한다.
         // 전파용 스냅샷은 confirmedByMe를 담지 않는다 — 받는 사람마다 값이 다르다.
         events.publishEvent(FlareChanged.updated(FlareResponse.from(flare)));
@@ -243,12 +266,11 @@ public class FlareService {
     public FlareResponse withdrawConfirmation(User user, Long flareId) {
         Flare flare = getVisibleForUpdateOrThrow(flareId);
         confirmationRepository.findByFlareAndUser(flare, user).ifPresent(confirmation -> {
-            Duration granted = confirmation.granted();
             confirmationRepository.delete(confirmation);
-            flare.withdrawConfirmation(granted);
+            flare.removeConfirmation(confirmation.getKind(), confirmation.granted());
         });
 
-        FlareResponse response = FlareResponse.from(flare, false);
+        FlareResponse response = FlareResponse.from(flare, null);
         events.publishEvent(FlareChanged.updated(FlareResponse.from(flare)));
         return response;
     }
