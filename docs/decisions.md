@@ -741,3 +741,6 @@ SELECT created_at, user_id, action, from_kind, to_kind FROM flare_confirmation_e
 정보 통보(fcTp 2 국외, 3 국내)만 보여 주고, 조기경보 등 그 밖의 통보는 빼고 경고 로그로 남긴다(`KmaQuakeClient.observationsOnly`).
 포기한 것: 조기경보가 정밀 분석보다 몇 분 빨리 나오는 이점.
 
+**추가(2026-11-18)** — 지구본에는 **규모 3.0 이상**만 보인다. 국내 연평균 72.8회 중 2점대가 62회쯤이라 대부분 빠지고, 해외(USGS)는 원래
+4.5 이상이다. 피해 여부를 우리가 판단하는 것이 아니라 표시 범위를 정한 것이다. 포기한 것: 느끼기 어려운 작은 국내 지진의 기록.
+

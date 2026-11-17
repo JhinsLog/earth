@@ -42,6 +42,19 @@ class QuakeSourcesTest {
     }
 
     @Test
+    @DisplayName("규모 3.0 미만과 규모를 모르는 지진은 빼되, 같은 지진 판단은 거르기 전 기상청 목록으로 한다")
+    void minMagnitude() {
+        Quake small = new Quake("kma-small", T, T, 37.3, 137.0, 2.8, null, "", "", "", 3, Quake.KMA);
+        Quake unknown = new Quake("kma-unknown", T, T, 36.0, 129.0, null, null, "", "", "", 3, Quake.KMA);
+        Quake big = new Quake("kma-big", T, T, 35.8, 129.2, 3.0, null, "", "", "", 3, Quake.KMA);
+        // 기상청이 2.8로 통보한 지진을 USGS가 3.1로 냈다 — 기상청 값이 3.0 미만이라 빠져도 USGS 값이 대신 나오면 안 된다.
+        Quake usgsSame = new Quake("usgs-same", T.plusSeconds(30), T, 37.4, 137.1, 3.1, 10.0, "", "", "", 0, Quake.USGS);
+
+        List<Quake> result = QuakeSources.combine(List.of(small, unknown, big), List.of(usgsSame), 3.0);
+        assertThat(result).extracting(Quake::id).containsExactly("kma-big");
+    }
+
+    @Test
     @DisplayName("시각이나 거리가 기준을 넘으면 다른 지진으로 보고 둘 다 남긴다")
     void differentQuakesKept() {
         List<Quake> result = QuakeSources.combine(

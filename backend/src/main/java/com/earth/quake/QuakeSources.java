@@ -35,12 +35,24 @@ public final class QuakeSources {
 
     /** @return 기상청 지진 전부 + 규칙을 통과한 해외 지진. 진앙시 최신순. */
     public static List<Quake> combine(List<Quake> kma, List<Quake> overseas) {
+        return combine(kma, overseas, 0);
+    }
+
+    /**
+     * 위와 같고, 규모가 {@code minMagnitude} 미만이거나 모르는 지진은 뺀다(2026-11-18: 3.0 이상만 표시).
+     *
+     * <p>같은 지진 판단은 거르기 <b>전</b>의 기상청 목록으로 한다. 기상청이 규모 2.8로 통보한 지진을 먼저 걸러 버리면, 같은 지진을
+     * 해외 기관이 3.1로 낸 값이 대신 나와 "같은 지진이면 기상청" 규칙이 깨진다. 규모 기준은 피해 여부의 판단이 아니라 표시 범위다
+     * (규모 3점대는 가까운 곳에서 느끼는 정도이고 2점대는 대부분 느끼지 못한다).
+     */
+    public static List<Quake> combine(List<Quake> kma, List<Quake> overseas, double minMagnitude) {
         List<Quake> result = new ArrayList<>(kma);
         for (Quake q : overseas) {
             if (nearKorea(q)) continue;
             if (kma.stream().anyMatch(k -> sameQuake(k, q))) continue;
             result.add(q);
         }
+        result.removeIf(q -> q.magnitude() == null ? minMagnitude > 0 : q.magnitude() < minMagnitude);
         result.sort(Comparator.comparing(Quake::occurredAt).reversed());
         return result;
     }

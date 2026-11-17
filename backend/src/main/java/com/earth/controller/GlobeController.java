@@ -6,6 +6,7 @@ import com.earth.dto.QuakeResponse;
 import com.earth.quake.Quake;
 import com.earth.quake.QuakeSources;
 import com.earth.quake.QuakeStore;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -31,9 +32,14 @@ public class GlobeController {
     private final CloudMapStore cloudMapStore;
     private final QuakeStore quakeStore;
 
-    public GlobeController(CloudMapStore cloudMapStore, QuakeStore quakeStore) {
+    /** 이 규모 미만(또는 규모를 모르는) 지진은 지구본에 보이지 않는다(earth.quakes.min-magnitude). */
+    private final double minQuakeMagnitude;
+
+    public GlobeController(CloudMapStore cloudMapStore, QuakeStore quakeStore,
+                           @Value("${earth.quakes.min-magnitude:3.0}") double minQuakeMagnitude) {
         this.cloudMapStore = cloudMapStore;
         this.quakeStore = quakeStore;
+        this.minQuakeMagnitude = minQuakeMagnitude;
     }
 
     /**
@@ -45,7 +51,8 @@ public class GlobeController {
     @GetMapping("/quakes")
     public ResponseEntity<QuakeListResponse> quakes() {
         QuakeStore.Snapshot snapshot = quakeStore.current();
-        List<Quake> quakes = QuakeSources.combine(snapshot.quakes(), quakeStore.currentOverseas().quakes());
+        List<Quake> quakes = QuakeSources.combine(snapshot.quakes(), quakeStore.currentOverseas().quakes(),
+                minQuakeMagnitude);
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.maxAge(30, TimeUnit.SECONDS).cachePublic())
                 .body(new QuakeListResponse(QUAKE_SOURCE, snapshot.fetchedAt(),
