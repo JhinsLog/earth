@@ -19,8 +19,11 @@ import java.util.Set;
  * 걸린다(docs/data-sources.md). 그래서 사람이 공지를 확인해 날짜와 출처를 파일에 적고, 서버는 그 날짜에 맞춰 플레어를
  * 켜고 끄는 일만 자동으로 한다.
  *
- * <p><b>날짜는 공식 발표된 것만 적는다.</b> 블로그·예상 기사의 "목표일"은 서로 엇갈려(2026-11-17 확인) 넣지 않는다.
- * 날짜가 없는 스키장은 플레어를 만들지 않는다. 날짜를 적을 때는 출처를 반드시 함께 적는다(없으면 읽기에서 실패한다).
+ * <p><b>날짜는 리조트 공식 공지(confirmed) 또는 주요 언론이 보도한 리조트의 목표일(target)만 적고, 둘을 구분한다.</b>
+ * 블로그·정리 글의 날짜는 서로 엇갈려(2026-11-17 확인: 같은 스키장이 11월 20일·26일·27일로 갈림) 넣지 않는다.
+ * 처음에는 공식 공지만 넣었는데, 리조트는 개장 직전까지 확정 공지를 내지 않고 언론에 목표일만 밝혀 시즌 내내 아무것도
+ * 뜨지 않았다. 목표일은 화면에 "목표 · 보도 기준"으로 따로 표시한다.
+ * 날짜가 없는 스키장은 플레어를 만들지 않는다. 날짜를 적을 때는 출처와 날짜 종류(dateStatus)를 반드시 함께 적는다.
  *
  * <p>좌표는 OpenStreetMap(ODbL)의 스키장 영역 대표점이다. 출처 표기는 지도의 OSM 표기가 이미 하고 있다.
  *
@@ -31,12 +34,13 @@ import java.util.Set;
 public record SkiSeason(String season, LocalDate validUntil, List<Resort> resorts) {
 
     /**
-     * @param opening 공식 발표된 개장일. 모르면 null(플레어를 만들지 않는다)
-     * @param closing 공식 발표된 폐장일. 모르면 null
-     * @param source  날짜의 출처. 날짜가 있으면 반드시 있다
+     * @param opening   개장일. 모르면 null(플레어를 만들지 않는다)
+     * @param closing   폐장일. 모르면 null
+     * @param confirmed 날짜가 리조트의 확정 공지인지(true), 언론에 밝힌 목표일인지(false)
+     * @param source    날짜의 출처. 날짜가 있으면 반드시 있다
      */
     public record Resort(String id, String name, double latitude, double longitude,
-                         LocalDate opening, LocalDate closing, Source source) {
+                         LocalDate opening, LocalDate closing, boolean confirmed, Source source) {
     }
 
     /** @param checkedOn 사람이 출처를 확인한 날 */
@@ -96,7 +100,11 @@ public record SkiSeason(String season, LocalDate validUntil, List<Resort> resort
                 && (source == null || source.name() == null || source.url() == null || source.checkedOn() == null)) {
             throw new IllegalArgumentException(id + ": 날짜를 적으면 출처(name, url, checkedOn)도 적어야 합니다.");
         }
-        return new Resort(id, name, lat, lng, opening, closing, source);
+        String status = text(node, "dateStatus");
+        if ((opening != null || closing != null) && !"confirmed".equals(status) && !"target".equals(status)) {
+            throw new IllegalArgumentException(id + ": 날짜를 적으면 dateStatus(confirmed 또는 target)도 적어야 합니다.");
+        }
+        return new Resort(id, name, lat, lng, opening, closing, "confirmed".equals(status), source);
     }
 
     private static String text(JsonNode node, String field) {

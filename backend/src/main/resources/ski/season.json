@@ -7,36 +7,56 @@
       "name": "모나 용평",
       "latitude": 37.62815,
       "longitude": 128.67772,
-      "opening": null,
+      "opening": "2026-11-27",
       "closing": null,
-      "source": null
+      "dateStatus": "target",
+      "source": {
+        "name": "코리아중앙데일리 「Winter is coming: Gangwon ski resorts race to open」(2026-11-14)",
+        "url": "https://www.koreajoongangdaily.com/lifestyle/winter-is-coming-gangwon-ski-resorts-race-to-open/12970909",
+        "checkedOn": "2026-11-17"
+      }
     },
     {
       "id": "phoenix",
       "name": "휘닉스 평창",
       "latitude": 37.57864,
       "longitude": 128.31635,
-      "opening": null,
+      "opening": "2026-11-26",
       "closing": null,
-      "source": null
+      "dateStatus": "target",
+      "source": {
+        "name": "코리아중앙데일리 「Winter is coming: Gangwon ski resorts race to open」(2026-11-14)",
+        "url": "https://www.koreajoongangdaily.com/lifestyle/winter-is-coming-gangwon-ski-resorts-race-to-open/12970909",
+        "checkedOn": "2026-11-17"
+      }
     },
     {
       "id": "high1",
       "name": "하이원 스키장",
       "latitude": 37.19391,
       "longitude": 128.82935,
-      "opening": null,
+      "opening": "2026-11-27",
       "closing": null,
-      "source": null
+      "dateStatus": "target",
+      "source": {
+        "name": "코리아중앙데일리 「Winter is coming: Gangwon ski resorts race to open」(2026-11-14)",
+        "url": "https://www.koreajoongangdaily.com/lifestyle/winter-is-coming-gangwon-ski-resorts-race-to-open/12970909",
+        "checkedOn": "2026-11-17"
+      }
     },
     {
       "id": "alpensia",
       "name": "알펜시아 스키장",
       "latitude": 37.65281,
       "longitude": 128.67125,
-      "opening": null,
+      "opening": "2026-11-28",
       "closing": null,
-      "source": null
+      "dateStatus": "target",
+      "source": {
+        "name": "파이낸셜뉴스 「KH 알펜시아, 28일 스키장 문 연다」(2026-11-05)",
+        "url": "https://www.fnnews.com/news/202611051608303057",
+        "checkedOn": "2026-11-17"
+      }
     },
     {
       "id": "vivaldi",
@@ -45,6 +65,7 @@
       "longitude": 127.68746,
       "opening": null,
       "closing": null,
+      "dateStatus": null,
       "source": null
     },
     {
@@ -54,6 +75,7 @@
       "longitude": 128.24593,
       "opening": null,
       "closing": null,
+      "dateStatus": null,
       "source": null
     },
     {
@@ -61,9 +83,14 @@
       "name": "엘리시안 강촌",
       "latitude": 37.81665,
       "longitude": 127.58714,
-      "opening": null,
+      "opening": "2026-12-04",
       "closing": null,
-      "source": null
+      "dateStatus": "target",
+      "source": {
+        "name": "코리아중앙데일리 「Winter is coming: Gangwon ski resorts race to open」(2026-11-14)",
+        "url": "https://www.koreajoongangdaily.com/lifestyle/winter-is-coming-gangwon-ski-resorts-race-to-open/12970909",
+        "checkedOn": "2026-11-17"
+      }
     },
     {
       "id": "o2",
@@ -72,6 +99,7 @@
       "longitude": 128.93829,
       "opening": null,
       "closing": null,
+      "dateStatus": null,
       "source": null
     },
     {
@@ -81,6 +109,7 @@
       "longitude": 127.34364,
       "opening": null,
       "closing": null,
+      "dateStatus": null,
       "source": null
     },
     {
@@ -90,6 +119,7 @@
       "longitude": 127.28747,
       "opening": null,
       "closing": null,
+      "dateStatus": null,
       "source": null
     },
     {
@@ -99,6 +129,7 @@
       "longitude": 127.80178,
       "opening": null,
       "closing": null,
+      "dateStatus": null,
       "source": null
     },
     {
@@ -108,6 +139,7 @@
       "longitude": 127.73911,
       "opening": null,
       "closing": null,
+      "dateStatus": null,
       "source": null
     },
     {
@@ -117,6 +149,7 @@
       "longitude": 128.98588,
       "opening": null,
       "closing": null,
+      "dateStatus": null,
       "source": null
     }
   ]
