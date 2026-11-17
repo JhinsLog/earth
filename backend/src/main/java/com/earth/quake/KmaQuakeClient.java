@@ -40,6 +40,9 @@ public class KmaQuakeClient {
     private static final DateTimeFormatter EQK_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final DateTimeFormatter FC_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
     private static final JsonMapper JSON = JsonMapper.builder().build();
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(KmaQuakeClient.class);
+    /** 보여 주는 통보 종류: 운영 응답으로 뜻을 확인한 관측 정보만(2 국외, 3 국내). */
+    static final java.util.Set<Integer> OBSERVATION_TYPES = java.util.Set.of(2, 3);
     // 며칠치 통보는 평소 수 건~수십 건이다. 응답이 이상하게 커서 메모리를 채우지 않게 막는다.
     private static final int PAGE_SIZE = 100;
     private static final int MAX_PAGES = 5;
@@ -82,7 +85,25 @@ public class KmaQuakeClient {
                 break;
             }
         }
-        return recent(merge(notices), now, window);
+        return recent(merge(observationsOnly(notices)), now, window);
+    }
+
+    /**
+     * 확인된 관측 정보 통보만 남긴다(2: 국외 지진정보, 3: 국내 지진정보). Earth는 예보·특보를 하지 않는다(2026-11-18 결정) —
+     * 기상청의 것을 옮기는 것도 포함해서다. 조기경보처럼 경보 성격의 통보가 이 API에 섞여 와도 보여 주지 않는다. 처음 보는
+     * 종류는 뜻을 확인할 수 있게 경고로 남긴다(코드의 뜻은 공식 문서에 없다, docs/data-sources.md).
+     */
+    static List<Quake> observationsOnly(List<Quake> notices) {
+        List<Quake> kept = new ArrayList<>();
+        for (Quake q : notices) {
+            if (OBSERVATION_TYPES.contains(q.noticeType())) {
+                kept.add(q);
+            } else {
+                log.warn("기상청 지진 통보 중 관측 정보가 아닌 종류(fcTp={})를 표시하지 않았습니다: {} {}",
+                        q.noticeType(), q.occurredAt(), q.location());
+            }
+        }
+        return kept;
     }
 
     /** 진앙시가 {@code now - window} 이후인 것만. 진앙시가 앞날 자정 직전이고 발표가 다음 날인 지진도 진앙시로 판단한다. */

@@ -115,6 +115,18 @@ class KmaQuakeClientTest {
                 .containsExactly(fresh, edge);
     }
 
+    @Test
+    @DisplayName("관측 정보 통보(2 국외, 3 국내)만 남기고 그 밖의 종류(조기경보 등)는 보여 주지 않는다 — 예보·특보를 하지 않는다")
+    void observationsOnly() {
+        Instant t = Instant.parse("2026-11-18T01:00:00Z");
+        List<Quake> kept = KmaQuakeClient.observationsOnly(List.of(
+                quake(t, t, 36.0, 129.0, 3.0, 3),
+                quake(t, t, 37.3, 137.0, 5.1, 2),
+                quake(t, t, 36.0, 129.0, 3.2, 11),
+                quake(t, t, 36.0, 129.0, 3.1, 14)));
+        assertThat(kept).extracting(Quake::noticeType).containsExactly(3, 2);
+    }
+
     private static Quake quake(Instant occurredAt, Instant announcedAt, double lat, double lon, double mt, int type) {
         return new Quake("q-" + announcedAt.getEpochSecond(), occurredAt, announcedAt, lat, lon, mt, null, "", "", "", type, Quake.KMA);
     }
