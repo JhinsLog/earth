@@ -66,6 +66,34 @@ class ContentModeratorTest {
         assertRejected(new String[]{"멀쩡한 제목", "내용에 씨발"}, "욕설");
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"101동 1203호 앞에서 싸움", "1203호에서 소리가 나요", "302 호 앞", "3동 405호"})
+    @DisplayName("집을 특정하는 동·호수는 사건이 아니어도 막는다(D-24)")
+    void blocksHouseholdNumbers(String text) {
+        assertRejected(text, "동·호수");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "역삼동 123-4 폭행 사건", "강남대로 123 근처 흉기 난동", "123번지 앞 시신 발견", "테헤란로 12-3 절도",
+    })
+    @DisplayName("범죄·사건 글에 번지·도로명 주소가 함께 있으면 막는다(D-24)")
+    void blocksCrimeWithPreciseAddress(String text) {
+        assertRejected(text, "정확한 위치");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "역삼동 폭행 사건, 경찰 출동", // 사건이어도 동 이름까지는 된다
+            "강남대로 123 앞 교통사고로 2차로 통제", // 주소가 있어도 범죄가 아니면 된다(공익 정보)
+            "2호선 강남역 3번 출구 혼잡", "1호점 앞 줄이 길어요", "305호실 강의", "역삼동 3번 출구 앞 폭행",
+            "을지로 3가 흉기 난동 신고", "역삼동 2층 카페",
+    })
+    @DisplayName("동 이름까지의 사건, 범죄가 아닌 주소, 호선·출구·층은 통과한다")
+    void allowsCoarseLocations(String text) {
+        assertThatCode(() -> moderator.check(text)).doesNotThrowAnyException();
+    }
+
     @Test
     @DisplayName("정규화: 숫자·기호를 지우고 한 글자 토막만 붙인다")
     void normalize() {

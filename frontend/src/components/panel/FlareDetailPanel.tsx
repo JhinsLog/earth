@@ -58,6 +58,13 @@ const CONFIRMATION_BUTTONS: { kind: ConfirmationKind; icon: string; label: strin
   { kind: 'DISPUTED', icon: '❓', label: '사실과 달라요' },
 ]
 
+/** 신고 사유(백엔드 ReportReason, D-24). 거짓 정보는 "사실과 달라요"가 맡는다 — 신고는 "보이면 안 되는 것"이다. */
+const REPORT_REASONS: { reason: string; label: string }[] = [
+  { reason: 'LOCATION_EXPOSURE', label: '집·피해자가 특정되는 위치' },
+  { reason: 'PERSONAL_INFO', label: '개인정보' },
+  { reason: 'ABUSE', label: '욕설·비방' },
+]
+
 export default function FlareDetailPanel({ flare, onClose, onConfirmed }: Props) {
   const user = useAuthStore((s) => s.user)
   const [confirming, setConfirming] = useState(false)
@@ -72,6 +79,19 @@ export default function FlareDetailPanel({ flare, onClose, onConfirmed }: Props)
       await blockUser(flare.authorId, flare.authorNickname)
     } catch {
       setConfirmError('차단하지 못했습니다. 다시 시도해 주세요.')
+    }
+  }
+  // 신고. 서로 다른 사람의 신고가 쌓이면 운영자가 보기 전까지 가려진다. 몇 건 쌓였는지는 서버가 알려 주지 않는다.
+  const [reportOpen, setReportOpen] = useState(false)
+  const [reportNote, setReportNote] = useState<string | null>(null)
+  const report = async (reason: string) => {
+    setReportOpen(false)
+    try {
+      await api.post(`/api/flares/${flare.id}/report`, null, { params: { reason } })
+      setReportNote('신고했습니다. 신고가 쌓이면 운영자가 보기 전까지 가려집니다.')
+    } catch (e) {
+      const status = (e as { response?: { status?: number } }).response?.status
+      setReportNote(status === 409 ? '이미 신고한 플레어입니다.' : '신고하지 못했습니다. 다시 시도해 주세요.')
     }
   }
   // 한 사람은 하나만 남긴다. 누른 것을 다시 누르면 취소, 다른 것을 누르면 바뀐다(서버가 이전 것을 정확히 되돌린다).
@@ -155,10 +175,30 @@ export default function FlareDetailPanel({ flare, onClose, onConfirmed }: Props)
       )}
       {/* 외부 플레어는 사람이 쓴 글이 아니다. 끄려면 옵션의 '공공 정보'·'축제·행사' 스위치를 쓴다. */}
       {user && !isAuthor && flare.origin === 'USER' && (
-        <button className="flare-panel__block-btn" onClick={blockAuthor}>
-          작성자 차단
-        </button>
+        <div className="flare-panel__moderation">
+          <button className="flare-panel__block-btn" onClick={blockAuthor}>
+            작성자 차단
+          </button>
+          <button
+            className="flare-panel__block-btn"
+            onClick={() => setReportOpen((open) => !open)}
+            disabled={reportNote != null}
+            aria-expanded={reportOpen}
+          >
+            신고
+          </button>
+        </div>
       )}
+      {reportOpen && (
+        <div className="flare-panel__report" role="group" aria-label="신고 사유">
+          {REPORT_REASONS.map(({ reason, label }) => (
+            <button key={reason} className="flare-panel__report-btn" onClick={() => report(reason)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {reportNote && <p className="flare-panel__confirm-note">{reportNote}</p>}
 
       {/* 채팅을 닫은 플레어는 아무것도 그리지 않는다. 값이 없으면 연다(프론트가 백엔드보다 먼저 배포되면 옛 응답에는 chatOpen이 없다). */}
       {flare.chatOpen !== false && <ChatRoom flareId={flare.id} />}

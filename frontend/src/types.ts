@@ -1,5 +1,6 @@
 export type FlareCategory = 'FIRE' | 'ACCIDENT' | 'WEATHER' | 'CROWD' | 'LEISURE' | 'ETC'
-export type FlareStatus = 'ACTIVE' | 'CLOSED' | 'EXPIRED' | 'DELETED'
+/** HIDDEN은 신고가 쌓여 임시 비공개, REMOVED는 운영자 삭제(D-24). ACTIVE가 아니면 화면에서 걷어낸다. */
+export type FlareStatus = 'ACTIVE' | 'CLOSED' | 'EXPIRED' | 'DELETED' | 'HIDDEN' | 'REMOVED'
 /** 사실 확인의 종류. 한 사람은 한 플레어에 하나만 남긴다. SEEN만 수명을 늘린다(백엔드 ConfirmationKind, D-20). */
 export type ConfirmationKind = 'SEEN' | 'ENDED' | 'DISPUTED'
 /**

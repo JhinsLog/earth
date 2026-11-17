@@ -81,11 +81,13 @@ public interface FlareRepository extends JpaRepository<Flare, Long> {
     /**
      * 경험치를 정산할 플레어 ID: 사용자 플레어 중 끝났고(만료 시각이 지났거나 ACTIVE가 아님 — 삭제도 포함해, 감점을 피하려고
      * 지우는 것을 막는다) 아직 정산하지 않은 것. 부분 인덱스 idx_flares_unsettled(V14)를 탄다.
+     * 임시 비공개(HIDDEN)는 운영자 결론이 날 때까지 미룬다(D-24) — 복구되면 보통 정산, 삭제되면 가점 없이 정산한다.
      */
     @Query("""
             select e.id from Flare e
             where e.settledAt is null
               and e.origin = com.earth.domain.flare.FlareOrigin.USER
+              and e.status <> com.earth.domain.flare.FlareStatus.HIDDEN
               and (e.expiresAt <= :now or e.status <> com.earth.domain.flare.FlareStatus.ACTIVE)
             order by e.expiresAt
             """)
@@ -117,4 +119,12 @@ public interface FlareRepository extends JpaRepository<Flare, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select e from Flare e where e.id = :id")
     Optional<Flare> findByIdForUpdate(@Param("id") Long id);
+
+    /** 운영자 검토 목록: 임시 비공개된 플레어, 오래 가려진 것부터. 부분 인덱스 idx_flares_hidden(V16). */
+    @Query("""
+            select e from Flare e join fetch e.author
+            where e.status = com.earth.domain.flare.FlareStatus.HIDDEN
+            order by e.hiddenAt
+            """)
+    List<Flare> findHidden(org.springframework.data.domain.Pageable page);
 }

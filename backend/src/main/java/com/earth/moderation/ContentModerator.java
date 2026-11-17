@@ -36,6 +36,31 @@ public class ContentModerator {
             "카드 번호", Pattern.compile("(?<!\\d)\\d{4}(?:[-\\s]?\\d{4}){3}(?!\\d)"),
             "이메일 주소", Pattern.compile("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"));
 
+    /**
+     * 집을 특정하는 동·호수(D-24). "101동 1203호", "1203호에서". 호선·호점·호기·호실·호차는 집이 아니므로 뺀다("2호선"은 한 자리라 애초에
+     * 걸리지 않는다). 사건이 아니어도 막는다 — 호수는 그 자체로 한 가구를 가리킨다.
+     */
+    private static final List<Pattern> HOUSEHOLD = List.of(
+            Pattern.compile("(?<!\\d)\\d{1,4}\\s?동\\s?\\d{1,4}\\s?호(?![선점기실차])"),
+            Pattern.compile("(?<![\\d-])\\d{3,4}\\s?호(?=$|[\\s.,!?)~/]|에|의|는|가|로|앞|집)"));
+
+    /**
+     * 정확한 주소(D-24). 도로명("강남대로 123", "테헤란로 12-3")과 지번("역삼동 123-4", "123번지"). 뒤에 층·번(출구)·가처럼 다른 말이
+     * 붙으면 주소가 아니다("역삼동 3번 출구", "을지로 3가"). 사건 글에서만 막는다 — 교통 통제 같은 공익 정보는 주소가 필요하다.
+     */
+    private static final List<Pattern> PRECISE_ADDRESS = List.of(
+            Pattern.compile("[가-힣0-9]+(?:로|길)\\s?\\d{1,4}(?:-\\d{1,4})?(?![\\d가-힣])"),
+            Pattern.compile("[가-힣]+(?:동|리|가)\\s?\\d{1,5}(?:-\\d{1,5})?(?:\\s?번지)?(?![\\d가-힣])"),
+            Pattern.compile("\\d{1,5}(?:-\\d{1,5})?\\s?번지"));
+
+    /**
+     * 사람이 피해를 입었거나 입힌 사건을 가리키는 말. 정확한 주소와 함께 있을 때만 막는다(D-24). 언론이 범죄 보도에서 동 이름까지만
+     * 쓰는 것과 같은 이유 — 피해자·가족·이웃이 특정되고 그 건물 주민 전체가 2차 피해를 입는다. 일상어와 겹치는 말(강도·방화)은 넣지 않는다.
+     */
+    private static final List<String> CRIME_WORDS = List.of(
+            "살인", "살해", "폭행", "성폭행", "성폭력", "성추행", "강간", "성범죄", "납치", "감금", "흉기", "칼부림",
+            "시신", "변사", "자살", "투신", "극단적 선택", "스토킹", "가정폭력", "학대", "마약", "불법촬영", "몰카", "절도", "도둑");
+
     /** 한글 음절·호환 자모, 영문 소문자, 공백만 남긴다. 숫자와 기호는 우회용 끼워 넣기로 보고 지운다. */
     private static final Pattern NOT_LETTER = Pattern.compile("[^\\uAC00-\\uD7A3\\u3131-\\u318Ea-z\\s]");
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
@@ -62,6 +87,15 @@ public class ContentModerator {
                             "개인정보(%s)로 보이는 내용은 올릴 수 없습니다. 올린 글은 다른 사람에게 그대로 보입니다."
                                     .formatted(entry.getKey()));
                 }
+            }
+            if (HOUSEHOLD.stream().anyMatch(p -> p.matcher(text).find())) {
+                throw new EarthApiException(ErrorCode.CONTENT_NOT_ALLOWED,
+                        "아파트 동·호수처럼 집이 특정되는 정보는 올릴 수 없습니다. 동 이름이나 근처 큰 건물까지만 써 주세요.");
+            }
+            if (CRIME_WORDS.stream().anyMatch(text::contains)
+                    && PRECISE_ADDRESS.stream().anyMatch(p -> p.matcher(text).find())) {
+                throw new EarthApiException(ErrorCode.CONTENT_NOT_ALLOWED,
+                        "범죄·사건 글에는 번지나 도로명 주소 같은 정확한 위치를 쓸 수 없습니다. 피해자나 주민이 특정될 수 있어요. 동 이름까지만 써 주세요.");
             }
             if (containsBannedWord(text)) {
                 throw new EarthApiException(ErrorCode.CONTENT_NOT_ALLOWED,

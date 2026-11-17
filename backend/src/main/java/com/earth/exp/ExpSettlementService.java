@@ -3,6 +3,7 @@ package com.earth.exp;
 import com.earth.config.ExpProperties;
 import com.earth.domain.flare.Flare;
 import com.earth.domain.flare.FlareRepository;
+import com.earth.domain.flare.FlareStatus;
 import com.earth.domain.user.User;
 import com.earth.domain.user.UserRepository;
 import org.springframework.data.domain.PageRequest;
@@ -58,7 +59,8 @@ public class ExpSettlementService {
     public Optional<Settlement> settle(Long flareId) {
         Flare flare = flareRepository.findByIdForUpdate(flareId).orElse(null);
         // 잠근 뒤에 다시 확인한다. 고르는 쿼리와 잠금 사이에 다른 곳이 정산했을 수 있다.
-        if (flare == null || flare.isSettled() || flare.isExternal() || flare.isVisible()) {
+        // 임시 비공개는 운영자 결론(복구·삭제)이 날 때까지 정산하지 않는다(D-24).
+        if (flare == null || flare.isSettled() || flare.isExternal() || flare.isVisible() || flare.isHidden()) {
             return Optional.empty();
         }
         User author = userRepository.findByIdForUpdate(flare.getAuthor().getId()).orElseThrow();
@@ -66,6 +68,11 @@ public class ExpSettlementService {
         int ended = flare.getEndedCount();
         int disputed = flare.getDisputedCount();
         int delta = rule.delta(seen, disputed);
+        // 운영자가 삭제한 플레어는 가점을 주지 않는다. 감점은 그대로 — 신고로 지워졌다고 감점이 사라지면 안 된다.
+        boolean removed = flare.getStatus() == FlareStatus.REMOVED;
+        if (removed) {
+            delta = Math.min(0, delta);
+        }
 
         int before = author.getExp();
         author.changeExp(delta);
@@ -73,7 +80,8 @@ public class ExpSettlementService {
         flare.markSettled(now);
         // 변화가 0이어도 남긴다. "이 플레어는 이런 수로 정산됐다"가 분석의 근거다.
         ledgerRepository.save(new ExpLedgerEntry(author.getId(), flare.getId(), ExpLedgerEntry.FLARE_SETTLED, delta,
-                before, author.getExp(), seen, ended, disputed, rule.describe(), now));
+                before, author.getExp(), seen, ended, disputed,
+                removed ? rule.describe() + " · 운영자 삭제: 가점 없음" : rule.describe(), now));
         return Optional.of(new Settlement(author.getId(), flare.getId(), delta, before, author.getExp(),
                 seen, ended, disputed));
     }

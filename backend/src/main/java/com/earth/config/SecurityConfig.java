@@ -65,6 +65,8 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/globe/quakes").permitAll()
                         // 브라우저 오류·행동 로그. 오류는 로그인 전에도 나므로 열어 둔다. 한도는 ClientEventController 참고
                         .requestMatchers(org.springframework.http.HttpMethod.POST, com.earth.controller.ClientEventController.PATH).permitAll()
+                        // 운영자 검열 API(D-24). 역할은 요청마다 DB의 사용자에서 읽는다(JwtAuthenticationFilter) — 권한을 빼면 바로 막힌다.
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()
                 )

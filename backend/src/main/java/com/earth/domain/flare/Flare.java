@@ -87,6 +87,14 @@ public class Flare {
     @Column(name = "settled_at")
     private Instant settledAt;
 
+    /** 아직 처리되지 않은 신고 수(V16). 운영자가 복구하면 0으로 돌아간다. 행 잠금 안에서만 바꾼다. */
+    @Column(name = "report_count", nullable = false)
+    private int reportCount = 0;
+
+    /** 임시 비공개된 시각(V16). HIDDEN일 때만 값이 있다. */
+    @Column(name = "hidden_at")
+    private Instant hiddenAt;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private FlareOrigin origin = FlareOrigin.USER;
@@ -208,6 +216,40 @@ public class Flare {
     public void markDeleted() {
         this.status = FlareStatus.DELETED;
         this.updatedAt = Instant.now();
+    }
+
+    /** 신고 하나를 센다. @return 센 뒤의 신고 수 */
+    public int addReport() {
+        return ++reportCount;
+    }
+
+    /** 임시 비공개. 작성자 말고는 보이지 않고, 채팅·사실 확인·신고를 더 받지 않는다(모두 보이는 플레어에만). */
+    public void hide(Instant now) {
+        this.status = FlareStatus.HIDDEN;
+        this.hiddenAt = now;
+        this.updatedAt = now;
+    }
+
+    /**
+     * 운영자가 문제없다고 본 플레어를 되돌린다. 가려진 동안 수명이 지났으면 EXPIRED로 돌아간다(정산은 그때 일어난다).
+     * 처리된 신고 수는 0으로 — 이후 다른 사람의 신고가 다시 쌓이면 다시 가려진다. 이미 신고한 사람은 유니크 제약으로 다시 못 한다.
+     */
+    public void restore(Instant now) {
+        this.status = expiresAt.isAfter(now) ? FlareStatus.ACTIVE : FlareStatus.EXPIRED;
+        this.hiddenAt = null;
+        this.reportCount = 0;
+        this.updatedAt = now;
+    }
+
+    /** 운영자 삭제. */
+    public void remove(Instant now) {
+        this.status = FlareStatus.REMOVED;
+        this.hiddenAt = null;
+        this.updatedAt = now;
+    }
+
+    public boolean isHidden() {
+        return status == FlareStatus.HIDDEN;
     }
 
     public boolean isSettled() {

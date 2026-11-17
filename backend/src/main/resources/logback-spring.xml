@@ -76,5 +76,9 @@
         <logger name="earth.exp" level="INFO" additivity="false">
             <appender-ref ref="LOKI_EVENTS"/>
         </logger>
+        <!-- 신고·검열 조치(stream="moderation"). 영구 기록은 DB의 flare_reports·moderation_actions다. 글 내용은 남기지 않는다. -->
+        <logger name="earth.moderation" level="INFO" additivity="false">
+            <appender-ref ref="LOKI_EVENTS"/>
+        </logger>
     </springProfile>
 </configuration>

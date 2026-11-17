@@ -179,3 +179,35 @@
   color: #ff9b9b;
   text-decoration: underline;
 }
+
+.flare-panel__moderation {
+  display: flex;
+  gap: 14px;
+}
+
+.flare-panel__block-btn:disabled {
+  cursor: default;
+  text-decoration: none;
+  color: rgba(220, 234, 255, 0.3);
+}
+
+.flare-panel__report {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.flare-panel__report-btn {
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 155, 155, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 92, 77, 0.08);
+  color: #ffc2c2;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.flare-panel__report-btn:hover {
+  background: rgba(255, 92, 77, 0.18);
+}

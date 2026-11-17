@@ -1,12 +1,14 @@
 package com.earth.controller;
 
 import com.earth.domain.flare.ConfirmationKind;
+import com.earth.domain.flare.ReportReason;
 import com.earth.domain.user.User;
 import com.earth.dto.FlareCreateRequest;
 import com.earth.dto.FlareResponse;
 import com.earth.dto.FlareUpdateRequest;
 import com.earth.security.geo.ViewerCountryResolver;
 import com.earth.service.FlareService;
+import com.earth.service.ModerationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -21,10 +23,13 @@ public class FlareController {
 
     private final FlareService flareService;
     private final ViewerCountryResolver viewerCountryResolver;
+    private final ModerationService moderationService;
 
-    public FlareController(FlareService flareService, ViewerCountryResolver viewerCountryResolver) {
+    public FlareController(FlareService flareService, ViewerCountryResolver viewerCountryResolver,
+                           ModerationService moderationService) {
         this.flareService = flareService;
         this.viewerCountryResolver = viewerCountryResolver;
+        this.moderationService = moderationService;
     }
 
     private String viewerCountry(HttpServletRequest request) {
@@ -81,6 +86,17 @@ public class FlareController {
     public FlareResponse withdrawConfirmation(@AuthenticationPrincipal User user,
                                                @PathVariable Long flareId) {
         return flareService.withdrawConfirmation(user, flareId);
+    }
+
+    /**
+     * 신고(D-24). 한 사람은 한 플레어에 한 번. 서로 다른 사람의 신고가 쌓이면 운영자가 보기 전까지 가려진다. 신고 수는 돌려주지
+     * 않는다 — 몇 건 남았는지 보이면 맞춰서 가리기 쉽다.
+     */
+    @PostMapping("/{flareId}/report")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void report(@AuthenticationPrincipal User user, @PathVariable Long flareId,
+                       @RequestParam ReportReason reason) {
+        moderationService.report(user, flareId, reason);
     }
 
     /** 플레어 삭제. 작성자 본인만 가능하다. 채팅 이력이 이 플레어를 참조하므로 소프트 삭제한다. */

@@ -116,6 +116,10 @@ public class FlareService {
 
     public FlareResponse findById(User viewer, String viewerCountry, Long flareId) {
         Flare flare = getFlareOrThrow(flareId);
+        // 신고로 가려졌거나 운영자가 지운 플레어는 작성자 말고는 없는 것으로 본다(D-24). 주소를 아는 사람이 직접 불러도 안 보인다.
+        if (ModerationService.hiddenFrom(flare, viewer)) {
+            throw new EarthApiException(ErrorCode.FLARE_NOT_FOUND);
+        }
         if (!canSeeDetails(viewer, viewerCountry, flare)) {
             throw new EarthApiException(ErrorCode.COUNTRY_RESTRICTED);
         }

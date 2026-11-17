@@ -109,6 +109,9 @@ earth:
       refresh-interval-ms: 3600000
       # 파리 하나가 하루 180곳 넘게 나온다. 지구본은 한 번에 최대 500개라 행사가 많은 장소부터 60곳만.
       max-venues: 60
+  moderation:
+    # 서로 다른 사람의 신고가 이만큼 쌓이면 운영자가 보기 전까지 임시 비공개한다(D-24).
+    hide-threshold: 3
   volcanoes:
     # Smithsonian·USGS 주간 화산 활동 보고(키 없음) → 분화 중인 화산의 공공 정보 플레어(D-23). 한반도 인근은 쓰지 않는다.
     enabled: true
