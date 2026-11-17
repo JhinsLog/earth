@@ -139,3 +139,10 @@
   color: #ff9b9b;
   text-decoration: underline;
 }
+
+/* 채팅을 닫은 플레어(외부 레저/행사)에서 채팅 자리에 남기는 한 줄. */
+.flare-panel__chat-closed {
+  margin: 16px 0 0;
+  font-size: 12px;
+  color: #8fa3bf;
+}

@@ -9,7 +9,6 @@
       "longitude": 128.67772,
       "opening": "2026-11-22",
       "closing": null,
-      "dateStatus": "confirmed",
       "source": {
         "name": "모나용평 공지사항 「모나용평 스키장 26/27 Winter Season OPEN!」(2026-11-17)",
         "url": "https://www.yongpyong.co.kr/kor/guide/notice/read.do?noticeId=1701",
@@ -23,7 +22,6 @@
       "longitude": 128.31635,
       "opening": "2026-11-26",
       "closing": null,
-      "dateStatus": "confirmed",
       "source": {
         "name": "휘닉스 파크 공지사항 「휘닉스 스노우 파크 26/27 시즌 오픈일 안내」(2026-11-13)",
         "url": "https://phoenixhnr.co.kr/page/customer/notice/14512",
@@ -37,7 +35,6 @@
       "longitude": 128.82935,
       "opening": "2026-11-27",
       "closing": null,
-      "dateStatus": "confirmed",
       "source": {
         "name": "하이원리조트 이벤트 「하이원 스키장 개장 20주년」 안내 이미지",
         "url": "https://www.high1.com/www/eventView.do?key=596&eventNo=1539",
@@ -49,14 +46,9 @@
       "name": "알펜시아 스키장",
       "latitude": 37.65281,
       "longitude": 128.67125,
-      "opening": "2026-11-28",
+      "opening": null,
       "closing": null,
-      "dateStatus": "target",
-      "source": {
-        "name": "파이낸셜뉴스 「KH 알펜시아, 28일 스키장 문 연다」(2026-11-05)",
-        "url": "https://www.fnnews.com/news/202611051608303057",
-        "checkedOn": "2026-11-17"
-      }
+      "source": null
     },
     {
       "id": "vivaldi",
@@ -65,7 +57,6 @@
       "longitude": 127.68746,
       "opening": null,
       "closing": null,
-      "dateStatus": null,
       "source": null
     },
     {
@@ -75,7 +66,6 @@
       "longitude": 128.24593,
       "opening": null,
       "closing": null,
-      "dateStatus": null,
       "source": null
     },
     {
@@ -83,14 +73,9 @@
       "name": "엘리시안 강촌",
       "latitude": 37.81665,
       "longitude": 127.58714,
-      "opening": "2026-12-04",
+      "opening": null,
       "closing": null,
-      "dateStatus": "target",
-      "source": {
-        "name": "코리아중앙데일리 「Winter is coming: Gangwon ski resorts race to open」(2026-11-14)",
-        "url": "https://www.koreajoongangdaily.com/lifestyle/winter-is-coming-gangwon-ski-resorts-race-to-open/12970909",
-        "checkedOn": "2026-11-17"
-      }
+      "source": null
     },
     {
       "id": "o2",
@@ -99,7 +84,6 @@
       "longitude": 128.93829,
       "opening": null,
       "closing": null,
-      "dateStatus": null,
       "source": null
     },
     {
@@ -109,7 +93,6 @@
       "longitude": 127.34364,
       "opening": null,
       "closing": null,
-      "dateStatus": null,
       "source": null
     },
     {
@@ -119,7 +102,6 @@
       "longitude": 127.28747,
       "opening": null,
       "closing": null,
-      "dateStatus": null,
       "source": null
     },
     {
@@ -129,7 +111,6 @@
       "longitude": 127.80178,
       "opening": "2026-12-11",
       "closing": "2027-02-20",
-      "dateStatus": "confirmed",
       "source": {
         "name": "오크밸리 공지사항 「26/27시즌 1차 스키/눈놀이동산 시즌권 판매 안내」(2026-09-09)",
         "url": "https://oakvalley.co.kr/customer-service/notice/3413102",
@@ -143,7 +124,6 @@
       "longitude": 127.73911,
       "opening": null,
       "closing": null,
-      "dateStatus": null,
       "source": null
     },
     {
@@ -153,7 +133,6 @@
       "longitude": 128.98588,
       "opening": null,
       "closing": null,
-      "dateStatus": null,
       "source": null
     }
   ]

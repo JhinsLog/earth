@@ -124,7 +124,12 @@ class ChatSameContentLimitTest extends IntegrationTest {
         long flareId = flareService.create(sender, request()).id();
         chatService.postMessage(flareId, sender, "만료 확인");
 
-        Set<String> keys = redis.keys("earth:chat-*:" + sender.getId() + "*");
+        // 키를 정확히 짚는다. 예전 패턴 "earth:chat-*:{id}*"는 *가 콜론을 넘어가, id가 2일 때 다른 테스트가 남긴
+        // id 20의 키("chat-rate:20")나 해시가 "20…"으로 시작하는 키까지 잡았다(테스트가 늘어 id가 20을 넘자 드러남).
+        Set<String> keys = new java.util.HashSet<>(redis.keys("earth:chat-same:" + sender.getId() + ":*"));
+        if (Boolean.TRUE.equals(redis.hasKey("earth:chat-rate:" + sender.getId()))) {
+            keys.add("earth:chat-rate:" + sender.getId());
+        }
         assertThat(keys).as("도배 제한 키와 같은 내용 키").hasSize(2);
         for (String key : keys) {
             assertThat(redis.getExpire(key)).as(key).isPositive();

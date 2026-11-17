@@ -37,7 +37,9 @@ public record FlareResponse(
          */
         boolean restricted,
         /** 플레어를 만든 주체(사용자·외부 데이터). 제한된 응답에서는 null. */
-        FlareOrigin origin
+        FlareOrigin origin,
+        /** 채팅방을 여는지({@link Flare#isChatOpen}). 화면은 false면 채팅을 그리지 않는다. 서버도 메시지를 거절한다. */
+        boolean chatOpen
 ) {
     /** 실시간 전파처럼 "누가 보는지" 알 수 없는 자리에서 쓴다. */
     public static FlareResponse from(Flare flare) {
@@ -62,7 +64,8 @@ public record FlareResponse(
                 confirmedByMe,
                 flare.getCountryCode(),
                 false,
-                flare.getOrigin()
+                flare.getOrigin(),
+                flare.isChatOpen()
         );
     }
 
@@ -72,6 +75,6 @@ public record FlareResponse(
      */
     public FlareResponse toRestricted() {
         return new FlareResponse(id, null, null, null, status, latitude, longitude, null, null,
-                null, null, expiresAt, 0, false, countryCode, true, null);
+                null, null, expiresAt, 0, false, countryCode, true, null, false);
     }
 }

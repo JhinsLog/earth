@@ -43,6 +43,8 @@ export interface DetailedFlare {
   countryCode: string | null
   restricted: false
   origin: FlareOrigin
+  /** 채팅방을 여는지. 외부 데이터의 레저/행사 플레어(스키장 개장 등)는 false — 서버도 메시지를 거절한다. */
+  chatOpen: boolean
 }
 
 /**

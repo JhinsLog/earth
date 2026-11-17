@@ -82,11 +82,16 @@ public class ChatService {
         if (!sender.hasAtLeastLevel(chatProperties.minLevelToJoin())) {
             throw new EarthApiException(ErrorCode.LEVEL_NOT_ENOUGH);
         }
+        // 닫힌 채팅방(외부 레저/행사 플레어)인지 먼저 본다. 화면은 채팅을 그리지 않지만 API로 직접 보낼 수 있다.
+        // 도배 횟수 검사보다 앞에 둬, 거절된 요청이 횟수를 쓰지 않게 한다.
+        Flare flare = flareService.getVisibleOrThrow(flareId);
+        if (!flare.isChatOpen()) {
+            throw new EarthApiException(ErrorCode.CHAT_CLOSED);
+        }
         // 걸린 글은 도배 횟수에 넣지 않는다. 고쳐서 다시 보내는 것까지 막으면 안 된다.
         contentModerator.check(content);
         checkFloodLimit(sender);
         checkSameContentLimit(sender, content);
-        Flare flare = flareService.getVisibleOrThrow(flareId);
         ChatMessage message = new ChatMessage(flare, sender, content);
         chatMessageRepository.save(message);
 

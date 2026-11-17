@@ -18,12 +18,8 @@ class SkiResortsTest {
             new SkiSeason.Source("휘닉스 평창 공지", "https://example.com/notice", LocalDate.of(2026, 11, 20));
 
     private static SkiSeason season(LocalDate opening, LocalDate closing) {
-        return season(opening, closing, true);
-    }
-
-    private static SkiSeason season(LocalDate opening, LocalDate closing, boolean confirmed) {
         return new SkiSeason("2026-27", LocalDate.of(2027, 4, 30), List.of(
-                new SkiSeason.Resort("phoenix", "휘닉스 평창", 37.57864, 128.31635, opening, closing, confirmed,
+                new SkiSeason.Resort("phoenix", "휘닉스 평창", 37.57864, 128.31635, opening, closing,
                         opening == null ? null : SOURCE)));
     }
 
@@ -51,18 +47,6 @@ class SkiResortsTest {
     }
 
     @Test
-    @DisplayName("목표일은 지나도 '개장(목표일 기준)' — 실제로 열었는지는 모른다")
-    void targetDateIsLabelled() {
-        SkiSeason season = season(OPENING, null, false);
-        assertThat(SkiResorts.toDrafts(season, OPENING.minusDays(1))).singleElement()
-                .extracting(ExternalFlareSyncService.Draft::title).isEqualTo("휘닉스 평창 개장 예정");
-        assertThat(SkiResorts.toDrafts(season, OPENING)).singleElement()
-                .extracting(ExternalFlareSyncService.Draft::title).isEqualTo("휘닉스 평창 개장(목표일 기준)");
-        assertThat(SkiResorts.content(season, season.resorts().getFirst()))
-                .contains("개장 목표 11월 27일(금) (언론 보도 기준, 날씨에 따라 바뀔 수 있음)");
-    }
-
-    @Test
     @DisplayName("폐장일이 있으면 그날 자정(한국 시각)에 내리고, 다음 날부터는 띄우지 않는다")
     void closing() {
         LocalDate closing = LocalDate.of(2027, 3, 14);
@@ -87,7 +71,7 @@ class SkiResortsTest {
         String text = SkiResorts.content(season(OPENING, null), season(OPENING, null).resorts().getFirst());
         assertThat(text).isEqualTo("""
                 2026-27 시즌
-                개장 11월 27일(금) (리조트 공지 기준)
+                개장 11월 27일(금) (리조트 공지 기준, 날씨에 따라 바뀔 수 있음)
                 폐장 발표 전
 
                 출처: 휘닉스 평창 공지 (2026-11-20 확인)

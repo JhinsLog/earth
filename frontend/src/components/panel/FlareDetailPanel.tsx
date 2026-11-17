@@ -129,7 +129,12 @@ export default function FlareDetailPanel({ flare, onClose, onConfirmed }: Props)
         </div>
       )}
 
-      <ChatRoom flareId={flare.id} />
+      {/* 값이 없으면 연다. 프론트(Pages)가 백엔드보다 먼저 배포되면 옛 응답에는 chatOpen이 없다. */}
+      {flare.chatOpen !== false ? (
+        <ChatRoom flareId={flare.id} />
+      ) : (
+        <p className="flare-panel__chat-closed">공식 안내를 옮긴 정보라 채팅을 열지 않습니다.</p>
+      )}
     </aside>
   )
 }

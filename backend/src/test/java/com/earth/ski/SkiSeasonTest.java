@@ -36,11 +36,10 @@ class SkiSeasonTest {
         SkiSeason season = read("""
                 {"season":"2026-27","validUntil":"2027-04-30","resorts":[
                   {"id":"a","name":"가","latitude":37.5,"longitude":128.3,"opening":"2026-11-27","closing":null,
-                   "dateStatus":"target","source":{"name":"공지","url":"https://example.com","checkedOn":"2026-11-20"}}]}""");
+                   "source":{"name":"공지","url":"https://example.com","checkedOn":"2026-11-20"}}]}""");
         SkiSeason.Resort resort = season.resorts().getFirst();
         assertThat(resort.opening()).isEqualTo(LocalDate.of(2026, 11, 27));
         assertThat(resort.closing()).isNull();
-        assertThat(resort.confirmed()).isFalse();
         assertThat(resort.source().url()).isEqualTo("https://example.com");
     }
 
@@ -51,16 +50,6 @@ class SkiSeasonTest {
                 {"season":"2026-27","validUntil":"2027-04-30","resorts":[
                   {"id":"a","name":"가","latitude":37.5,"longitude":128.3,"opening":"2026-11-27"}]}"""))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("출처");
-    }
-
-    @Test
-    @DisplayName("날짜가 있는데 확정·목표 구분이 없으면 실패한다")
-    void dateWithoutStatusFails() {
-        assertThatThrownBy(() -> read("""
-                {"season":"2026-27","validUntil":"2027-04-30","resorts":[
-                  {"id":"a","name":"가","latitude":37.5,"longitude":128.3,"opening":"2026-11-27",
-                   "source":{"name":"공지","url":"https://example.com","checkedOn":"2026-11-20"}}]}"""))
-                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("dateStatus");
     }
 
     @Test
