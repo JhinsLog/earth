@@ -43,6 +43,8 @@ public class KmaQuakeClient {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(KmaQuakeClient.class);
     /** 보여 주는 통보 종류: 운영 응답으로 뜻을 확인한 관측 정보만(2 국외, 3 국내). */
     static final java.util.Set<Integer> OBSERVATION_TYPES = java.util.Set.of(2, 3);
+    /** 이미 경고를 남긴 통보. 받기는 스케줄러 하나가 돌리지만 테스트 등에서 동시에 불려도 안전하게. */
+    private static final java.util.Set<String> WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
     // 며칠치 통보는 평소 수 건~수십 건이다. 응답이 이상하게 커서 메모리를 채우지 않게 막는다.
     private static final int PAGE_SIZE = 100;
     private static final int MAX_PAGES = 5;
@@ -89,7 +91,8 @@ public class KmaQuakeClient {
     }
 
     /**
-     * 확인된 관측 정보 통보만 남긴다(2: 국외 지진정보, 3: 국내 지진정보). Earth는 예보·특보를 하지 않는다(2026-11-18 결정) —
+     * 확인된 관측 정보 통보만 남긴다(2: 국외 지진정보, 3: 국내 지진정보 — 지진속보를 수동 분석한 상세정보).
+     * 운영에서 본 14는 지진속보(자동 조기 분석)다. 같은 지진의 3이 뒤따라 나온다(2026-11-17 경북 상주). Earth는 예보·특보를 하지 않는다(2026-11-18 결정) —
      * 기상청의 것을 옮기는 것도 포함해서다. 조기경보처럼 경보 성격의 통보가 이 API에 섞여 와도 보여 주지 않는다. 처음 보는
      * 종류는 뜻을 확인할 수 있게 경고로 남긴다(코드의 뜻은 공식 문서에 없다, docs/data-sources.md).
      */
@@ -98,7 +101,9 @@ public class KmaQuakeClient {
         for (Quake q : notices) {
             if (OBSERVATION_TYPES.contains(q.noticeType())) {
                 kept.add(q);
-            } else {
+            } else if (WARNED.add(q.noticeType() + "|" + q.id() + "|" + q.announcedAt())) {
+                // 같은 통보는 1분마다 다시 오므로 처음 한 번만 남긴다(그대로 두면 하루 1,440줄).
+                if (WARNED.size() > 1_000) WARNED.clear();
                 log.warn("기상청 지진 통보 중 관측 정보가 아닌 종류(fcTp={})를 표시하지 않았습니다: {} {}",
                         q.noticeType(), q.occurredAt(), q.location());
             }
