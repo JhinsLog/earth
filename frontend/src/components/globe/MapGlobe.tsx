@@ -69,7 +69,8 @@ const MY_LOCATION_SOURCE_ID = 'earth-my-location-source'
 const KMA_ATTRIBUTION =
   '지진: <a href="https://www.weather.go.kr/">기상청</a> · <a href="https://earthquake.usgs.gov/">USGS</a>(한반도 밖)'
 const PARIS_EVENTS_ATTRIBUTION =
-  '파리 행사: <a href="https://opendata.paris.fr/explore/dataset/que-faire-a-paris-/">Ville de Paris</a> (<a href="https://opendatacommons.org/licenses/odbl/">ODbL</a>)'
+  '파리 행사: <a href="https://opendata.paris.fr/explore/dataset/que-faire-a-paris-/">Ville de Paris</a> (<a href="https://opendatacommons.org/licenses/odbl/">ODbL</a>)' +
+  ' · 화산: <a href="https://volcano.si.edu/reports_weekly.cfm">Global Volcanism Program, Smithsonian Institution</a> · USGS'
 /** 공감이 이 수를 넘어도 플레어가 더 커지지는 않는다. 하나가 화면을 뒤덮지 않도록. */
 const CONFIRM_BOOST_MAX = 10
 /** 클릭 판정을 받는 레이어 — 넓은 오라와 중앙 코어만으로 충분하다. */
@@ -773,7 +774,7 @@ export default function MapGlobe({
       map.addSource(FLARES_SOURCE_ID, {
         type: 'geojson',
         data: toFlareGeoJson(flaresRef.current),
-        // 외부 데이터 플레어 중 라이선스가 지도 위 표기를 요구하는 것. 파리 행사는 ODbL(OSM과 같은 조건).
+        // 외부 데이터 플레어 중 출처 표기를 요구하는 것. 파리 행사는 ODbL(OSM과 같은 조건), 화산 보고는 Smithsonian 이용 조건.
         attribution: PARIS_EVENTS_ATTRIBUTION,
       })
       addFlareLayers(map, FLARES_SOURCE_ID, 'flares', ['get', 'color'], 1, true)

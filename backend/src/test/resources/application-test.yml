@@ -21,6 +21,9 @@ earth:
     paris:
       # 외부(파리 오픈데이터)에 나가지 않게 끈다. 해석과 장소 묶기는 ParisEventsTest가 검증한다.
       enabled: false
+  volcanoes:
+    # 외부(Smithsonian)에 나가지 않게 끈다. 해석과 거르기는 VolcanoReportsTest가 검증한다.
+    enabled: false
   ski:
     # 스케줄러는 끈다. 날짜 규칙은 SkiResortsTest, 파일 형식은 SkiSeasonTest가 검증한다.
     enabled: false

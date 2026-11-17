@@ -58,8 +58,12 @@ public final class QuakeSources {
     }
 
     static boolean nearKorea(Quake q) {
-        return q.latitude() >= MIN_LAT && q.latitude() <= MAX_LAT
-                && q.longitude() >= MIN_LON && q.longitude() <= MAX_LON;
+        return nearKorea(q.latitude(), q.longitude());
+    }
+
+    /** 기상청 우선 구역 안인지. 화산(VolcanoReports)도 같은 구역을 쓴다. */
+    public static boolean nearKorea(double latitude, double longitude) {
+        return latitude >= MIN_LAT && latitude <= MAX_LAT && longitude >= MIN_LON && longitude <= MAX_LON;
     }
 
     static boolean sameQuake(Quake a, Quake b) {
