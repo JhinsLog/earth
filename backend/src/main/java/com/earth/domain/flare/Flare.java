@@ -115,11 +115,14 @@ public class Flare {
     /**
      * 외부 데이터로 만든 플레어. 수명은 출처가 알려 준 종료 예정 시각이고, 이후 동기화가 갱신하거나 끝낸다.
      */
-    public static Flare external(User systemAuthor, String source, String externalId, String title, String content,
-                                 FlareCategory category, double latitude, double longitude, String countryCode,
-                                 Instant expiresAt) {
+    public static Flare external(User systemAuthor, FlareOrigin origin, String source, String externalId, String title,
+                                 String content, FlareCategory category, double latitude, double longitude,
+                                 String countryCode, Instant expiresAt) {
+        if (origin == FlareOrigin.USER) {
+            throw new IllegalArgumentException("외부 플레어의 주체는 공공 정보나 축제·행사다: " + source);
+        }
         Flare flare = new Flare(systemAuthor, title, content, category, latitude, longitude, countryCode, Duration.ZERO);
-        flare.origin = FlareOrigin.API;
+        flare.origin = origin;
         flare.source = source;
         flare.externalId = externalId;
         flare.expiresAt = expiresAt;
@@ -162,10 +165,13 @@ public class Flare {
     }
 
     /**
-     * 채팅방을 여는지. 외부 데이터로 만든 레저/행사 플레어(스키장 개장 등)는 닫는다.
+     * 채팅방을 여는지. 축제·행사 플레어(스키장 개장 등)는 닫는다.
      *
      * <p>공식 안내를 옮겨 둔 정보라 그 자리에서 나눌 이야기가 없고, 열어 두면 리조트 홍보·후기·광고성 글이 쌓이기 쉽다.
-     * 사용자가 직접 남긴 레저/행사 플레어와 교통 돌발 같은 외부 플레어는 그대로 연다(그 자리의 상황을 나누는 것이 플레어의 목적).
+     * 사용자가 직접 남긴 레저/행사 플레어와 공공 정보(교통 돌발 등)는 그대로 연다(그 자리의 상황을 나누는 것이 플레어의 목적).
+     *
+     * <p>분류(category)가 아니라 주체(origin)로 정한다(D-22). 예전에는 "외부 + LEISURE"로 추측했는데, 공공 정보에 레저 분류가
+     * 오거나 축제 출처가 다른 분류를 쓰면 엉뚱하게 열리고 닫혔다.
      */
     public boolean isChatOpen() {
         return !isOfficialNotice();
@@ -179,9 +185,9 @@ public class Flare {
         return !isOfficialNotice();
     }
 
-    /** 외부 데이터로 만든 레저/행사 플레어. 운영 주체의 공식 안내를 옮긴 것이다(스키장 개장 등). */
+    /** 축제·행사 플레어. 운영 주체의 공식 안내를 옮긴 것이다(스키장 개장 등). */
     private boolean isOfficialNotice() {
-        return isExternal() && category == FlareCategory.LEISURE;
+        return origin == FlareOrigin.FESTIVAL;
     }
 
     @PrePersist

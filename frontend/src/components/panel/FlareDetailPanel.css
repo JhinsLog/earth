@@ -62,9 +62,16 @@
   color: #a9b6c9;
 }
 
+.flare-panel__origin--public,
 .flare-panel__origin--api {
   background: rgba(77, 163, 255, 0.18);
   color: #8cc4ff;
+}
+
+/* 레저/행사 분류색(민트)과 같은 계열. 공공 정보(파랑)와 한눈에 갈린다. */
+.flare-panel__origin--festival {
+  background: rgba(94, 242, 184, 0.16);
+  color: #8ff5cc;
 }
 
 .flare-panel__content {

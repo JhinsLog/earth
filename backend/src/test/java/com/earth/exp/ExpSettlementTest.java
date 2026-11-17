@@ -1,5 +1,6 @@
 package com.earth.exp;
 
+import com.earth.domain.flare.FlareOrigin;
 import com.earth.domain.flare.ConfirmationKind;
 import com.earth.domain.flare.FlareCategory;
 import com.earth.domain.flare.FlareConfirmationRepository;
@@ -153,7 +154,7 @@ class ExpSettlementTest extends IntegrationTest {
     @Test
     @DisplayName("외부 데이터 플레어(시스템 계정)는 정산하지 않는다")
     void externalFlaresAreSkipped() {
-        syncService.sync("TEST_EXP", new ExternalFlareSyncService.SystemAccount("test-exp", "테스트"),
+        syncService.sync("TEST_EXP", FlareOrigin.PUBLIC, new ExternalFlareSyncService.SystemAccount("test-exp", "테스트"),
                 List.of(new ExternalFlareSyncService.Draft("x", "돌발", "내용", FlareCategory.ACCIDENT, 37.5, 127.0,
                         Instant.now().plus(Duration.ofHours(1)))), false, Duration.ofMinutes(20), 0);
         long flareId = flareRepository.findBySourceAndExternalIdIn("TEST_EXP", List.of("x")).getFirst().getId();

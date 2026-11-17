@@ -153,8 +153,8 @@ export default function FlareDetailPanel({ flare, onClose, onConfirmed }: Props)
           {confirmError && <p className="flare-panel__confirm-note">{confirmError}</p>}
         </div>
       )}
-      {/* 공공데이터 플레어는 사람이 쓴 글이 아니다. 끄려면 옵션의 '공공 정보' 스위치를 쓴다. */}
-      {user && !isAuthor && flare.origin !== 'API' && (
+      {/* 외부 플레어는 사람이 쓴 글이 아니다. 끄려면 옵션의 '공공 정보'·'축제·행사' 스위치를 쓴다. */}
+      {user && !isAuthor && flare.origin === 'USER' && (
         <button className="flare-panel__block-btn" onClick={blockAuthor}>
           작성자 차단
         </button>

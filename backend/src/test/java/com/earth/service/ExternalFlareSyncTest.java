@@ -64,7 +64,7 @@ class ExternalFlareSyncTest extends IntegrationTest {
     }
 
     private ExternalFlareSyncService.Result sync(boolean complete, ExternalFlareSyncService.Draft... drafts) {
-        return syncService.sync(SOURCE, ACCOUNT, List.of(drafts), complete, GRACE, 0);
+        return syncService.sync(SOURCE, FlareOrigin.PUBLIC, ACCOUNT, List.of(drafts), complete, GRACE, 0);
     }
 
     private Flare find(String externalId) {
@@ -80,7 +80,7 @@ class ExternalFlareSyncTest extends IntegrationTest {
         assertThat(first.created()).isEqualTo(1);
         assertThat(flareRepository.count()).isEqualTo(1);
         Flare flare = find("1");
-        assertThat(flare.getOrigin()).isEqualTo(FlareOrigin.API);
+        assertThat(flare.getOrigin()).isEqualTo(FlareOrigin.PUBLIC);
         User author = userRepository.findById(flare.getAuthor().getId()).orElseThrow();
         assertThat(author.getProvider()).isEqualTo(AuthProvider.SYSTEM);
         assertThat(author.getNickname()).isEqualTo("테스트 출처");

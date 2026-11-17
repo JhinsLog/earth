@@ -1,5 +1,6 @@
 package com.earth.scheduler;
 
+import com.earth.domain.flare.FlareOrigin;
 import com.earth.config.ParisEventsProperties;
 import com.earth.events.ParisEvent;
 import com.earth.events.ParisEvents;
@@ -45,7 +46,7 @@ public class ParisEventsScheduler {
         try {
             List<ParisEvent> events = client.fetch();
             List<ExternalFlareSyncService.Draft> drafts = ParisEvents.toDrafts(events, Instant.now(), properties.maxVenues());
-            ExternalFlareSyncService.Result result = syncService.sync(ParisEvents.SOURCE, ParisEvents.ACCOUNT, drafts,
+            ExternalFlareSyncService.Result result = syncService.sync(ParisEvents.SOURCE, FlareOrigin.FESTIVAL, ParisEvents.ACCOUNT, drafts,
                     true, listedGrace, 0);
             log.info("파리 행사 동기화: 행사 {}건 → 장소 {}곳, 생성 {} · 갱신 {} · 종료 {}, {}ms", events.size(), drafts.size(),
                     result.created(), result.updated(), result.ended(), (System.nanoTime() - started) / 1_000_000);

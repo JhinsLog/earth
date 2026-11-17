@@ -1,5 +1,6 @@
 package com.earth.scheduler;
 
+import com.earth.domain.flare.FlareOrigin;
 import com.earth.service.ExternalFlareSyncService;
 import com.earth.ski.SkiResorts;
 import com.earth.ski.SkiSeason;
@@ -61,7 +62,7 @@ public class SkiSeasonScheduler {
     public void refresh() {
         try {
             List<ExternalFlareSyncService.Draft> drafts = SkiResorts.toDrafts(season, LocalDate.now(clock));
-            ExternalFlareSyncService.Result result = syncService.sync(SkiResorts.SOURCE, SkiResorts.ACCOUNT,
+            ExternalFlareSyncService.Result result = syncService.sync(SkiResorts.SOURCE, FlareOrigin.FESTIVAL, SkiResorts.ACCOUNT,
                     drafts, true, listedGrace, 0);
             if (result.created() + result.updated() + result.ended() > 0) {
                 log.info("스키장 개장 정보 동기화: 표시 {}곳, 생성 {} · 갱신 {} · 종료 {}",

@@ -3,6 +3,7 @@ package com.earth.service;
 import com.earth.domain.flare.Flare;
 import com.earth.domain.flare.FlareCategory;
 import com.earth.domain.flare.FlareChanged;
+import com.earth.domain.flare.FlareOrigin;
 import com.earth.domain.flare.FlareRepository;
 import com.earth.domain.flare.FlareStatus;
 import com.earth.domain.geo.CountryBoundaryRepository;
@@ -76,12 +77,13 @@ public class ExternalFlareSyncService {
     }
 
     /**
+     * @param origin      출처의 성격. 공공 정보(PUBLIC)인지 축제·행사(FESTIVAL)인지에 따라 채팅·사실 확인·라스 스위치가 갈린다
      * @param complete    목록 전체를 받았는지. false면 빠진 플레어를 끝내지 않는다
      * @param listedGrace 목록에 있는 플레어의 최소 남은 수명. 수집 주기의 두 배 정도
      * @param skipped     넣지 않기로 한 건수(결과 보고용)
      */
     @Transactional
-    public Result sync(String source, SystemAccount account, List<Draft> drafts, boolean complete,
+    public Result sync(String source, FlareOrigin origin, SystemAccount account, List<Draft> drafts, boolean complete,
                        Duration listedGrace, int skipped) {
         Instant now = Instant.now();
         User author = systemUser(account);
@@ -101,7 +103,7 @@ public class ExternalFlareSyncService {
             Flare flare = existing.get(draft.externalId());
             if (flare == null) {
                 String country = countryBoundaryRepository.countryCodeAt(draft.latitude(), draft.longitude());
-                flare = Flare.external(author, source, draft.externalId(), draft.title(), draft.content(),
+                flare = Flare.external(author, origin, source, draft.externalId(), draft.title(), draft.content(),
                         draft.category(), draft.latitude(), draft.longitude(), country, expiresAt);
                 flareRepository.save(flare);
                 events.publishEvent(FlareChanged.created(FlareResponse.from(flare)));

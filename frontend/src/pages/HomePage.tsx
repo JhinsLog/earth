@@ -16,7 +16,7 @@ import { useMyLocation } from '../hooks/useMyLocation'
 import { api } from '../lib/api'
 import { onReconnect } from '../lib/ws'
 import { approximateLongitudeFromTimezone, detectApproximateLocation, type GeoPoint } from '../lib/geolocate'
-import type { EarthUser } from '../types'
+import type { EarthUser, FlareOrigin } from '../types'
 import { trackAction } from '../lib/telemetry'
 import './HomePage.css'
 
@@ -42,6 +42,13 @@ const FLASHLIGHT_HINT = TOUCH_DEVICE ? (
   <><strong>우클릭</strong>으로 비춰 보기</>
 )
 
+/** 옵션 스위치로 주체별 플레어를 거른다. 사용자 플레어는 늘 보인다. API는 V15 전 값이라 공공 정보로 본다. */
+function originShown(origin: FlareOrigin, publicFlares: boolean, festivalFlares: boolean): boolean {
+  if (origin === 'FESTIVAL') return festivalFlares
+  if (origin === 'PUBLIC' || origin === 'API') return publicFlares
+  return true
+}
+
 export default function HomePage() {
   const {
     flares,
@@ -56,6 +63,7 @@ export default function HomePage() {
   } = useFlareStore()
   const { accessToken, user, setUser } = useAuthStore()
   const publicFlares = useSettingsStore((s) => s.publicFlares)
+  const festivalFlares = useSettingsStore((s) => s.festivalFlares)
   // 화면에서만 거른다(docs/decisions.md). 제한 응답은 출처를 담지 않으므로 스위치와 무관하게 남는다.
   const blockedIds = useBlockStore((s) => s.blockedIds)
   // 차단한 사람의 플레어도 여기서 거른다. 실시간으로 온 것과 REST로 받은 것이 모두 이 목록을 거친다.
@@ -63,9 +71,11 @@ export default function HomePage() {
   const visibleFlares = useMemo(
     () =>
       flares.filter(
-        (e) => (publicFlares || e.restricted || e.origin !== 'API') && (e.restricted || !blockedIds.has(e.authorId)),
+        (e) =>
+          e.restricted ||
+          (originShown(e.origin, publicFlares, festivalFlares) && !blockedIds.has(e.authorId)),
       ),
-    [flares, publicFlares, blockedIds],
+    [flares, publicFlares, festivalFlares, blockedIds],
   )
   // 기상청 지진 통보. 사람이 남기는 플레어가 아니라 공공 자료라 '공공 정보' 스위치를 함께 따른다.
   const quakes = useQuakes(publicFlares)

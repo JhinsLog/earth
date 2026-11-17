@@ -2,8 +2,11 @@ export type FlareCategory = 'FIRE' | 'ACCIDENT' | 'WEATHER' | 'CROWD' | 'LEISURE
 export type FlareStatus = 'ACTIVE' | 'CLOSED' | 'EXPIRED' | 'DELETED'
 /** 사실 확인의 종류. 한 사람은 한 플레어에 하나만 남긴다. SEEN만 수명을 늘린다(백엔드 ConfirmationKind, D-20). */
 export type ConfirmationKind = 'SEEN' | 'ENDED' | 'DISPUTED'
-/** 플레어를 만든 주체. USER는 사용자가 직접, API는 공공데이터 등 외부 데이터에서 만든 플레어. */
-export type FlareOrigin = 'USER' | 'API'
+/**
+ * 플레어를 만든 주체(백엔드 FlareOrigin, D-22). USER는 사용자가 직접, PUBLIC은 공공 정보(교통 돌발 등 지금 벌어지는 상황),
+ * FESTIVAL은 축제·행사(스키장 개장 등 공식 공지를 옮긴 일정). API는 V15 전의 값이라 배포가 엇갈린 몇 분 동안만 온다 — PUBLIC으로 다룬다.
+ */
+export type FlareOrigin = 'USER' | 'PUBLIC' | 'FESTIVAL' | 'API'
 
 /**
  * 플레어 하나. 서버가 상세를 줄 수 있는지에 따라 두 모양 중 하나로 온다.
@@ -106,8 +109,10 @@ export const FLARE_CATEGORY_LABEL: Record<FlareCategory, string> = {
 /** 상세 화면의 생성 주체 표시. 외부 데이터 플레어는 작성자 이름 자리에 출처 이름(예: 서울시 교통정보)이 온다. */
 export const FLARE_ORIGIN_LABEL: Record<FlareOrigin, string> = {
   USER: '관측자',
-  // 서울시 돌발정보(공공데이터)와 스키장 개장 정보(리조트 공지)가 함께 쓴다. 출처 이름은 작성자 자리와 본문에 있다.
-  API: '외부 정보',
+  // 출처 이름은 작성자 자리와 본문에 있다.
+  PUBLIC: '공공 정보',
+  FESTIVAL: '축제·행사',
+  API: '공공 정보',
 }
 
 /** 위치만 아는 플레어의 색. 분류를 모르므로 어느 분류 색과도 겹치지 않는 중립색을 쓴다. */

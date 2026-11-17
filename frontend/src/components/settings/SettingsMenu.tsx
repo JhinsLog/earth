@@ -9,7 +9,7 @@ import './SettingsMenu.css'
  * 화면에는 '옵션'으로 보인다. 코드의 이름(Settings*)은 저장소·로그 키와 맞추려고 그대로 둔다.
  */
 export default function SettingsMenu() {
-  const { cityLights, setCityLights, publicFlares, setPublicFlares, subwayLines, setSubwayLines, autoRotate, setAutoRotate, moonlight, setMoonlight } =
+  const { cityLights, setCityLights, publicFlares, setPublicFlares, festivalFlares, setFestivalFlares, subwayLines, setSubwayLines, autoRotate, setAutoRotate, moonlight, setMoonlight } =
     useSettingsStore()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -56,7 +56,7 @@ export default function SettingsMenu() {
           <div className="settings__rows">
           {/*
             순서는 영향이 미치는 범위가 넓은 것부터: 지구 전체(자전) → 밤 지역 전체(달빛) → 밤의 도시(도시 불빛)
-            → 도시 안(지하철 노선) → 한 지점(공공 정보). 새 옵션도 이 기준으로 끼워 넣는다(2026-11-16 사용자 지정).
+            → 도시 안(지하철 노선) → 한 지점(공공 정보·축제·행사). 새 옵션도 이 기준으로 끼워 넣는다(2026-11-16 사용자 지정).
           */}
           <label className="settings__row">
             <span className="settings__label">
@@ -123,6 +123,18 @@ export default function SettingsMenu() {
               className="settings__switch"
               checked={publicFlares}
               onChange={(e) => setPublicFlares(e.target.checked)}
+            />
+          </label>
+          <label className="settings__row">
+            <span className="settings__label">
+              축제·행사
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              className="settings__switch"
+              checked={festivalFlares}
+              onChange={(e) => setFestivalFlares(e.target.checked)}
             />
           </label>
           </div>

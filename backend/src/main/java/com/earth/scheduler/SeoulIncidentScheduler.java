@@ -1,5 +1,6 @@
 package com.earth.scheduler;
 
+import com.earth.domain.flare.FlareOrigin;
 import com.earth.config.SeoulIncidentProperties;
 import com.earth.incident.SeoulIncidentClient;
 import com.earth.incident.SeoulIncidents;
@@ -46,7 +47,7 @@ public class SeoulIncidentScheduler {
         try {
             SeoulIncidentClient.Snapshot snapshot = client.fetch();
             SeoulIncidents.Mapped mapped = SeoulIncidents.toDrafts(snapshot.incidents());
-            ExternalFlareSyncService.Result result = syncService.sync(SeoulIncidents.SOURCE, SeoulIncidents.ACCOUNT,
+            ExternalFlareSyncService.Result result = syncService.sync(SeoulIncidents.SOURCE, FlareOrigin.PUBLIC, SeoulIncidents.ACCOUNT,
                     mapped.drafts(), snapshot.complete(), listedGrace, mapped.skipped());
             log.info("서울시 돌발정보 동기화: 받은 {}건(완전한 목록 {}), 생성 {} · 갱신 {} · 종료 {} · 제외 {}, {}ms",
                     snapshot.incidents().size(), snapshot.complete(), result.created(), result.updated(),

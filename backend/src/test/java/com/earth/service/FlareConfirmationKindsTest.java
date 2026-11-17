@@ -1,5 +1,6 @@
 package com.earth.service;
 
+import com.earth.domain.flare.FlareOrigin;
 import com.earth.domain.flare.ConfirmationKind;
 import com.earth.domain.flare.Flare;
 import com.earth.domain.flare.FlareConfirmationEvent;
@@ -189,7 +190,7 @@ class FlareConfirmationKindsTest extends IntegrationTest {
     @DisplayName("공식 안내를 옮긴 외부 레저/행사 플레어는 사실 확인을 받지 않는다")
     void officialNoticeRejectsConfirmations() {
         User viewer = userRepository.save(user("viewer"));
-        syncService.sync("TEST_LEISURE", new ExternalFlareSyncService.SystemAccount("test-leisure", "테스트 레저"),
+        syncService.sync("TEST_LEISURE", FlareOrigin.FESTIVAL, new ExternalFlareSyncService.SystemAccount("test-leisure", "테스트 레저"),
                 List.of(new ExternalFlareSyncService.Draft("ski", "스키장 개장", "내용", FlareCategory.LEISURE,
                         37.578, 128.316, Instant.now().plus(Duration.ofDays(3)))), false, Duration.ofHours(2), 0);
         long flareId = flareRepository.findBySourceAndExternalIdIn("TEST_LEISURE", List.of("ski")).getFirst().getId();

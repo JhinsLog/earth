@@ -5,9 +5,12 @@ interface SettingsState {
   /** 홈 라스 밤 지역의 도시 불빛. 플레어와 겹쳐 보여 기본은 끈다. 밤 지역의 도시 위치를 찾을 때 켠다. */
   cityLights: boolean
   setCityLights: (on: boolean) => void
-  /** 공공데이터(외부 API)로 만든 플레어를 보일지. 기본은 켠다. 사람이 남긴 플레어만 보고 싶을 때 끈다. */
+  /** 공공 정보(교통 돌발 등 지금 벌어지는 상황)와 지진을 보일지. 기본은 켠다. 사람이 남긴 플레어만 보고 싶을 때 끈다. */
   publicFlares: boolean
   setPublicFlares: (on: boolean) => void
+  /** 축제·행사(스키장 개장·파리 행사 등 공식 일정) 플레어를 보일지. 기본은 켠다. 며칠씩 떠 있어 지금의 상황만 보고 싶을 때 끈다. */
+  festivalFlares: boolean
+  setFestivalFlares: (on: boolean) => void
   /** 지도를 도시 단위로 확대했을 때 지하철·전철 노선을 보일지. 기본은 켠다. 플레어보다 아래에 그려져 가리지 않는다. */
   subwayLines: boolean
   setSubwayLines: (on: boolean) => void
@@ -27,6 +30,7 @@ interface SettingsState {
 
 const CITY_LIGHTS_KEY = 'earth:cityLights'
 const PUBLIC_FLARES_KEY = 'earth:publicFlares'
+const FESTIVAL_FLARES_KEY = 'earth:festivalFlares'
 const SUBWAY_LINES_KEY = 'earth:subwayLines'
 const AUTO_ROTATE_KEY = 'earth:autoRotate'
 
@@ -68,6 +72,12 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     trackAction('settings.change', { key: 'publicFlares', on })
     save(PUBLIC_FLARES_KEY, on)
     set({ publicFlares: on })
+  },
+  festivalFlares: readOnByDefault(FESTIVAL_FLARES_KEY),
+  setFestivalFlares: (on) => {
+    trackAction('settings.change', { key: 'festivalFlares', on })
+    save(FESTIVAL_FLARES_KEY, on)
+    set({ festivalFlares: on })
   },
   subwayLines: readOnByDefault(SUBWAY_LINES_KEY),
   setSubwayLines: (on) => {
