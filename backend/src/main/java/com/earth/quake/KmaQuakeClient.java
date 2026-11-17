@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
  * 기상청 지진통보문(getEqkMsg)을 받는다. 국내·국외 지진이 함께 온다.
  *
  * <p>국외 지진은 기상청 통보 기준(동아시아 규모 5.0 이상, 그 밖은 6.0 이상)에 드는 것만 온다. 작은 국외 지진이 빠지는 것은
- * 받아들였다 — 자연현상은 기상청 발표만 전달한다(docs/decisions.md D-18).
+ * 한반도 밖의 작은 지진은 USGS 피드가 채운다(한반도 인근은 기상청만, 같은 지진이면 기상청 — D-18).
  *
  * <p><b>인증키가 쿼리 문자열에 들어간다.</b> RestClient 예외 메시지에는 요청 주소가 그대로 실리므로 예외를 그대로 던지거나
  * 로그로 남기지 않고 키를 지운 메시지로 바꿔 던진다(SeoulIncidentClient와 같은 이유).
@@ -173,7 +173,7 @@ public class KmaQuakeClient {
         return new Quake(id, occurredAt, announcedAt == null ? occurredAt : announcedAt, lat, lon,
                 decimal(str(row, "mt")), decimal(str(row, "dep")),
                 str(row, "inT"), str(row, "loc"), str(row, "rem"),
-                (int) number(row.path("fcTp"), 0));
+                (int) number(row.path("fcTp"), 0), Quake.KMA);
     }
 
     /**

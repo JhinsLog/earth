@@ -3,6 +3,8 @@ package com.earth.controller;
 import com.earth.clouds.CloudMapStore;
 import com.earth.dto.QuakeListResponse;
 import com.earth.dto.QuakeResponse;
+import com.earth.quake.Quake;
+import com.earth.quake.QuakeSources;
 import com.earth.quake.QuakeStore;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @RestController
@@ -22,8 +25,8 @@ public class GlobeController {
     /** 이 이미지에 쓰인 자료의 제공 기관(쉼표 구분). 화면 출처 표기에 쓴다. */
     public static final String SOURCES_HEADER = "X-Clouds-Sources";
 
-    /** 지진 자료의 출처. 기상청 발표를 전달한다는 것을 화면에 밝힌다(docs/data-sources.md). */
-    static final String QUAKE_SOURCE = "기상청";
+    /** 지진 자료의 출처. 지진마다 발표 기관(source)이 따로 붙고, 이 값은 목록 전체의 표기다(docs/data-sources.md). */
+    static final String QUAKE_SOURCE = "기상청 · USGS";
 
     private final CloudMapStore cloudMapStore;
     private final QuakeStore quakeStore;
@@ -34,17 +37,19 @@ public class GlobeController {
     }
 
     /**
-     * 최근 지진(기상청 통보). 서버가 1분마다 받으므로 브라우저도 1분마다 묻는다. 누구에게나 같은 목록이라 공개다.
+     * 최근 지진. 기상청 통보 전부에, 한반도 인근이 아니고 기상청이 통보하지 않은 해외 기관(USGS) 지진을 더한다
+     * ({@link QuakeSources}). 서버가 1분마다 받으므로 브라우저도 1분마다 묻는다. 누구에게나 같은 목록이라 공개다.
      *
      * <p>구름 이미지와 달리 짧게(30초) 캐시한다 — 새 지진이 늦게 보이는 시간을 줄이려고.
      */
     @GetMapping("/quakes")
     public ResponseEntity<QuakeListResponse> quakes() {
         QuakeStore.Snapshot snapshot = quakeStore.current();
+        List<Quake> quakes = QuakeSources.combine(snapshot.quakes(), quakeStore.currentOverseas().quakes());
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.maxAge(30, TimeUnit.SECONDS).cachePublic())
                 .body(new QuakeListResponse(QUAKE_SOURCE, snapshot.fetchedAt(),
-                        snapshot.quakes().stream().map(QuakeResponse::from).toList()));
+                        quakes.stream().map(QuakeResponse::from).toList()));
     }
 
     /**

@@ -66,7 +66,8 @@ const TWINKLE_INTERVAL_MS = 50
 /** 내 위치 표시. 이 좌표는 브라우저 안에만 머무르며 서버로 나가지 않는다. */
 const MY_LOCATION_SOURCE_ID = 'earth-my-location-source'
 // 지진(mapQuakeLayer)의 출처 표기. 지진 소스에 달아 MapLibre 출처 컨트롤에 함께 보인다.
-const KMA_ATTRIBUTION = '지진: <a href="https://www.weather.go.kr/">기상청</a>'
+const KMA_ATTRIBUTION =
+  '지진: <a href="https://www.weather.go.kr/">기상청</a> · <a href="https://earthquake.usgs.gov/">USGS</a>(한반도 밖)'
 const PARIS_EVENTS_ATTRIBUTION =
   '파리 행사: <a href="https://opendata.paris.fr/explore/dataset/que-faire-a-paris-/">Ville de Paris</a> (<a href="https://opendatacommons.org/licenses/odbl/">ODbL</a>)'
 /** 공감이 이 수를 넘어도 플레어가 더 커지지는 않는다. 하나가 화면을 뒤덮지 않도록. */
@@ -158,8 +159,9 @@ function formatQuakeTime(iso: string): string {
 }
 
 /**
- * 지진을 눌렀을 때의 내용. 기상청 통보문의 값을 그대로 옮기고 우리 말로 바꾸거나 판단을 붙이지 않는다
- * (자연현상은 기상청 발표만 전달, docs/data-sources.md). 외부 글이라 HTML이 아니라 textContent로 넣는다.
+ * 지진을 눌렀을 때의 내용. 발표 기관(기상청·USGS 등)의 값을 그대로 옮기고 우리 말로 바꾸거나 판단을 붙이지 않는다
+ * (D-18: 한반도 인근은 기상청만, 같은 지진이면 기상청). 해외 기관의 위치 설명은 영어 원문이다.
+ * 외부 글이라 HTML이 아니라 textContent로 넣는다.
  */
 function quakePopupContent(quake: Quake): HTMLElement {
   const root = document.createElement('div')
@@ -177,7 +179,9 @@ function quakePopupContent(quake: Quake): HTMLElement {
   if (quake.depthKm != null) line('quake-popup__row', `깊이 ${quake.depthKm}km`)
   line('quake-popup__row', quake.intensity)
   line('quake-popup__remark', quake.remark)
-  line('quake-popup__source', `출처: 기상청 (${formatQuakeTime(quake.announcedAt)} 발표)`)
+  // 값이 없으면 기상청이다(출처 필드가 생기기 전의 응답).
+  const source = quake.source ?? '기상청'
+  line('quake-popup__source', `출처: ${source} (${formatQuakeTime(quake.announcedAt)} ${source === '기상청' ? '발표' : '갱신'})`)
   return root
 }
 

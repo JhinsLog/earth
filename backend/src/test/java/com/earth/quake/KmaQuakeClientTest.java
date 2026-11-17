@@ -116,6 +116,6 @@ class KmaQuakeClientTest {
     }
 
     private static Quake quake(Instant occurredAt, Instant announcedAt, double lat, double lon, double mt, int type) {
-        return new Quake("q-" + announcedAt.getEpochSecond(), occurredAt, announcedAt, lat, lon, mt, null, "", "", "", type);
+        return new Quake("q-" + announcedAt.getEpochSecond(), occurredAt, announcedAt, lat, lon, mt, null, "", "", "", type, Quake.KMA);
     }
 }

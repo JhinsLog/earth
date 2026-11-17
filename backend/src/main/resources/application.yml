@@ -119,6 +119,10 @@ earth:
       refresh-interval-ms: 60000
       # 진앙시로부터 이만큼만 지구본에 보인다. 모든 지진에 같은 기간(지진별 '영향 기간'은 기상청 발표가 아니라 정하지 않는다).
       display-hours: 24
+    usgs:
+      # 미국 지질조사국 지진 피드(키 없음, 퍼블릭 도메인). 한반도 인근은 쓰지 않고, 기상청과 같은 지진이면 기상청 것을 쓴다(D-18).
+      enabled: true
+      refresh-interval-ms: 120000
   logs:
     # Loki 수신 주소. prod 프로파일의 logback-spring.xml만 읽는다. 로컬·테스트에서는 비어 있어도 된다.
     loki-url: ${LOKI_URL:}

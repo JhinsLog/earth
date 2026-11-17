@@ -26,6 +26,18 @@ public class QuakeStore {
         return current.get();
     }
 
+    /** 해외 공식 기관(USGS) 지진. 기상청 목록과 따로 받아 응답할 때 합친다({@link QuakeSources}). */
+    private final AtomicReference<Snapshot> overseas = new AtomicReference<>(new Snapshot(List.of(), null));
+
+    public Snapshot currentOverseas() {
+        return overseas.get();
+    }
+
+    public boolean replaceOverseas(List<Quake> quakes, Instant fetchedAt) {
+        Snapshot previous = overseas.getAndSet(new Snapshot(List.copyOf(quakes), fetchedAt));
+        return !previous.quakes().equals(quakes);
+    }
+
     /** @return 목록이 바뀌었으면 true(로그를 바뀔 때만 남기려고). */
     public boolean replace(List<Quake> quakes, Instant fetchedAt) {
         Snapshot previous = current.getAndSet(new Snapshot(List.copyOf(quakes), fetchedAt));

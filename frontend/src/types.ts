@@ -124,8 +124,8 @@ export const FLARE_CATEGORY_COLOR: Record<FlareCategory, string> = {
 }
 
 /**
- * 기상청이 통보한 지진(GET /api/globe/quakes). 글은 통보문 원문 그대로다 — 자연현상은 기상청 발표만 전달하고
- * 우리가 판단을 덧붙이지 않는다(docs/data-sources.md). 플레어와 달리 사람이 남기지 않으므로 채팅·공감이 없다.
+ * 공식 관측기관이 발표한 지진(GET /api/globe/quakes). 글은 발표 기관의 원문 그대로이고 우리가 판단을 덧붙이지 않는다.
+ * 한반도 인근은 기상청만, 같은 지진이면 기상청이다(D-18, docs/data-sources.md). 플레어와 달리 사람이 남기지 않으므로 채팅·공감이 없다.
  */
 export interface Quake {
   id: string
@@ -138,4 +138,6 @@ export interface Quake {
   intensity: string
   location: string
   remark: string
+  /** 발표 기관(출처). "기상청" 또는 해외 공식 기관(예: "USGS"). 한반도 인근은 늘 기상청이다(서버 QuakeSources). */
+  source?: string
 }
