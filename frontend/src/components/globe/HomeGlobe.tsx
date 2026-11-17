@@ -1004,6 +1004,8 @@ export default function HomeGlobe({ flares, quakes, center, onZoomEnter, initial
             </a>{' '}
             contributors
             {quakes.length > 0 && ' · 지진: 기상청'}
+            {/* 파리 행사 플레어(ODbL). 어떤 플레어가 파리 것인지 화면은 모르므로 늘 붙인다. */}
+            {' · 파리 행사: Ville de Paris (ODbL)'}
           </span>
         )}
         <button
