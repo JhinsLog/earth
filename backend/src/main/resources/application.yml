@@ -99,9 +99,9 @@ earth:
       refresh-interval-ms: 600000
   ski:
     # 스키장 개장 정보(resources/ski/season.json) → 플레어. 날짜는 공식 발표만, 출처와 함께 사람이 적는다.
-    # 외부 호출이 없어 키가 필요 없다. 날짜가 바뀌는 것을 따라가기만 하면 되므로 1시간마다.
+    # 외부 호출이 없어 키가 필요 없다. 바뀌는 것은 날짜뿐이라 하루 한 번, 한국 시각 자정 직후(기동 직후에도 한 번).
     enabled: true
-    refresh-interval-ms: 3600000
+    cron: "0 5 0 * * *"
   events:
     paris:
       # 파리시 「Que faire à Paris ?」(ODbL) → 장소별 레저/행사 플레어. 인증키 없음. 출처·조건은 docs/data-sources.md

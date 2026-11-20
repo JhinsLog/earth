@@ -24,7 +24,7 @@ Earth가 쓰는 외부 데이터와 서비스를 정리한다. 각 항목마다 
 | **서울 교통 돌발 플레어** | **서울특별시 실시간 돌발정보**(서울 열린데이터광장 OA-13315, TOPIS) | **서버** | **10분** | 공공누리 1유형(출처 표시) | 떠 있는 플레어는 유지, 유예(20분)가 지나면 스스로 사라짐 |
 | **지진(국내·국외)** | **기상청 지진정보 조회서비스**(공공데이터포털 15000420, `getEqkMsg`) | **서버** | **1분** | 이용허락범위 제한 없음(출처: 기상청 표기) | 마지막으로 받은 목록 유지 |
 | **해외 지진(한반도 밖)** | USGS 지진 피드(규모 4.5 이상, 키 없음) | 서버 | 2분 | 미국 정부 공개 자료, 출처 표기 | 마지막으로 받은 목록 유지 |
-| **스키장 개장 플레어** | 리조트 공식 누리집 공지(날짜), OpenStreetMap(좌표) — 사람이 확인해 `ski/season.json`에 적음 | 서버(파일) | 1시간(날짜 판정) | 사실 정보 + 출처 링크 / 좌표 ODbL | 파일이 잘못되면 기동 실패 |
+| **스키장 개장 플레어** | 리조트 공식 누리집 공지(날짜), OpenStreetMap(좌표) — 사람이 확인해 `ski/season.json`에 적음 | 서버(파일) | 매일 00:05 KST + 기동 직후(날짜 판정) | 사실 정보 + 출처 링크 / 좌표 ODbL | 파일이 잘못되면 기동 실패 |
 | **파리 행사 플레어** | 파리시 「Que faire à Paris ?」(opendata.paris.fr, 인증키 없음) | 서버 | 1시간 | ODbL, 출처 표기(지도·홈) | 떠 있는 플레어는 오늘 마지막 회차가 끝나면 스스로 내려감 |
 | 지도 저배율 위성 타일 | NASA GIBS, Blue Marble | 빌드 | 고정 | NASA 공개 자료 | — |
 | 지도 고배율 위성 타일 | Esri World Imagery | 브라우저 | Esri 측 | Esri 이용약관, 출처 표기 | 해당 줌에서 타일 없음 |
@@ -254,7 +254,7 @@ SeoulIncidentScheduler (10분, fixedRate)
 ```
 resources/ski/season.json  (시즌, 유효 기한, 스키장마다 좌표 · 개장일 · 폐장일 · 출처)
   → SkiSeasonScheduler: 기동 시 한 번 읽고 검사(날짜에 출처 필수, 국내 좌표, id 중복) — 잘못되면 기동 실패
-      1시간마다 오늘(한국 날짜)로 SkiResorts.toDrafts
+      매일 00:05(한국 시각)과 기동 직후에 오늘(한국 날짜)로 SkiResorts.toDrafts
   → ExternalFlareSyncService.sync(source SKI_SEASON, 완전한 목록) → FlareChanged → 커밋 후 Redis → /topic/flares
 ```
 
