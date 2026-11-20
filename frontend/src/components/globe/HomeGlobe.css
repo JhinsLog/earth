@@ -53,9 +53,25 @@
 }
 
 .home-globe__credit--open {
-  padding: 2px 8px 2px 2px;
-  border-radius: 12px;
-  background: rgba(10, 32, 56, 0.6);
+  /* 지도 화면의 출처 카드(MapGlobe.css)와 같은 모양. 넓은 화면에서는 가운데 안내 문구에 닿지 않는 폭으로 묶는다. */
+  max-width: min(360px, calc(50vw - 180px));
+  align-items: flex-start;
+  padding: 8px 12px 8px 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(10, 16, 28, 0.88);
+  backdrop-filter: blur(8px);
+  color: rgba(207, 224, 245, 0.85);
+  font-size: 10.5px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+/* 좁은 화면(휴대폰)은 옆에 둘 자리가 없어 화면 폭으로 펼치고, 펼친 동안 안내 문구를 감춘다(HomePage.css). */
+@media (max-width: 900px) {
+  .home-globe__credit--open {
+    max-width: calc(100vw - 32px);
+  }
 }
 
 .home-globe__credit-text {
