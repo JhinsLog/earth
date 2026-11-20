@@ -39,7 +39,7 @@ public final class VolcanoReports {
             if (QuakeSources.nearKorea(r.latitude(), r.longitude())) continue;
             Instant end = r.publishedAt().plus(maxAge);
             if (!end.isAfter(now)) continue;
-            drafts.add(new ExternalFlareSyncService.Draft(r.volcanoNumber(), title(r), content(r), FlareCategory.ETC,
+            drafts.add(new ExternalFlareSyncService.Draft(r.volcanoNumber(), title(r), content(r), FlareCategory.VOLCANO,
                     r.latitude(), r.longitude(), end));
         }
         return drafts;

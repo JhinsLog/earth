@@ -1,4 +1,4 @@
-export type FlareCategory = 'FIRE' | 'ACCIDENT' | 'WEATHER' | 'CROWD' | 'LEISURE' | 'ETC'
+export type FlareCategory = 'FIRE' | 'ACCIDENT' | 'WEATHER' | 'CROWD' | 'LEISURE' | 'VOLCANO' | 'ETC'
 /** HIDDEN은 신고가 쌓여 임시 비공개, REMOVED는 운영자 삭제(D-24). ACTIVE가 아니면 화면에서 걷어낸다. */
 export type FlareStatus = 'ACTIVE' | 'CLOSED' | 'EXPIRED' | 'DELETED' | 'HIDDEN' | 'REMOVED'
 /** 사실 확인의 종류. 한 사람은 한 플레어에 하나만 남긴다. SEEN만 수명을 늘린다(백엔드 ConfirmationKind, D-20). */
@@ -104,8 +104,14 @@ export const FLARE_CATEGORY_LABEL: Record<FlareCategory, string> = {
   WEATHER: '기상',
   CROWD: '군중/혼잡',
   LEISURE: '레저/행사',
+  VOLCANO: '화산',
   ETC: '기타',
 }
+
+/** 사용자가 고를 수 있는 분류. 화산은 공식 기관 발표로만 표시하므로 뺀다(서버도 거부한다, D-25). */
+export const USER_FLARE_CATEGORIES = (Object.keys(FLARE_CATEGORY_LABEL) as FlareCategory[]).filter(
+  (category) => category !== 'VOLCANO',
+)
 
 /** 상세 화면의 생성 주체 표시. 외부 데이터 플레어는 작성자 이름 자리에 출처 이름(예: 서울시 교통정보)이 온다. */
 export const FLARE_ORIGIN_LABEL: Record<FlareOrigin, string> = {
@@ -126,6 +132,9 @@ export const FLARE_CATEGORY_COLOR: Record<FlareCategory, string> = {
   CROWD: '#c98bff',
   // 눈·잔디 같은 바깥 놀이를 떠올리는 민트. 기상(하늘색)·기타(노랑)와 겹치지 않게 골랐다.
   LEISURE: '#5ef2b8',
+  // 용암색. 화재(산호빛 빨강 #ff5c4d)보다 짙고 주황 쪽으로 기울여, 둘이 나란히 있어도 구별되게 했다.
+  // 예전엔 '기타'(노랑)였는데 노란 점은 화산으로 읽히지 않았다(D-25).
+  VOLCANO: '#ff3d00',
   ETC: '#ffe14d',
 }
 

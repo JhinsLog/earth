@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api } from '../../lib/api'
-import { FLARE_CATEGORY_LABEL, type Flare, type FlareCategory } from '../../types'
+import { FLARE_CATEGORY_LABEL, USER_FLARE_CATEGORIES, type Flare, type FlareCategory } from '../../types'
 import './CreateFlareModal.css'
 
 interface Props {
@@ -65,9 +65,9 @@ export default function CreateFlareModal({
         </p>
 
         <select value={category} onChange={(e) => setCategory(e.target.value as FlareCategory)}>
-          {Object.entries(FLARE_CATEGORY_LABEL).map(([value, label]) => (
+          {USER_FLARE_CATEGORIES.map((value) => (
             <option key={value} value={value}>
-              {label}
+              {FLARE_CATEGORY_LABEL[value]}
             </option>
           ))}
         </select>

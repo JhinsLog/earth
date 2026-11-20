@@ -4,6 +4,7 @@ import com.earth.config.FlareProperties;
 import com.earth.domain.flare.BoundingBox;
 import com.earth.domain.flare.ConfirmationKind;
 import com.earth.domain.flare.Flare;
+import com.earth.domain.flare.FlareCategory;
 import com.earth.domain.flare.FlareChanged;
 import com.earth.domain.flare.FlareConfirmation;
 import com.earth.domain.flare.FlareConfirmationEvent;
@@ -132,6 +133,7 @@ public class FlareService {
     public FlareResponse create(User author, FlareCreateRequest request) {
         // 잠금과 COUNT보다 먼저 한다. 걸릴 글이면 DB를 건드릴 이유가 없다.
         contentModerator.check(request.title(), request.content());
+        requireUserSelectable(request.category());
         // 검사 전에 작성자 행을 잠근다. 잠그지 않으면 같은 사용자의 요청 여러 개가 아래 COUNT를
         // 거의 동시에 실행해 전부 같은 값을 보고 통과한다(한도 5에 동시 요청 15개 → 11개 저장).
         // 도배를 막으려고 만든 제한이 정확히 도배 방식으로 뚫리는 셈이다.
@@ -167,6 +169,7 @@ public class FlareService {
     public FlareResponse update(User actor, Long flareId, FlareUpdateRequest request) {
         // 등록 때만 검사하면 수정으로 우회된다.
         contentModerator.check(request.title(), request.content());
+        requireUserSelectable(request.category());
         Flare flare = getEditableOrThrow(actor, flareId);
         flare.update(request.title(), request.content(), request.category());
 
@@ -328,5 +331,12 @@ public class FlareService {
     Flare getFlareOrThrow(Long flareId) {
         return flareRepository.findById(flareId)
                 .orElseThrow(() -> new EarthApiException(ErrorCode.FLARE_NOT_FOUND));
+    }
+
+    /** 화산처럼 공식 출처 전용 분류는 사용자가 붙일 수 없다. 화면에서 숨기는 것만으로는 API를 직접 부르면 우회된다. */
+    private static void requireUserSelectable(FlareCategory category) {
+        if (category != null && !category.userSelectable()) {
+            throw new EarthApiException(ErrorCode.CATEGORY_NOT_SELECTABLE);
+        }
     }
 }

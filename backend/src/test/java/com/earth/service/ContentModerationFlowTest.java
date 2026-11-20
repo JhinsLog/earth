@@ -69,6 +69,25 @@ class ContentModerationFlowTest extends IntegrationTest {
         assertThat(flareRepository.findById(flareId).orElseThrow().getContent()).isEqualTo("내용");
     }
 
+    @Test
+    @DisplayName("공식 출처 전용 분류(화산)는 사용자가 등록·수정으로 붙일 수 없다")
+    void volcanoCategoryIsNotUserSelectable() {
+        User author = userRepository.save(user("volcano"));
+
+        assertThatThrownBy(() -> flareService.create(author,
+                new FlareCreateRequest("분화", "연기", FlareCategory.VOLCANO, 37.5665, 126.9780)))
+                .extracting(e -> ((EarthApiException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CATEGORY_NOT_SELECTABLE);
+        assertThat(flareRepository.count()).isZero();
+
+        long flareId = flareService.create(author, request("연기", "내용")).id();
+        assertThatThrownBy(() -> flareService.update(author, flareId,
+                new FlareUpdateRequest("연기", "내용", FlareCategory.VOLCANO)))
+                .extracting(e -> ((EarthApiException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CATEGORY_NOT_SELECTABLE);
+        assertThat(flareRepository.findById(flareId).orElseThrow().getCategory()).isEqualTo(FlareCategory.ETC);
+    }
+
     private void assertRejected(ThrowingCallable call) {
         assertThatThrownBy(call)
                 .isInstanceOf(EarthApiException.class)

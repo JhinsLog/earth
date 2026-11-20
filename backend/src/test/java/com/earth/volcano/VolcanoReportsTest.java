@@ -84,7 +84,7 @@ class VolcanoReportsTest {
         assertThat(krakatau.title()).isEqualTo("화산 분화 · Krakatau (Indonesia)");
         assertThat(krakatau.content()).isEqualTo("새 분화 활동\n주간 보고 2026-10-15 발행\n\n출처: Smithsonian·USGS 주간 화산 활동 보고");
         assertThat(krakatau.content()).doesNotContainIgnoringCase("alert");
-        assertThat(krakatau.category()).isEqualTo(FlareCategory.ETC);
+        assertThat(krakatau.category()).isEqualTo(FlareCategory.VOLCANO);
         assertThat(krakatau.expectedEnd()).isEqualTo(PUBLISHED.plus(MAX_AGE));
     }
 
