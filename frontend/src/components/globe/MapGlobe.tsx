@@ -26,6 +26,7 @@ import {
   COUNTRY_LABEL_MAX_DISTANCE_KM,
   DRAFT_FLARE_COLOR,
   FLARE_FOCUS_ZOOM,
+  NATURAL_EVENT_FOCUS_ZOOM,
   FLARE_PANEL_WIDTH_PX,
   HOME_GLOBE_LONG_PRESS_MS,
   FLASHLIGHT_TOUCH_OFFSET_PX,
@@ -762,7 +763,8 @@ export default function MapGlobe({
         popup.on('close', () => {
           if (quakePopupRef.current === popup) quakePopupRef.current = null
         })
-        map.easeTo({ center: [quake.longitude, quake.latitude], duration: 600 })
+        // 진앙 주변 지형이 보이는 배율로 맞춘다. 더 당겨 있었으면 물러나고, 라스 전체였으면 그만큼 다가간다.
+        map.flyTo({ center: [quake.longitude, quake.latitude], zoom: NATURAL_EVENT_FOCUS_ZOOM, speed: 1.2, curve: 1.4, essential: true })
       })
       map.on('mouseenter', QUAKE_HIT_LAYER_ID, () => {
         map.getCanvas().style.cursor = 'pointer'
@@ -1147,7 +1149,8 @@ export default function MapGlobe({
     isInteractingRef.current = true
     map.flyTo({
       center: [flare.longitude, flare.latitude],
-      zoom: FLARE_FOCUS_ZOOM,
+      // 화산은 주변 지형이 보여야 의미가 있다(NATURAL_EVENT_FOCUS_ZOOM). 위치만 아는 플레어는 분류를 몰라 기본 배율.
+      zoom: !flare.restricted && flare.category === 'VOLCANO' ? NATURAL_EVENT_FOCUS_ZOOM : FLARE_FOCUS_ZOOM,
       // 우측 상세 패널이 덮는 만큼 시야를 왼쪽으로 밀어, 선택한 플레어가 패널에 가려지지 않게 한다.
       padding: { top: 0, bottom: 0, left: 0, right: FLARE_PANEL_WIDTH_PX },
       speed: 1.2,

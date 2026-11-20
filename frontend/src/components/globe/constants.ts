@@ -28,6 +28,12 @@ export const VIEWPORT_QUERY_DEBOUNCE_MS = 300
  */
 export const FLARE_FOCUS_ZOOM = 16.0
 
+/**
+ * 화산·지진처럼 넓은 지역에 걸친 자연현상을 선택했을 때의 줌. 거리 단위(16)까지 당기면 빈 화면에 점 하나만 남아
+ * 의미가 없다. 산·바다·도시가 함께 보이는 위성 사진 배율(남큐슈 전체가 한 화면, 사쿠라지마가 섬으로 보이는 정도)에서 멈춘다.
+ */
+export const NATURAL_EVENT_FOCUS_ZOOM = 9.0
+
 /** 우측 상세 패널 너비(px). FlareDetailPanel.css의 `.flare-panel { width }`와 맞춰야 한다. */
 export const FLARE_PANEL_WIDTH_PX = 360
 export const COUNTRY_FOCUS_ZOOM = 4.0 // 접속 지역으로 처음 진입할 때의 줌 레벨
