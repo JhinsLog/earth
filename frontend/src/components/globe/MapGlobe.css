@@ -53,6 +53,36 @@
   color: #9dc4ef;
 }
 
+/*
+  펼친 출처는 한 줄로 화면 끝까지 늘어나 아래 안내 문구와 겹치고 지저분했다(2026-11-20). 왼쪽 아래의 작은 카드로 묶어
+  여러 줄로 접는다. 폭은 가운데 안내 문구에 닿지 않는 만큼으로 막는다(안내 문구는 가운데 정렬이라 화면 절반에서
+  그 폭의 절반만큼 왼쪽까지 온다 — 약 170px 여유). 표기 자체는 줄이지 않는다: ODbL·EUMETSAT 등 조건이 표기를 요구한다.
+*/
+.map-globe .maplibregl-ctrl-bottom-left > .maplibregl-ctrl-attrib.maplibregl-compact-show {
+  max-width: min(360px, calc(50vw - 180px));
+  padding: 8px 12px 8px 30px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(10, 16, 28, 0.88);
+  backdrop-filter: blur(8px);
+  font-size: 10.5px;
+  line-height: 1.55;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* 펼친 출처를 보는 동안에는 손을 대도 흐려지지 않게 한다. */
+.map-globe .maplibregl-ctrl-bottom-left:has(.maplibregl-compact-show) {
+  opacity: 1;
+}
+
+/* 좁은 화면(휴대폰·작은 창)에서는 옆에 둘 자리가 없다. 카드를 화면 폭으로 펼치고, 펼친 동안 안내 문구를 감춘다(HomePage.css). */
+@media (max-width: 900px) {
+  .map-globe .maplibregl-ctrl-bottom-left > .maplibregl-ctrl-attrib.maplibregl-compact-show {
+    max-width: calc(100vw - 48px);
+  }
+}
+
 /* ── 내 위치로 이동 ────────────────────────────────────────────────
    지도 사이트의 GPS 버튼과 같은 자리(우하단)에 둔다. 옵션 단추(HomePage.css .home__options, bottom 44px)
    위에 쌓는다: 44 + 42(단추) + 10(간격). */

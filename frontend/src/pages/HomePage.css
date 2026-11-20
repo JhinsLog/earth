@@ -76,6 +76,18 @@
   pointer-events: none;
 }
 
+/* 좁은 화면에서 지도의 출처 카드를 펼친 동안(처음 5초, ⓘ를 누른 동안)은 안내 문구가 그 위에 겹친다. 잠시 감춘다(MapGlobe.css). */
+@media (max-width: 900px) {
+  .home:has(.maplibregl-compact-show) .home__hint {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+.home__hint {
+  transition: opacity 0.2s ease;
+}
+
 .home__hint strong {
   color: #9fd6ff;
   font-weight: 600;
