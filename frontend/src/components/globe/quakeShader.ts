@@ -62,8 +62,9 @@ export function quakeLook(quake: Quake, now: number): QuakeLook {
 export const RING_COUNT = 3
 
 /**
- * 퍼지는 원과 점의 색. 자홍(마젠타). 예전 주황(#ff6b29)은 화산(용암색 #ff3d00)·화재와 나란히 놓이면 구별되지 않았다(2026-11-20).
- * 플레어 분류 색(빨강·주황·하늘·보라·민트·노랑)과 겹치지 않는 남은 색상환 자리다.
+ * 퍼지는 원과 점의 색. 은백색. 빨강~보라는 사용자 플레어의 활성도 띠로 남겨 두고(types.ts PUBLIC_FLARE_COLOR 주석),
+ * 화산은 자홍이라 지진은 흰색 계열이다. 공공 정보 플레어(흰 별)와는 모양(퍼지는 원)으로 갈린다.
+ * 예전 색: 주황 #ff6b29 → 자홍 #ff3fb4(화산 용암색과 구별, 2026-11-20 오전) → 지금.
  */
-export const QUAKE_WARM = '#ff3fb4'
-export const QUAKE_CORE = '#fff0f8'
+export const QUAKE_WARM = '#dfe8f5'
+export const QUAKE_CORE = '#ffffff'

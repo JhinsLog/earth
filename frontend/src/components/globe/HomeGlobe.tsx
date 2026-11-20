@@ -14,7 +14,7 @@ import type { GeoPoint } from '../../lib/geolocate'
 import { API_BASE_URL } from '../../lib/api'
 import { subsolarPoint } from '../../lib/sun'
 import { useSettingsStore } from '../../store/settingsStore'
-import { FLARE_CATEGORY_COLOR, RESTRICTED_FLARE_COLOR, type Flare, type Quake } from '../../types'
+import { flareColor, type Flare, type Quake } from '../../types'
 import { QUAKE_CORE, QUAKE_WARM, RING_COUNT, quakeLook } from './quakeShader'
 import './GlobeHalo.css'
 import './HomeGlobe.css'
@@ -353,7 +353,7 @@ const FLARE_FRAGMENT = /* glsl */ `
 `
 
 /**
- * '#ff3fb4' → 'vec3(1.000, 0.247, 0.706)'. 지도 레이어와 같은 색 상수를 셰이더에 넣는다.
+ * '#dfe8f5' → 'vec3(0.875, 0.910, 0.961)'. 지도 레이어와 같은 색 상수를 셰이더에 넣는다.
  * THREE.Color로 바꾸지 않는다: three의 색 관리가 선형 값으로 바꿔 더 어둡게 나온다. 이 셰이더는 값을 그대로 화면에 쓴다.
  */
 function glslColor(hex: string): string {
@@ -975,7 +975,7 @@ export default function HomeGlobe({ flares, quakes, center, onZoomEnter, initial
     flares.forEach((flare, i) => {
       toVector(flare.latitude, flare.longitude, FLARE_RADIUS).toArray(positions, i * 3)
       // 위치만 아는 플레어(비로그인, 다른 나라)는 분류를 모르므로 중립색.
-      color.set(flare.restricted ? RESTRICTED_FLARE_COLOR : FLARE_CATEGORY_COLOR[flare.category]).toArray(colors, i * 3)
+      color.set(flareColor(flare)).toArray(colors, i * 3)
       // id에서 위상을 뽑아 다시 그려도 같은 플레어가 같은 박자로 깜빡이게 한다.
       phases[i] = ((flare.id * 0.618034) % 1 + 1) % 1
       // 공감이 많을수록 조금 더 크게. 상한을 둬 한 플레어가 화면을 덮지 않게 한다.

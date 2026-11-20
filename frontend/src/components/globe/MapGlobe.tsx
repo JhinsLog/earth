@@ -50,7 +50,7 @@ import {
   type GeoPoint,
   type LocatedPoint,
 } from '../../lib/geolocate'
-import { FLARE_CATEGORY_COLOR, RESTRICTED_FLARE_COLOR, type DraftFlare, type Flare, type Quake } from '../../types'
+import { ALL_FLARE_COLORS, flareColor, type DraftFlare, type Flare, type Quake } from '../../types'
 import type { ViewportBounds } from '../../store/flareStore'
 import type { HandoffView } from './HomeGlobe'
 import { trackError } from '../../lib/telemetry'
@@ -61,7 +61,7 @@ const DRAFTS_SOURCE_ID = 'earth-drafts-source'
 const FLARE_BODY_IMAGE_PREFIX = 'earth-flare-body-'
 const FLARE_SPARKLE_IMAGE_PREFIX = 'earth-flare-sparkle-'
 /** 플레어 색은 이것뿐이다. 색마다 스프라이트를 한 장씩 미리 올린다(flareTexture). */
-const FLARE_COLORS = [...new Set([...Object.values(FLARE_CATEGORY_COLOR), RESTRICTED_FLARE_COLOR, DRAFT_FLARE_COLOR])]
+const FLARE_COLORS = [...new Set([...ALL_FLARE_COLORS(), DRAFT_FLARE_COLOR])]
 /** 반짝임 갱신 간격. 매 프레임 바꿀 만큼 빠른 변화가 아니고, 바꿀 때마다 레이어 스타일을 다시 계산한다. */
 const TWINKLE_INTERVAL_MS = 50
 /** 내 위치 표시. 이 좌표는 브라우저 안에만 머무르며 서버로 나가지 않는다. */
@@ -268,8 +268,8 @@ function toFlareGeoJson(flares: Flare[]) {
       geometry: { type: 'Point' as const, coordinates: [flare.longitude, flare.latitude] },
       properties: {
         id: flare.id,
-        // 위치만 아는 플레어(비로그인, 다른 나라)는 분류를 모르므로 중립색, 공감 보너스 없음.
-        color: flare.restricted ? RESTRICTED_FLARE_COLOR : FLARE_CATEGORY_COLOR[flare.category],
+        // 사용자 플레어는 분류 색, 공공 정보·축제·화산은 무지개 밖의 색, 위치만 아는 플레어는 회색(flareColor).
+        color: flareColor(flare),
         // 목격자가 많을수록 밝고 크게. 신뢰도를 라스 위에서 바로 읽을 수 있게 한다.
         // 상한을 두는 이유는 공감이 많은 플레어 하나가 화면을 뒤덮지 않게 하기 위함이다.
         confirmBoost: flare.restricted ? 0 : Math.min(flare.confirmCount, CONFIRM_BOOST_MAX),

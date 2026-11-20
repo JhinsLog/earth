@@ -168,7 +168,7 @@
 .quake-popup .maplibregl-popup-content {
   background: rgba(12, 16, 26, 0.92);
   color: #e6ebf5;
-  border: 1px solid rgba(255, 63, 180, 0.35);
+  border: 1px solid rgba(223, 232, 245, 0.3);
   border-radius: 10px;
   padding: 12px 28px 12px 14px;
   font-size: 13px;
@@ -189,7 +189,7 @@
 .quake-popup__title {
   font-size: 15px;
   font-weight: 700;
-  color: #ff9fd6;
+  color: #f2f6ff;
 }
 
 .quake-popup__location {

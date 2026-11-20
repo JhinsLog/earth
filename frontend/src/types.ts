@@ -127,8 +127,37 @@ export const FLARE_ORIGIN_LABEL: Record<FlareOrigin, string> = {
   API: '공공 정보',
 }
 
-/** 위치만 아는 플레어의 색. 분류를 모르므로 어느 분류 색과도 겹치지 않는 중립색을 쓴다. */
-export const RESTRICTED_FLARE_COLOR = '#c9d4e6'
+/** 위치만 아는 플레어의 색. 누가 무슨 분류로 만들었는지 모르므로 무지개 밖의 중립 회색을 쓴다. */
+export const RESTRICTED_FLARE_COLOR = '#8a94a6'
+
+/**
+ * 사용자가 아닌 주체(공공 정보·축제·행사·화산)의 플레어 색. 빨강~보라(무지개, 빛의 파장 순서)는 사용자 플레어에 남겨 둔다 —
+ * 앞으로 사용자 플레어는 '나도 봤어요'와 대화 활성도에 따라 그 띠 위에서 색이 옮겨 간다(2026-11-20 결정).
+ * 그래서 여기는 파장에 없는 색(흰색·분홍·자홍)만 쓴다. 지진(quakeShader QUAKE_WARM)도 같은 이유로 흰색 계열이다.
+ */
+export const PUBLIC_FLARE_COLOR = '#f2f6ff'
+export const FESTIVAL_FLARE_COLOR = '#ffa6d9'
+export const VOLCANO_FLARE_COLOR = '#e0007a'
+
+/** 플레어 하나의 표시 색. 라스 홈과 라스 맵이 같은 규칙을 쓴다. */
+export function flareColor(flare: Flare): string {
+  if (flare.restricted) return RESTRICTED_FLARE_COLOR
+  if (flare.category === 'VOLCANO') return VOLCANO_FLARE_COLOR
+  if (flare.origin === 'FESTIVAL') return FESTIVAL_FLARE_COLOR
+  if (flare.origin === 'PUBLIC' || flare.origin === 'API') return PUBLIC_FLARE_COLOR
+  return FLARE_CATEGORY_COLOR[flare.category]
+}
+
+/** 화면에 나올 수 있는 플레어 색 전부. 라스 맵이 색마다 스프라이트를 미리 올린다. */
+export const ALL_FLARE_COLORS = (): string[] => [
+  ...new Set([
+    ...Object.values(FLARE_CATEGORY_COLOR),
+    RESTRICTED_FLARE_COLOR,
+    PUBLIC_FLARE_COLOR,
+    FESTIVAL_FLARE_COLOR,
+    VOLCANO_FLARE_COLOR,
+  ]),
+]
 
 export const FLARE_CATEGORY_COLOR: Record<FlareCategory, string> = {
   FIRE: '#ff5c4d',
@@ -137,9 +166,8 @@ export const FLARE_CATEGORY_COLOR: Record<FlareCategory, string> = {
   CROWD: '#c98bff',
   // 눈·잔디 같은 바깥 놀이를 떠올리는 민트. 기상(하늘색)·기타(노랑)와 겹치지 않게 골랐다.
   LEISURE: '#5ef2b8',
-  // 용암색. 화재(산호빛 빨강 #ff5c4d)보다 짙고 주황 쪽으로 기울여, 둘이 나란히 있어도 구별되게 했다.
-  // 예전엔 '기타'(노랑)였는데 노란 점은 화산으로 읽히지 않았다(D-25).
-  VOLCANO: '#ff3d00',
+  // 화산은 사용자가 고를 수 없는 공식 출처 전용 분류라 표시 색은 flareColor의 VOLCANO_FLARE_COLOR가 정한다.
+  VOLCANO: '#e0007a',
   ETC: '#ffe14d',
 }
 
