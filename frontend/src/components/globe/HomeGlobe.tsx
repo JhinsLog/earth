@@ -33,7 +33,20 @@ interface Props {
   initialView?: HandoffView | null
   /** 그리기용 GPU 연결(WebGL 컨텍스트)을 잃었을 때. 이 인스턴스는 다시 그릴 수 없으므로 HomePage가 새로 띄운다. */
   onContextLost?: () => void
+  /** 텍스처가 다 와서 지구가 보이기 시작할 때. 지도에서 돌아올 때 HomePage가 이때까지 지도를 남겨 둔다(빈 화면 방지). */
+  onReady?: () => void
 }
+
+// 지도에 다녀오면 이 컴포넌트는 새로 뜬다(HomePage의 globeKey). 그때마다 큰 텍스처를 다시 받아 디코딩하면 돌아온 직후
+// 지구가 늦게 나타나 경계에서 끊겨 보였다. 같은 주소의 이미지는 한 번 받은 것을 다시 쓴다(three.js 전역 캐시, URL 기준).
+// 휴대폰은 2K 텍스처라 붙잡아 두는 메모리는 크지 않다.
+THREE.Cache.enabled = true
+
+/**
+ * 마지막으로 받은 실시간 구름. 새로 뜬 지구가 처음엔 정적 구름 사진으로 그려졌다가 몇 초 뒤 실시간 구름으로 바뀌며 구름층이
+ * 원위치로 튀었다 — 지도에서 돌아올 때마다 보이는 끊김이었다. 갱신 주기 안이면 이것으로 바로 시작한다.
+ */
+let liveCloudsMemo: { image: TexImageSource; observedAt: string | null; sources: string[]; at: number } | null = null
 
 /** 홈 라스 → 지도로 넘길 때의 화면 상태. */
 export interface HandoffView {
@@ -90,6 +103,7 @@ async function loadLiveClouds(signal: AbortSignal): Promise<({ texture: THREE.Te
     const url = URL.createObjectURL(await response.blob())
     try {
       const texture = await new THREE.TextureLoader().loadAsync(url)
+      liveCloudsMemo = { image: texture.image as TexImageSource, observedAt, sources, at: Date.now() }
       return { texture, observedAt, sources }
     } finally {
       URL.revokeObjectURL(url)
@@ -399,10 +413,17 @@ function cloudCredit(observedAt: string, sources: string[]): string {
   return `${time} ${names.join(' · ')}${meteosat ? `, contains modified EUMETSAT Meteosat data ${date.getUTCFullYear()}` : ''}`
 }
 
-export default function HomeGlobe({ flares, quakes, center, onZoomEnter, initialView = null, onContextLost }: Props) {
+export default function HomeGlobe({ flares, quakes, center, onZoomEnter, initialView = null, onContextLost, onReady }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const haloRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
+  const onReadyRef = useRef(onReady)
+  useEffect(() => {
+    onReadyRef.current = onReady
+  }, [onReady])
+  useEffect(() => {
+    if (ready) onReadyRef.current?.()
+  }, [ready])
   // 출처 표기는 처음엔 펼쳐 두고, 5초가 지나거나 지구를 만지면 ⓘ로 접는다. OpenStreetMap 표기 지침이 접기를
   // 허용하는 조건이 이것이다(osmfoundation.org/wiki/Licence/Attribution_Guidelines). 접은 뒤에도 ⓘ로 다시 본다.
   const [creditOpen, setCreditOpen] = useState(true)
@@ -805,6 +826,20 @@ export default function HomeGlobe({ flares, quakes, center, onZoomEnter, initial
     const liveCloudsRequest = new AbortController()
     let liveCloudMap: THREE.Texture | null = null
     let liveObservedAt: string | null = null
+    const applyLiveClouds = (texture: THREE.Texture, observedAt: string | null, sources: string[]) => {
+      const previous = liveCloudMap
+      liveCloudMap = texture
+      liveObservedAt = observedAt
+      // 경도 ±180°에서 이어 읽는다.
+      liveCloudMap.wrapS = THREE.RepeatWrapping
+      liveCloudMap.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
+      cloudUniforms.liveCloudMap.value = liveCloudMap
+      cloudUniforms.liveClouds.value = 1
+      previous?.dispose()
+      // 실제 위치에 맞춰 구름층을 원위치로 되돌린다.
+      clouds.rotation.y = 0
+      setLiveClouds({ observedAt, sources })
+    }
     const refreshLiveClouds = () =>
       loadLiveClouds(liveCloudsRequest.signal).then((live) => {
         // 같은 이미지면 갈아 끼우지 않는다(GPU 업로드를 아낀다).
@@ -812,20 +847,17 @@ export default function HomeGlobe({ flares, quakes, center, onZoomEnter, initial
           live?.texture.dispose()
           return
         }
-        const previous = liveCloudMap
-        liveCloudMap = live.texture
-        liveObservedAt = live.observedAt
-        // 경도 ±180°에서 이어 읽는다.
-        liveCloudMap.wrapS = THREE.RepeatWrapping
-        liveCloudMap.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
-        cloudUniforms.liveCloudMap.value = liveCloudMap
-        cloudUniforms.liveClouds.value = 1
-        previous?.dispose()
-        // 실제 위치에 맞춰 구름층을 원위치로 되돌린다.
-        clouds.rotation.y = 0
-        setLiveClouds({ observedAt: live.observedAt, sources: live.sources })
+        applyLiveClouds(live.texture, live.observedAt, live.sources)
       })
-    void refreshLiveClouds()
+    // 갱신 주기 안에 받아 둔 것이 있으면 그것으로 첫 프레임부터 그린다(지도에서 돌아올 때 구름이 바뀌며 튀지 않게).
+    const memo = liveCloudsMemo
+    if (memo && Date.now() - memo.at < LIVE_CLOUDS_REFRESH_MS) {
+      const texture = new THREE.Texture(memo.image)
+      texture.needsUpdate = true
+      applyLiveClouds(texture, memo.observedAt, memo.sources)
+    } else {
+      void refreshLiveClouds()
+    }
     const liveCloudsTimer = window.setInterval(() => void refreshLiveClouds(), LIVE_CLOUDS_REFRESH_MS)
 
     // 지구 좌표계에서의 태양 방향. 렌더할 때 지구의 현재 회전을 입혀 sunWorld로 만든다.

@@ -2,6 +2,11 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import HomeGlobe, { type HandoffView } from '../components/globe/HomeGlobe'
 import { DRAFT_MIN_ZOOM, GLOBE_TRANSITION_MS } from '../components/globe/constants'
+
+/** 라스 홈 캔버스의 페이드인 시간. HomeGlobe.css의 `.home-globe__canvas { transition }`과 맞춘다. */
+const HOME_GLOBE_FADE_MS = 800
+/** 라스 홈이 끝내 준비되지 않을 때 지도를 내리는 시한. 지도의 같은 안전장치(MapGlobe reveal 5초)와 맞춘다. */
+const GLOBE_READY_TIMEOUT_MS = 5000
 import Navbar from '../components/layout/Navbar'
 import FlareDetailPanel from '../components/panel/FlareDetailPanel'
 import CreateFlareModal from '../components/panel/CreateFlareModal'
@@ -127,8 +132,24 @@ export default function HomePage() {
     waitingForMapRef.current = waiting
     setWaitingForMap(waiting)
   }
+  // 지도에서 돌아올 때도 같다: 새로 뜬 라스 홈은 텍스처가 올라오기 전까지 투명하다. 그 전에 지도를 치우면 별만 남는
+  // 순간이 생겨 경계에서 뚝 끊겨 보였다. 라스 홈이 준비되고 페이드인(HOME_GLOBE_FADE_MS)이 끝난 뒤에 지도를 내린다.
+  const waitingForGlobeRef = useRef(false)
+  // 전환을 시작한 시각. 들어간 쪽이 준비되기까지 걸린 시간을 행동 로그로 남겨, 경계의 지연을 기기별 숫자로 본다.
+  const switchStartedAtRef = useRef(0)
+  const recordSwitchReady = (to: 'globe' | 'map') =>
+    trackAction('view.ready', { to, ms: Math.round(performance.now() - switchStartedAtRef.current) })
+  const handleGlobeReady = () => {
+    if (!waitingForGlobeRef.current) return
+    waitingForGlobeRef.current = false
+    recordSwitchReady('globe')
+    window.clearTimeout(leavingTimerRef.current)
+    leavingTimerRef.current = window.setTimeout(() => setLeaving(null), HOME_GLOBE_FADE_MS)
+  }
+
   const handleMapReady = () => {
     if (!waitingForMapRef.current) return
+    recordSwitchReady('map')
     setWaiting(false)
     window.clearTimeout(leavingTimerRef.current)
     leavingTimerRef.current = window.setTimeout(() => setLeaving(null), GLOBE_TRANSITION_MS)
@@ -143,18 +164,25 @@ export default function HomePage() {
 
   const switchView = (next: 'globe' | 'map') => {
     if (next === view) return
+    switchStartedAtRef.current = performance.now()
     window.clearTimeout(leavingTimerRef.current)
     setLeaving(view)
     if (next === 'map') setMapKey((key) => key + 1)
     else setGlobeKey((key) => key + 1)
     if (next === 'map') {
+      waitingForGlobeRef.current = false
       setWaiting(true)
       setView(next)
       return
     }
     setWaiting(false)
     setView(next)
-    leavingTimerRef.current = window.setTimeout(() => setLeaving(null), GLOBE_TRANSITION_MS)
+    // 라스 홈의 준비 알림(handleGlobeReady)을 기다린다. 끝내 오지 않아도(텍스처 실패 등) 지도가 영영 남지 않게 안전장치를 둔다.
+    waitingForGlobeRef.current = true
+    leavingTimerRef.current = window.setTimeout(() => {
+      waitingForGlobeRef.current = false
+      setLeaving(null)
+    }, GLOBE_READY_TIMEOUT_MS)
   }
   useEffect(() => () => window.clearTimeout(leavingTimerRef.current), [])
   // 라스↔지도 전환. 화면이 굳는 문제가 전환 직후에 몰렸으므로, 오류 로그와 시간순으로 맞춰 보려고 남긴다.
@@ -281,6 +309,7 @@ export default function HomePage() {
             initialView={returnView}
             onZoomEnter={handleGlobeZoomEnter}
             onContextLost={() => setGlobeKey((key) => key + 1)}
+            onReady={handleGlobeReady}
           />
         </div>
       )}
