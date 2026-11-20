@@ -61,6 +61,9 @@ export function quakeLook(quake: Quake, now: number): QuakeLook {
 /** 원 세 개가 퍼지는 시각 차이. 셰이더(홈)와 지도 레이어가 같이 쓴다. */
 export const RING_COUNT = 3
 
-/** 퍼지는 원과 점의 색. */
-export const QUAKE_WARM = '#ff6b29'
-export const QUAKE_CORE = '#fff1e0'
+/**
+ * 퍼지는 원과 점의 색. 자홍(마젠타). 예전 주황(#ff6b29)은 화산(용암색 #ff3d00)·화재와 나란히 놓이면 구별되지 않았다(2026-11-20).
+ * 플레어 분류 색(빨강·주황·하늘·보라·민트·노랑)과 겹치지 않는 남은 색상환 자리다.
+ */
+export const QUAKE_WARM = '#ff3fb4'
+export const QUAKE_CORE = '#fff0f8'

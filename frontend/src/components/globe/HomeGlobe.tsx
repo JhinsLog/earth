@@ -339,7 +339,7 @@ const FLARE_FRAGMENT = /* glsl */ `
 `
 
 /**
- * '#ff6b29' → 'vec3(1.000, 0.420, 0.161)'. 지도 레이어와 같은 색 상수를 셰이더에 넣는다.
+ * '#ff3fb4' → 'vec3(1.000, 0.247, 0.706)'. 지도 레이어와 같은 색 상수를 셰이더에 넣는다.
  * THREE.Color로 바꾸지 않는다: three의 색 관리가 선형 값으로 바꿔 더 어둡게 나온다. 이 셰이더는 값을 그대로 화면에 쓴다.
  */
 function glslColor(hex: string): string {
