@@ -65,9 +65,41 @@ out vec4 fragColor;
 
 const float PI = 3.141592653589793;
 
+// 3차 B-스플라인 가중치. 아래 smoothCloud가 쓴다.
+vec4 cubicWeights(float v) {
+  vec4 n = vec4(1.0, 2.0, 3.0, 4.0) - v;
+  vec4 c = n * n * n;
+  float x = c.x;
+  float y = c.y - 4.0 * c.x;
+  float z = c.z - 4.0 * c.y + 6.0 * c.x;
+  return vec4(x, y, z, 6.0 - x - y - z) / 6.0;
+}
+
+// 구름 텍스처를 쌍삼차(B-스플라인)로 읽는다. 전 지구 4096 구름은 한 텍셀이 약 10km라, 구름이 보이는 줌 4~6에서
+// 한 텍셀이 화면 4~8px로 늘어난다. 쌍선형으로 읽으면 텍셀 경계가 마름모·사각 블록으로 드러났다 — 11월 동해의
+// 잘게 갈라진 줄무늬 구름에서 특히 눈에 띄었다(2026-11-20). 원본보다 선명해지지는 않지만 블록 없이 매끄럽게 이어진다.
+// 쌍선형 필터를 4번 겹쳐 16텍셀을 읽는 표준 방법(가중치를 표본 위치로 옮긴다).
+float smoothCloud(sampler2D tex, vec2 uv) {
+  vec2 size = vec2(textureSize(tex, 0));
+  vec2 st = uv * size - 0.5;
+  vec2 f = fract(st);
+  st -= f;
+  vec4 wx = cubicWeights(f.x);
+  vec4 wy = cubicWeights(f.y);
+  vec4 sum = vec4(wx.xz + wx.yw, wy.xz + wy.yw);
+  vec4 offset = (st.xxyy + vec2(-0.5, 1.5).xyxy + vec4(wx.yw, wy.yw) / sum) / size.xxyy;
+  float a = texture(tex, offset.xz).r;
+  float b = texture(tex, offset.yz).r;
+  float c = texture(tex, offset.xw).r;
+  float d = texture(tex, offset.yw).r;
+  float sx = sum.x / (sum.x + sum.y);
+  float sy = sum.z / (sum.z + sum.w);
+  return mix(mix(d, c, sx), mix(b, a, sx), sy);
+}
+
 float cloudDensity(vec2 uv) {
-  float fallback = texture(u_static_clouds, uv).r;
-  float live = texture(u_live_clouds, uv).r;
+  float fallback = smoothCloud(u_static_clouds, uv);
+  float live = smoothCloud(u_live_clouds, uv);
   float latitude = abs(uv.y - 0.5) * 180.0;
   float liveWeight = u_live * (1.0 - smoothstep(60.0, 70.0, latitude));
   return mix(smoothstep(0.12, 1.0, fallback), smoothstep(0.0, 1.0, live), liveWeight);
