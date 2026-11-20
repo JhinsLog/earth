@@ -72,7 +72,9 @@ export default function CreateFlareModal({
           ))}
         </select>
 
+        {/* 우클릭으로 찍자마자 열리므로 바로 제목을 쓸 수 있게 한다. */}
         <input
+          autoFocus
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="제목 (최대 80자)"

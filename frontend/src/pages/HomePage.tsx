@@ -279,7 +279,11 @@ export default function HomePage() {
       return
     }
     trackAction('flare.draft')
-    addDraft(latitude, longitude)
+    // 찍자마자 입력창을 연다. 예전엔 점만 찍히고 그 점을 다시 눌러야 열려, 처음 쓰는 사람은 다음에 할 일을 몰랐다
+    // (2026-11-20). 취소로 닫아도 임시 플레어는 수명(5분) 동안 남아 다시 눌러 이어 쓸 수 있다.
+    const draft = addDraft(latitude, longitude)
+    selectFlare(null)
+    setSelectedDraftId(draft.id)
   }
 
   // 이 화면의 우클릭은 플레어 남기기와 달빛 비춰 보기다. 지도·라스는 각자 브라우저 메뉴를 막지만, 이벤트가 그쪽에
