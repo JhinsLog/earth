@@ -108,10 +108,15 @@ export const FLARE_CATEGORY_LABEL: Record<FlareCategory, string> = {
   ETC: '기타',
 }
 
-/** 사용자가 고를 수 있는 분류. 화산은 공식 기관 발표로만 표시하므로 뺀다(서버도 거부한다, D-25). */
-export const USER_FLARE_CATEGORIES = (Object.keys(FLARE_CATEGORY_LABEL) as FlareCategory[]).filter(
-  (category) => category !== 'VOLCANO',
-)
+/**
+ * 사용자가 고를 수 있는 분류. 화산은 공식 기관 발표로만 표시하므로 뺀다(서버도 거부한다, D-25).
+ * 순서는 이름의 가나다순이고, '기타'만 관례대로 맨 끝에 둔다(어느 것에도 안 맞을 때 마지막에 찾는 항목).
+ */
+export const USER_FLARE_CATEGORIES = (Object.keys(FLARE_CATEGORY_LABEL) as FlareCategory[])
+  .filter((category) => category !== 'VOLCANO')
+  .sort((a, b) =>
+    a === 'ETC' ? 1 : b === 'ETC' ? -1 : FLARE_CATEGORY_LABEL[a].localeCompare(FLARE_CATEGORY_LABEL[b], 'ko'),
+  )
 
 /** 상세 화면의 생성 주체 표시. 외부 데이터 플레어는 작성자 이름 자리에 출처 이름(예: 서울시 교통정보)이 온다. */
 export const FLARE_ORIGIN_LABEL: Record<FlareOrigin, string> = {
